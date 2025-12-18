@@ -1,11 +1,15 @@
 // main.swift
 // Luna-UI Test Harness (CPU framebuffer)
 //
-// Fixes in this version:
-// - Motion speed is defined in *points/second* (perceived consistent across displays)
-// - Converted to *pixels/second* using the same effective scale used for the framebuffer
-// - HiDPI correctness: framebuffer sized in device pixels (optionally reduced for CPU)
-// - Clean shutdown: stop timer on window close (avoid segfault)
+// This harness now uses:
+// - macOS: CVDisplayLink (vsync clock) -> schedules tick() on main thread
+// - Linux: SDL loop (we will add vsync renderer flags next)
+//
+// It also keeps:
+// - time-based animation
+// - points/sec speed (perceived consistent across displays)
+// - HiDPI correctness (framebuffer sized in device pixels, with optional CPU quality scaling)
+// - safe shutdown on window close (no segfaults)
 
 import LunaUI
 import LunaRender
@@ -22,9 +26,10 @@ import LunaHost
 /// - widthPx/heightPx: framebuffer dimensions in pixels
 /// - pixelsPerPoint: effective scale used for rendering (backingScaleFactor * cpuHiDPIQuality)
 ///
-/// IMPORTANT:
-/// - We want *visual* speed to be stable across displays.
-/// - Visual speed should be "points per second", not "pixels per second".
+/// Why points/sec:
+/// - "Pixels/sec" looks different on HiDPI vs non-HiDPI screens.
+/// - "Points/sec" looks consistent to humans across displays.
+/// - We convert points/sec to pixels/sec using pixelsPerPoint.
 func buildTestDisplayList(
     t: Double,
     widthPx: Int,
@@ -35,21 +40,19 @@ func buildTestDisplayList(
     let bg = LunaRGBA8(r: 18, g: 18, b: 22, a: 255)
     let accent = LunaRGBA8(r: 110, g: 200, b: 255, a: 255)
 
-    // Rectangle sizing in pixels (simple demo).
     let rectW = max(40, widthPx / 6)
     let rectH = max(40, heightPx / 6)
 
-    // Define motion speed in *points per second* (perceived consistent).
+    // Perceived speed in points/sec
     let speedPointsPerSec: Double = 360.0
 
-    // Convert to pixels/sec using effective scale.
+    // Convert to pixels/sec
     let speedPxPerSec: Double = speedPointsPerSec * pixelsPerPoint
 
     let travel = max(1, widthPx - rectW - 20)
 
     let raw = 10.0 + (t * speedPxPerSec)
     let x = 10 + Int(raw.truncatingRemainder(dividingBy: Double(travel)))
-
     let y = max(10, heightPx / 3)
 
     return LunaDisplayList(commands: [
@@ -59,7 +62,7 @@ func buildTestDisplayList(
 }
 
 // -----------------------------------------------------------------------------
-// macOS host
+// macOS host (CVDisplayLink-driven)
 // -----------------------------------------------------------------------------
 #if os(macOS)
 import AppKit
@@ -71,15 +74,21 @@ final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
     var window: NSWindow!
     var view: LunaFramebufferView!
 
+    // CPU renderer + framebuffer
     let renderer = LunaCPURenderer()
     var framebuffer = LunaFramebuffer(width: 900, height: 600)
 
-    var timer: Timer?
+    // Vsync clock
+    private let displayLink = LunaDisplayLink()
+
+    // Start time for animation
     private let t0: Double = CACurrentMediaTime()
 
     /// CPU-only HiDPI performance knob:
     /// - 1.0 = full device-pixel render (crispest, slowest on Retina)
     /// - 0.5 = half-res render (much faster), upscaled for display
+    ///
+    /// For CPU fallback on 120Hz Retina, 0.5 is usually the practical default.
     private let cpuHiDPIQuality: CGFloat = 0.5
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -91,7 +100,7 @@ final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
             defer: false
         )
 
-        window.title = "Luna-UI Test Harness (CPUFramebuffer)"
+        window.title = "Luna-UI Test Harness (CPUFramebuffer + DisplayLink)"
         window.center()
         window.delegate = self
 
@@ -102,50 +111,63 @@ final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
         window.contentView = view
         window.makeKeyAndOrderFront(nil)
 
-        timer = Timer.scheduledTimer(
-            timeInterval: 1.0 / 60.0,
-            target: self,
-            selector: #selector(tick),
-            userInfo: nil,
-            repeats: true
-        )
+        // Wire displayLink to call tick() on the main thread.
+        // (LunaDisplayLink guarantees onFrame runs on main.)
+        displayLink.onFrame = { [weak self] in
+            guard let self else { return }
+            self.tick()
+        }
+
+        // Start vsync ticking.
+        displayLink.start()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        true
+    }
 
     func windowWillClose(_ notification: Notification) {
-        timer?.invalidate()
-        timer = nil
-        view.framebuffer = nil
-        NSApplication.shared.terminate(nil)
+        shutdownAndExit()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        timer?.invalidate()
-        timer = nil
+        displayLink.stop()
     }
 
-    @objc private func tick() {
+    private func shutdownAndExit() {
+        // Stop the vsync clock first so no more ticks occur during teardown.
+        displayLink.stop()
+
+        // Clear presenter source to reduce any in-flight updates.
+        view.framebuffer = nil
+
+        NSApplication.shared.terminate(nil)
+    }
+
+    /// Render one frame.
+    ///
+    /// Called on the main thread, scheduled by CVDisplayLink.
+    private func tick() {
 
         guard window != nil, window.isVisible else { return }
 
         let t = CACurrentMediaTime() - t0
 
-        // backing scale: points -> device pixels
+        // Real backing scale: points -> device pixels
         let backingScale: CGFloat = window.backingScaleFactor
 
-        // effective render scale (may be reduced for CPU performance)
+        // Effective render scale may be reduced for CPU performance
         let effectiveScale: CGFloat = backingScale * cpuHiDPIQuality
 
-        // view size in points
+        // View bounds are in points
         let pointW = view.bounds.width
         let pointH = view.bounds.height
 
-        // framebuffer size in pixels
+        // Framebuffer size in pixels
         let pixelW = max(1, Int((pointW * effectiveScale).rounded(.toNearestOrAwayFromZero)))
         let pixelH = max(1, Int((pointH * effectiveScale).rounded(.toNearestOrAwayFromZero)))
 
-        // compositor scale should still match the real backing scale
+        // Compositor scale should match the real screen scale (crisp presentation)
         view.layer?.contentsScale = backingScale
 
         if pixelW != framebuffer.width || pixelH != framebuffer.height {
@@ -161,6 +183,7 @@ final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         renderer.render(displayList: dl, into: &framebuffer)
 
+        // Present
         view.framebuffer = framebuffer
         view.needsDisplay = true
     }
@@ -173,7 +196,7 @@ app.run()
 #endif
 
 // -----------------------------------------------------------------------------
-// Linux host
+// Linux host (SDL loop for now)
 // -----------------------------------------------------------------------------
 #if os(Linux)
 import SDL2
@@ -217,7 +240,7 @@ while running {
 
     let t = nowSeconds() - t0
 
-    // Pixel size from renderer output (HiDPI-correct)
+    // HiDPI-correct pixel size from renderer output
     let (pixelW, pixelH) = presenter.getOutputPixelSize(
         fallbackWidth: framebuffer.width,
         fallbackHeight: framebuffer.height
@@ -228,8 +251,7 @@ while running {
         presenter.ensureTexture(width: Int32(pixelW), height: Int32(pixelH))
     }
 
-    // We don’t currently have a robust “points” concept on Linux yet.
-    // For now treat pixelsPerPoint = 1.0 (we’ll formalize DPI later).
+    // Linux "points" are not formalized yet; treat pixelsPerPoint = 1.0 for now.
     let dl = buildTestDisplayList(
         t: t,
         widthPx: framebuffer.width,
