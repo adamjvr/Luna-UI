@@ -2,94 +2,99 @@
 //
 // Platform presentation helpers for the shared BGRA framebuffer.
 //
-// Important:
-// - The CPU renderer produces a BGRA8888 buffer.
-// - Presenters "show it" on screen using platform APIs.
-// - This separation is what keeps Luna-UI cross-platform and pixel-identical.
+// - CPU renderer produces BGRA8888 (LunaFramebuffer)
+// - macOS: present via CALayer.contents (avoid draw(_:) threading issues)
+// - Linux: present via SDL texture upload
 
 import LunaRender
 
 #if os(macOS)
 import AppKit
 import CoreGraphics
-import os // OSAllocatedUnfairLock
 
-/// An NSView that displays a LunaFramebuffer.
-///
-/// IMPORTANT (Swift Concurrency / AppKit reality):
-/// - AppKit may call `draw(_:)` off the main thread in some configurations.
-/// - Therefore, `draw(_:)` must be thread-safe.
-/// - We avoid storing a mutable framebuffer directly and instead keep an immutable
-///   snapshot of the pixel bytes (Data) guarded by a lock.
 public final class LunaFramebufferView: NSView {
 
-    /// Immutable snapshot used by draw(). This can be safely read from any thread.
-    private struct Snapshot {
-        var width: Int
-        var height: Int
-        var bytesPerRow: Int
-        var bytesBGRA: Data
+    // Reusable snapshot storage (BGRA bytes).
+    // Updated on main thread (from the test app tick()).
+    private var snapshotWidth: Int = 0
+    private var snapshotHeight: Int = 0
+    private var snapshotBytesPerRow: Int = 0
+    private var snapshotData: Data = Data()
+
+    private var hasNewFrame: Bool = false
+
+    public override var isFlipped: Bool { true }
+
+    // Tell AppKit we want layer updates, not draw(_:)
+    public override var wantsUpdateLayer: Bool { true }
+
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        self.wantsLayer = true
     }
 
-    /// Lock protecting the snapshot (fast, no allocations).
-    private let snapshotLock = OSAllocatedUnfairLock<Snapshot?>(initialState: nil)
-
-    /// Public API used by the harness.
-    ///
-    /// NOTE:
-    /// - Setting this creates a snapshot copy (Data) so drawing never races with rendering.
-    /// - `LunaFramebuffer` uses `[UInt8]`; we intentionally copy into `Data` to make it immutable.
+    /// Set by the harness (from @MainActor tick()).
+    /// We snapshot into a reusable Data buffer (avoid per-frame allocs).
     public var framebuffer: LunaFramebuffer? {
         didSet {
             guard let fb = framebuffer else {
-                snapshotLock.withLock { $0 = nil }
+                snapshotWidth = 0
+                snapshotHeight = 0
+                snapshotBytesPerRow = 0
+                snapshotData.removeAll(keepingCapacity: true)
+                hasNewFrame = true
+                self.needsDisplay = true
                 return
             }
 
-            // Snapshot copy: makes the pixels immutable for draw().
-            let snap = Snapshot(
-                width: fb.width,
-                height: fb.height,
-                bytesPerRow: fb.bytesPerRow,
-                bytesBGRA: Data(fb.bytes)
-            )
+            snapshotWidth = fb.width
+            snapshotHeight = fb.height
+            snapshotBytesPerRow = fb.bytesPerRow
 
-            snapshotLock.withLock { $0 = snap }
+            let byteCount = fb.bytes.count
+            if snapshotData.count != byteCount {
+                snapshotData = Data(count: byteCount)
+            }
+
+            snapshotData.withUnsafeMutableBytes { dstRaw in
+                guard let dst = dstRaw.baseAddress else { return }
+                fb.bytes.withUnsafeBytes { srcRaw in
+                    guard let src = srcRaw.baseAddress else { return }
+                    memcpy(dst, src, byteCount)
+                }
+            }
+
+            hasNewFrame = true
+            self.needsDisplay = true
         }
     }
 
-    public override var isFlipped: Bool {
-        // Top-left origin, like typical UI coordinates.
-        true
-    }
+    /// AppKit updates the layer. This avoids threaded draw() paths.
+    public override func updateLayer() {
+        guard let layer = self.layer else { return }
+        guard hasNewFrame else { return }
+        hasNewFrame = false
 
-    public override func draw(_ dirtyRect: NSRect) {
-        super.draw(dirtyRect)
-
-        guard let cgContext = NSGraphicsContext.current?.cgContext else { return }
-
-        // Copy snapshot pointer under lock, then draw without holding the lock.
-        let snap: Snapshot? = snapshotLock.withLock { $0 }
-        guard let snap else { return }
+        guard snapshotWidth > 0, snapshotHeight > 0, snapshotBytesPerRow > 0 else {
+            layer.contents = nil
+            return
+        }
 
         let colorSpace = CGColorSpaceCreateDeviceRGB()
-
-        // Wrap immutable pixel data in a provider.
-        let cfData = snap.bytesBGRA as CFData
+        let cfData = snapshotData as CFData
         guard let provider = CGDataProvider(data: cfData) else { return }
 
-        // BGRA in memory, little-endian, premultiplied alpha first (fast CoreGraphics path).
         let bitmapInfo =
             CGBitmapInfo.byteOrder32Little.union(
                 CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedFirst.rawValue)
             )
 
         guard let image = CGImage(
-            width: snap.width,
-            height: snap.height,
+            width: snapshotWidth,
+            height: snapshotHeight,
             bitsPerComponent: 8,
             bitsPerPixel: 32,
-            bytesPerRow: snap.bytesPerRow,
+            bytesPerRow: snapshotBytesPerRow,
             space: colorSpace,
             bitmapInfo: bitmapInfo,
             provider: provider,
@@ -98,8 +103,10 @@ public final class LunaFramebufferView: NSView {
             intent: .defaultIntent
         ) else { return }
 
-        cgContext.interpolationQuality = .none
-        cgContext.draw(image, in: bounds)
+        layer.magnificationFilter = .nearest
+        layer.minificationFilter = .nearest
+        layer.contentsGravity = .resizeAspectFill
+        layer.contents = image
     }
 }
 #endif
@@ -108,7 +115,6 @@ public final class LunaFramebufferView: NSView {
 #if os(Linux)
 import SDL2
 
-/// Linux presenter: uploads the framebuffer bytes into an SDL_Texture and copies it.
 public final class LunaSDLPresenter {
 
     private var renderer: OpaquePointer?
@@ -118,17 +124,24 @@ public final class LunaSDLPresenter {
     public init(window: OpaquePointer) {
         self.window = window
 
-        // Create an SDL renderer (accelerated if possible).
         self.renderer = SDL_CreateRenderer(window, -1, UInt32(SDL_RENDERER_ACCELERATED.rawValue))
-
-        // If accelerated renderer isn't available, fall back to software.
         if self.renderer == nil {
             self.renderer = SDL_CreateRenderer(window, -1, UInt32(SDL_RENDERER_SOFTWARE.rawValue))
         }
     }
 
-    /// Ensure a texture exists at the given dimensions.
-    /// We recreate it when the window is resized.
+    public func getOutputPixelSize(fallbackWidth: Int, fallbackHeight: Int) -> (Int, Int) {
+        guard let renderer else { return (fallbackWidth, fallbackHeight) }
+
+        var w: Int32 = 0
+        var h: Int32 = 0
+        let rc = SDL_GetRendererOutputSize(renderer, &w, &h)
+        if rc != 0 || w <= 0 || h <= 0 {
+            return (fallbackWidth, fallbackHeight)
+        }
+        return (Int(w), Int(h))
+    }
+
     public func ensureTexture(width: Int32, height: Int32) {
         if texture != nil {
             SDL_DestroyTexture(texture)
@@ -150,8 +163,7 @@ public final class LunaSDLPresenter {
         if texture == nil {
             ensureTexture(width: Int32(framebuffer.width), height: Int32(framebuffer.height))
         }
-
-        guard let texture = texture else { return }
+        guard let texture else { return }
 
         framebuffer.bytes.withUnsafeBytes { rawBuf in
             guard let ptr = rawBuf.baseAddress else { return }

@@ -1,39 +1,56 @@
 // main.swift
-// Luna-UI Test Harness 
+// Luna-UI Test Harness (CPU framebuffer)
 //
-// This harness proves:
-// - Cross-platform window hosting works (macOS AppKit, Linux SDL2)
-// - A shared CPU framebuffer can be rendered and presented on both OSes
-// - A backend-agnostic "display list" can drive rendering
-//
-// This is the first real step toward Luna-UI being a pixel-identical Sublime clone.
+// Fixes in this version:
+// - Motion speed is defined in *points/second* (perceived consistent across displays)
+// - Converted to *pixels/second* using the same effective scale used for the framebuffer
+// - HiDPI correctness: framebuffer sized in device pixels (optionally reduced for CPU)
+// - Clean shutdown: stop timer on window close (avoid segfault)
 
 import LunaUI
 import LunaRender
 import LunaHost
 
 // -----------------------------------------------------------------------------
-// Shared test scene generator
+// Shared test scene generator (TIME-BASED, POINTS-BASED SPEED)
 // -----------------------------------------------------------------------------
 
-/// Build a simple display list for v0.1:
-/// - clear background
-/// - draw a moving rectangle
-func buildTestDisplayList(frameIndex: Int, width: Int, height: Int) -> LunaDisplayList {
+/// Build a display list for a moving rectangle.
+///
+/// Parameters:
+/// - t: elapsed seconds
+/// - widthPx/heightPx: framebuffer dimensions in pixels
+/// - pixelsPerPoint: effective scale used for rendering (backingScaleFactor * cpuHiDPIQuality)
+///
+/// IMPORTANT:
+/// - We want *visual* speed to be stable across displays.
+/// - Visual speed should be "points per second", not "pixels per second".
+func buildTestDisplayList(
+    t: Double,
+    widthPx: Int,
+    heightPx: Int,
+    pixelsPerPoint: Double
+) -> LunaDisplayList {
 
-    // Background: near-black with a subtle tint.
     let bg = LunaRGBA8(r: 18, g: 18, b: 22, a: 255)
-
-    // Moving rect: bright accent color.
     let accent = LunaRGBA8(r: 110, g: 200, b: 255, a: 255)
 
-    // Simple horizontal motion
-    let rectW = max(40, width / 6)
-    let rectH = max(40, height / 6)
+    // Rectangle sizing in pixels (simple demo).
+    let rectW = max(40, widthPx / 6)
+    let rectH = max(40, heightPx / 6)
 
-    let travel = max(1, width - rectW - 20)
-    let x = 10 + (frameIndex * 6) % travel
-    let y = max(10, height / 3)
+    // Define motion speed in *points per second* (perceived consistent).
+    let speedPointsPerSec: Double = 360.0
+
+    // Convert to pixels/sec using effective scale.
+    let speedPxPerSec: Double = speedPointsPerSec * pixelsPerPoint
+
+    let travel = max(1, widthPx - rectW - 20)
+
+    let raw = 10.0 + (t * speedPxPerSec)
+    let x = 10 + Int(raw.truncatingRemainder(dividingBy: Double(travel)))
+
+    let y = max(10, heightPx / 3)
 
     return LunaDisplayList(commands: [
         .clear(bg),
@@ -46,25 +63,24 @@ func buildTestDisplayList(frameIndex: Int, width: Int, height: Int) -> LunaDispl
 // -----------------------------------------------------------------------------
 #if os(macOS)
 import AppKit
+import QuartzCore // CACurrentMediaTime()
 
-/// IMPORTANT (Swift 6):
-/// Mark the whole AppKit host as MainActor so we can touch NSView/NSWindow safely.
-/// Also use a selector-based Timer to avoid @Sendable closure warnings.
 @MainActor
-final class TestApp: NSObject, NSApplicationDelegate {
+final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     var window: NSWindow!
     var view: LunaFramebufferView!
 
-    // CPU renderer + framebuffer
     let renderer = LunaCPURenderer()
     var framebuffer = LunaFramebuffer(width: 900, height: 600)
 
-    // Simple frame counter
-    var frameIndex: Int = 0
-
-    // A timer to drive redraws ~60fps
     var timer: Timer?
+    private let t0: Double = CACurrentMediaTime()
+
+    /// CPU-only HiDPI performance knob:
+    /// - 1.0 = full device-pixel render (crispest, slowest on Retina)
+    /// - 0.5 = half-res render (much faster), upscaled for display
+    private let cpuHiDPIQuality: CGFloat = 0.5
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
@@ -75,17 +91,17 @@ final class TestApp: NSObject, NSApplicationDelegate {
             defer: false
         )
 
-        window.title = "Luna-UI Test Harness (CPU Framebuffer)"
+        window.title = "Luna-UI Test Harness (CPUFramebuffer)"
         window.center()
+        window.delegate = self
 
         view = LunaFramebufferView(frame: window.contentView!.bounds)
         view.autoresizingMask = [.width, .height]
-        window.contentView = view
+        view.wantsLayer = true
 
+        window.contentView = view
         window.makeKeyAndOrderFront(nil)
 
-        // Drive redraws using a selector-based timer.
-        // This avoids @Sendable closures entirely.
         timer = Timer.scheduledTimer(
             timeInterval: 1.0 / 60.0,
             target: self,
@@ -95,36 +111,58 @@ final class TestApp: NSObject, NSApplicationDelegate {
         )
     }
 
-    func applicationWillTerminate(_ notification: Notification) {
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
+    func windowWillClose(_ notification: Notification) {
         timer?.invalidate()
+        timer = nil
+        view.framebuffer = nil
+        NSApplication.shared.terminate(nil)
     }
 
-    /// Called ~60fps by the selector-based timer.
+    func applicationWillTerminate(_ notification: Notification) {
+        timer?.invalidate()
+        timer = nil
+    }
+
     @objc private func tick() {
 
-        // Resize framebuffer to match view size in pixels.
-        // NOTE: For v0.1 we ignore backing scale. We'll handle DPI later.
-        let w = Int(self.view.bounds.width)
-        let h = Int(self.view.bounds.height)
+        guard window != nil, window.isVisible else { return }
 
-        if w != self.framebuffer.width || h != self.framebuffer.height {
-            self.framebuffer.resize(width: w, height: h)
+        let t = CACurrentMediaTime() - t0
+
+        // backing scale: points -> device pixels
+        let backingScale: CGFloat = window.backingScaleFactor
+
+        // effective render scale (may be reduced for CPU performance)
+        let effectiveScale: CGFloat = backingScale * cpuHiDPIQuality
+
+        // view size in points
+        let pointW = view.bounds.width
+        let pointH = view.bounds.height
+
+        // framebuffer size in pixels
+        let pixelW = max(1, Int((pointW * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+        let pixelH = max(1, Int((pointH * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+
+        // compositor scale should still match the real backing scale
+        view.layer?.contentsScale = backingScale
+
+        if pixelW != framebuffer.width || pixelH != framebuffer.height {
+            framebuffer.resize(width: pixelW, height: pixelH)
         }
 
-        // Build display list and render.
         let dl = buildTestDisplayList(
-            frameIndex: self.frameIndex,
-            width: self.framebuffer.width,
-            height: self.framebuffer.height
+            t: t,
+            widthPx: framebuffer.width,
+            heightPx: framebuffer.height,
+            pixelsPerPoint: Double(effectiveScale)
         )
 
-        self.renderer.render(displayList: dl, into: &self.framebuffer)
+        renderer.render(displayList: dl, into: &framebuffer)
 
-        // Hand the framebuffer to the view and invalidate.
-        self.view.framebuffer = self.framebuffer
-        self.view.needsDisplay = true
-
-        self.frameIndex += 1
+        view.framebuffer = framebuffer
+        view.needsDisplay = true
     }
 }
 
@@ -140,69 +178,71 @@ app.run()
 #if os(Linux)
 import SDL2
 
-// Initialize SDL
+@inline(__always)
+func nowSeconds() -> Double {
+    let freq = Double(SDL_GetPerformanceFrequency())
+    let cnt  = Double(SDL_GetPerformanceCounter())
+    return cnt / freq
+}
+
 if SDL_Init(SDL_INIT_VIDEO) != 0 {
     fatalError("SDL_Init failed: \(String(cString: SDL_GetError()))")
 }
 
-// Create window (avoid SDL position macros; Swift cannot import them reliably)
 guard let window = SDL_CreateWindow(
-    "Luna-UI Test Harness (CPU Framebuffer)",
-    0,
-    0,
-    900,
-    600,
+    "Luna-UI Test Harness (CPUFramebuffer)",
+    0, 0,
+    900, 600,
     UInt32(SDL_WINDOW_SHOWN.rawValue | SDL_WINDOW_RESIZABLE.rawValue)
 ) else {
     fatalError("SDL_CreateWindow failed: \(String(cString: SDL_GetError()))")
 }
 
-// Presenter uploads framebuffer to an SDL texture and presents.
 let presenter = LunaSDLPresenter(window: window)
-
-// CPU renderer + framebuffer
 let renderer = LunaCPURenderer()
 var framebuffer = LunaFramebuffer(width: 900, height: 600)
 
 var event = SDL_Event()
 var running = true
-var frameIndex = 0
+
+let t0 = nowSeconds()
 
 while running {
 
     while SDL_PollEvent(&event) != 0 {
-
         if event.type == SDL_QUIT.rawValue {
             running = false
         }
-
-        // Handle resize events so framebuffer matches window size.
-        if event.type == SDL_WINDOWEVENT.rawValue {
-            if event.window.event == UInt8(SDL_WINDOWEVENT_SIZE_CHANGED.rawValue) {
-                let newW = Int(event.window.data1)
-                let newH = Int(event.window.data2)
-                framebuffer.resize(width: newW, height: newH)
-
-                // Recreate texture to match new size.
-                presenter.ensureTexture(width: Int32(newW), height: Int32(newH))
-            }
-        }
     }
 
-    // Build display list and render into framebuffer
-    let dl = buildTestDisplayList(frameIndex: frameIndex, width: framebuffer.width, height: framebuffer.height)
-    renderer.render(displayList: dl, into: &framebuffer)
+    let t = nowSeconds() - t0
 
-    // Present framebuffer to the screen
+    // Pixel size from renderer output (HiDPI-correct)
+    let (pixelW, pixelH) = presenter.getOutputPixelSize(
+        fallbackWidth: framebuffer.width,
+        fallbackHeight: framebuffer.height
+    )
+
+    if pixelW != framebuffer.width || pixelH != framebuffer.height {
+        framebuffer.resize(width: pixelW, height: pixelH)
+        presenter.ensureTexture(width: Int32(pixelW), height: Int32(pixelH))
+    }
+
+    // We don’t currently have a robust “points” concept on Linux yet.
+    // For now treat pixelsPerPoint = 1.0 (we’ll formalize DPI later).
+    let dl = buildTestDisplayList(
+        t: t,
+        widthPx: framebuffer.width,
+        heightPx: framebuffer.height,
+        pixelsPerPoint: 1.0
+    )
+
+    renderer.render(displayList: dl, into: &framebuffer)
     presenter.present(framebuffer: framebuffer)
 
-    frameIndex += 1
-
-    // ~60fps
-    SDL_Delay(16)
+    SDL_Delay(1)
 }
 
-// Shutdown
 SDL_DestroyWindow(window)
 SDL_Quit()
 #endif
