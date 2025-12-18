@@ -1,4 +1,4 @@
-// Package.swift
+// swift-tools-version: 6.2.3
 import PackageDescription
 
 let package = Package(
@@ -11,6 +11,14 @@ let package = Package(
         .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"])
     ],
     targets: [
+        .systemLibrary(
+            name: "SDL2",
+            pkgConfig: "sdl2",
+            providers: [
+                .apt(["libsdl2-dev"])
+            ]
+        ),
+
         .target(name: "LunaCore"),
         .target(name: "LunaShaping"),
         .target(name: "LunaLayout"),
@@ -19,6 +27,7 @@ let package = Package(
         .target(name: "LunaChrome"),
         .target(name: "LunaInput"),
         .target(name: "LunaHost"),
+
         .target(
             name: "LunaUI",
             dependencies: [
@@ -32,9 +41,10 @@ let package = Package(
                 "LunaHost"
             ]
         ),
+
         .executableTarget(
             name: "LunaUITestApp",
-            dependencies: ["LunaUI"]
+            dependencies: ["LunaUI", "SDL2"]
         )
     ]
 )

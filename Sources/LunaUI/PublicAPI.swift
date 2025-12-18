@@ -1,6 +1,8 @@
 // PublicAPI.swift
 // Canonical public interface for Luna-UI
 
+import LunaTheme
+
 public enum LunaRendererMode {
     case gpu
     case cpu

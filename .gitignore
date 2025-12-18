@@ -1,0 +1,14 @@
+# Swift Package Manager
+.build/
+.swiftpm/
+
+# Xcode (if you ever open the package in Xcode)
+*.xcodeproj
+*.xcworkspace
+DerivedData/
+
+# macOS junk
+.DS_Store
+
+# Linux editor junk
+*~
