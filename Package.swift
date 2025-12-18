@@ -1,87 +1,67 @@
-// swift-tools-version: 6.0.3
-
+// swift-tools-version: 6.0
 import PackageDescription
 
 let package = Package(
-    name: "LunaUI",
+    name: "Luna-UI",
     platforms: [
         .macOS(.v13)
     ],
     products: [
         .library(name: "LunaUI", targets: ["LunaUI"]),
-        .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"])
+        .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"]),
     ],
-    targets: {
-        // Build targets list dynamically so SDL2 is only resolved on Linux.
-        // This prevents pkg-config / sdl2.pc warnings on macOS.
-        var targets: [Target] = [
+    targets: [
 
-            // Core modules (pure Swift, platform-neutral)
-            .target(name: "LunaCore"),
-            .target(name: "LunaShaping"),
-            .target(name: "LunaLayout"),
-            .target(name: "LunaRender"),
-            .target(name: "LunaTheme"),
-            .target(name: "LunaChrome"),
-            .target(name: "LunaInput"),
+        // ---------------------------------------------------------------------
+        // SDL2 system library (Linux windowing / presentation)
+        // ---------------------------------------------------------------------
+        .systemLibrary(
+            name: "SDL2",
+            pkgConfig: "sdl2",
+            providers: [
+                .apt(["libsdl2-dev", "pkg-config"]),
+                .brew(["sdl2", "pkg-config"])
+            ]
+        ),
 
-            // Host layer:
-            // - macOS: AppKit presentation helpers
-            // - Linux: SDL presentation helpers
-            //
-            // IMPORTANT:
-            // LunaHost must depend on LunaRender because it presents the shared
-            // CPU framebuffer type (LunaFramebuffer) defined in LunaRender.
-            .target(
-                name: "LunaHost",
-                dependencies: ["LunaRender"]
-            ),
+        // ---------------------------------------------------------------------
+        // Core Luna modules
+        // ---------------------------------------------------------------------
+        .target(
+            name: "LunaRender"
+        ),
 
-            // Public umbrella module for consumers (moth-text).
-            .target(
-                name: "LunaUI",
-                dependencies: [
-                    "LunaCore",
-                    "LunaShaping",
-                    "LunaLayout",
-                    "LunaRender",
-                    "LunaTheme",
-                    "LunaChrome",
-                    "LunaInput",
-                    "LunaHost"
-                ]
-            ),
-        ]
+        // NEW: Theme module (stub for now, becomes Sublime theme parser later)
+        .target(
+            name: "LunaTheme"
+        ),
 
-        #if os(Linux)
-        // SDL2 is only required on Linux for the test harness and Linux presentation.
-        targets.append(
-            .systemLibrary(
-                name: "SDL2",
-                pkgConfig: "sdl2",
-                providers: [
-                    .apt(["libsdl2-dev"])
-                ]
-            )
-        )
+        .target(
+            name: "LunaHost",
+            dependencies: [
+                "LunaRender",
+                "SDL2"
+            ]
+        ),
 
-        // Linux test harness depends on SDL2.
-        targets.append(
-            .executableTarget(
-                name: "LunaUITestApp",
-                dependencies: ["LunaUI", "LunaRender", "LunaHost", "SDL2"]
-            )
-        )
-        #else
-        // macOS test harness uses AppKit; no SDL2 dependency.
-        targets.append(
-            .executableTarget(
-                name: "LunaUITestApp",
-                dependencies: ["LunaUI", "LunaRender", "LunaHost"]
-            )
-        )
-        #endif
+        .target(
+            name: "LunaUI",
+            dependencies: [
+                "LunaRender",
+                "LunaHost",
+                "LunaTheme"
+            ]
+        ),
 
-        return targets
-    }()
+        .executableTarget(
+            name: "LunaUITestApp",
+            dependencies: [
+                "LunaUI",
+                "LunaRender",
+                "LunaHost",
+                "LunaTheme",
+                "SDL2"
+            ]
+        ),
+    ]
 )
