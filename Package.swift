@@ -7,7 +7,8 @@ let package = Package(
         .macOS(.v13)
     ],
     products: [
-        .library(name: "LunaUI", targets: ["LunaUI"])
+        .library(name: "LunaUI", targets: ["LunaUI"]),
+        .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"])
     ],
     targets: [
         .target(name: "LunaCore"),
@@ -30,6 +31,10 @@ let package = Package(
                 "LunaInput",
                 "LunaHost"
             ]
+        ),
+        .executableTarget(
+            name: "LunaUITestApp",
+            dependencies: ["LunaUI"]
         )
     ]
 )
