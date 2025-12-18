@@ -1,15 +1,18 @@
 // main.swift
-// Luna-UI Test Harness (CPU framebuffer)
+// Luna-UI Test Harness
 //
-// This harness now uses:
-// - macOS: CVDisplayLink (vsync clock) -> schedules tick() on main thread
-// - Linux: SDL loop (we will add vsync renderer flags next)
+// macOS:
+// - CPU backend: LunaCPURenderer -> LunaFramebufferView
+// - GPU backend: LunaMetalView (Metal) consumes LunaDisplayList directly
+// - Press 'G' to toggle CPU <-> GPU
 //
-// It also keeps:
-// - time-based animation
-// - points/sec speed (perceived consistent across displays)
-// - HiDPI correctness (framebuffer sized in device pixels, with optional CPU quality scaling)
-// - safe shutdown on window close (no segfaults)
+// IMPORTANT FIX:
+// - When launched from `swift run`, Terminal often remains the active app.
+// - If the process is not a "regular" app (activation policy), it may never become key.
+// - We explicitly set: NSApp.setActivationPolicy(.regular)
+// - We also force: activate + makeKey + makeFirstResponder
+//
+// Linux remains CPU/SDL for now.
 
 import LunaUI
 import LunaRender
@@ -19,17 +22,6 @@ import LunaHost
 // Shared test scene generator (TIME-BASED, POINTS-BASED SPEED)
 // -----------------------------------------------------------------------------
 
-/// Build a display list for a moving rectangle.
-///
-/// Parameters:
-/// - t: elapsed seconds
-/// - widthPx/heightPx: framebuffer dimensions in pixels
-/// - pixelsPerPoint: effective scale used for rendering (backingScaleFactor * cpuHiDPIQuality)
-///
-/// Why points/sec:
-/// - "Pixels/sec" looks different on HiDPI vs non-HiDPI screens.
-/// - "Points/sec" looks consistent to humans across displays.
-/// - We convert points/sec to pixels/sec using pixelsPerPoint.
 func buildTestDisplayList(
     t: Double,
     widthPx: Int,
@@ -43,10 +35,8 @@ func buildTestDisplayList(
     let rectW = max(40, widthPx / 6)
     let rectH = max(40, heightPx / 6)
 
-    // Perceived speed in points/sec
+    // Perceived speed (points/sec)
     let speedPointsPerSec: Double = 360.0
-
-    // Convert to pixels/sec
     let speedPxPerSec: Double = speedPointsPerSec * pixelsPerPoint
 
     let travel = max(1, widthPx - rectW - 20)
@@ -68,124 +58,260 @@ func buildTestDisplayList(
 import AppKit
 import QuartzCore // CACurrentMediaTime()
 
+// MARK: - Key capturing view (real responder-chain keyDown)
+
+@MainActor
+final class KeyCatcherView: NSView {
+
+    var onKeyDown: ((NSEvent) -> Void)?
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Ask to receive keys whenever we attach to a window.
+        window?.makeFirstResponder(self)
+    }
+
+    override func keyDown(with event: NSEvent) {
+        onKeyDown?(event)
+    }
+}
+
+// MARK: - App Delegate
+
 @MainActor
 final class TestApp: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
+    enum BackendMode {
+        case cpu
+        case gpu
+
+        var labelText: String { self == .cpu ? "CPU" : "GPU" }
+    }
+
     var window: NSWindow!
-    var view: LunaFramebufferView!
+    var rootContainer: KeyCatcherView!
 
-    // CPU renderer + framebuffer
-    let renderer = LunaCPURenderer()
-    var framebuffer = LunaFramebuffer(width: 900, height: 600)
+    // CPU presentation
+    var cpuView: LunaFramebufferView!
+    let cpuRenderer = LunaCPURenderer()
+    var cpuFramebuffer = LunaFramebuffer(width: 900, height: 600)
 
-    // Vsync clock
+    // GPU presentation
+    var gpuView: LunaMetalView!
+
+    // Overlay label
+    var overlayLabel: NSTextField!
+
+    // Frame clock
     private let displayLink = LunaDisplayLink()
-
-    // Start time for animation
     private let t0: Double = CACurrentMediaTime()
 
-    /// CPU-only HiDPI performance knob:
-    /// - 1.0 = full device-pixel render (crispest, slowest on Retina)
-    /// - 0.5 = half-res render (much faster), upscaled for display
-    ///
-    /// For CPU fallback on 120Hz Retina, 0.5 is usually the practical default.
+    // Current backend
+    private var mode: BackendMode = .cpu
+
+    // CPU-only HiDPI performance knob
     private let cpuHiDPIQuality: CGFloat = 0.5
 
     func applicationDidFinishLaunching(_ notification: Notification) {
 
+        // 1) CRITICAL: make this a foreground "regular" app so it can take focus.
+        // Without this, `swift run` launched apps often never become key/active.
+        NSApp.setActivationPolicy(.regular)
+
+        // 2) Create window
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 600),
             styleMask: [.titled, .resizable, .closable],
             backing: .buffered,
             defer: false
         )
-
-        window.title = "Luna-UI Test Harness (CPUFramebuffer + DisplayLink)"
         window.center()
         window.delegate = self
 
-        view = LunaFramebufferView(frame: window.contentView!.bounds)
-        view.autoresizingMask = [.width, .height]
-        view.wantsLayer = true
+        // 3) Root container that captures keys
+        rootContainer = KeyCatcherView(frame: window.contentView!.bounds)
+        rootContainer.autoresizingMask = [.width, .height]
+        window.contentView = rootContainer
 
-        window.contentView = view
+        rootContainer.onKeyDown = { [weak self] ev in
+            guard let self else { return }
+            self.handleKeyDown(ev)
+        }
+
+        // 4) Create both render views
+        cpuView = LunaFramebufferView(frame: rootContainer.bounds)
+        cpuView.autoresizingMask = [.width, .height]
+        cpuView.wantsLayer = true
+
+        gpuView = LunaMetalView(frame: rootContainer.bounds, device: nil)
+        gpuView.autoresizingMask = [.width, .height]
+        gpuView.drawsOnPresent = true
+
+        // Start in CPU mode
+        rootContainer.addSubview(cpuView)
+
+        // Overlay label
+        overlayLabel = NSTextField(labelWithString: "")
+        overlayLabel.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .bold)
+        overlayLabel.textColor = .white
+        overlayLabel.backgroundColor = NSColor.black.withAlphaComponent(0.55)
+        overlayLabel.isBezeled = false
+        overlayLabel.isEditable = false
+        overlayLabel.isSelectable = false
+        overlayLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        rootContainer.addSubview(overlayLabel)
+
+        NSLayoutConstraint.activate([
+            overlayLabel.leadingAnchor.constraint(equalTo: rootContainer.leadingAnchor, constant: 10),
+            overlayLabel.topAnchor.constraint(equalTo: rootContainer.topAnchor, constant: 10),
+        ])
+
+        // 5) Show window and FORCE focus
         window.makeKeyAndOrderFront(nil)
 
-        // Wire displayLink to call tick() on the main thread.
-        // (LunaDisplayLink guarantees onFrame runs on main.)
+        // Activate (steal focus from Terminal)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Make the window key and route keys to our rootContainer
+        window.makeKey()
+        window.makeFirstResponder(rootContainer)
+
+        // 6) Update UI
+        applyBackendUI()
+
+        // 7) Start vsync clock
         displayLink.onFrame = { [weak self] in
             guard let self else { return }
             self.tick()
         }
-
-        // Start vsync ticking.
         displayLink.start()
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
-    }
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     func windowWillClose(_ notification: Notification) {
-        shutdownAndExit()
-    }
-
-    func applicationWillTerminate(_ notification: Notification) {
         displayLink.stop()
-    }
-
-    private func shutdownAndExit() {
-        // Stop the vsync clock first so no more ticks occur during teardown.
-        displayLink.stop()
-
-        // Clear presenter source to reduce any in-flight updates.
-        view.framebuffer = nil
-
+        cpuView.framebuffer = nil
         NSApplication.shared.terminate(nil)
     }
 
-    /// Render one frame.
-    ///
-    /// Called on the main thread, scheduled by CVDisplayLink.
-    private func tick() {
+    // MARK: - Key handling
 
-        guard window != nil, window.isVisible else { return }
+    private func handleKeyDown(_ ev: NSEvent) {
 
-        let t = CACurrentMediaTime() - t0
-
-        // Real backing scale: points -> device pixels
-        let backingScale: CGFloat = window.backingScaleFactor
-
-        // Effective render scale may be reduced for CPU performance
-        let effectiveScale: CGFloat = backingScale * cpuHiDPIQuality
-
-        // View bounds are in points
-        let pointW = view.bounds.width
-        let pointH = view.bounds.height
-
-        // Framebuffer size in pixels
-        let pixelW = max(1, Int((pointW * effectiveScale).rounded(.toNearestOrAwayFromZero)))
-        let pixelH = max(1, Int((pointH * effectiveScale).rounded(.toNearestOrAwayFromZero)))
-
-        // Compositor scale should match the real screen scale (crisp presentation)
-        view.layer?.contentsScale = backingScale
-
-        if pixelW != framebuffer.width || pixelH != framebuffer.height {
-            framebuffer.resize(width: pixelW, height: pixelH)
+        // DEBUG: prove keys are hitting the app
+        if let chars = ev.charactersIgnoringModifiers {
+            print("[LunaUITestApp] keyDown: '\(chars)'  isActive=\(NSApp.isActive)  keyWindow=\(window.isKeyWindow)")
+            fflush(stdout)
         }
 
-        let dl = buildTestDisplayList(
-            t: t,
-            widthPx: framebuffer.width,
-            heightPx: framebuffer.height,
-            pixelsPerPoint: Double(effectiveScale)
-        )
+        // If for some reason we lost focus, try to reclaim it.
+        if !NSApp.isActive || !window.isKeyWindow {
+            NSApp.activate(ignoringOtherApps: true)
+            window.makeKey()
+            window.makeFirstResponder(rootContainer)
+        }
 
-        renderer.render(displayList: dl, into: &framebuffer)
+        if ev.charactersIgnoringModifiers?.lowercased() == "g" {
+            toggleBackend()
+        }
+    }
 
-        // Present
-        view.framebuffer = framebuffer
-        view.needsDisplay = true
+    private func toggleBackend() {
+        mode = (mode == .cpu) ? .gpu : .cpu
+
+        switch mode {
+        case .cpu:
+            gpuView.removeFromSuperview()
+            if cpuView.superview == nil {
+                rootContainer.addSubview(cpuView, positioned: .below, relativeTo: overlayLabel)
+            }
+
+        case .gpu:
+            cpuView.removeFromSuperview()
+            if gpuView.superview == nil {
+                rootContainer.addSubview(gpuView, positioned: .below, relativeTo: overlayLabel)
+            }
+        }
+
+        applyBackendUI()
+
+        // Keep keys routed correctly after the swap.
+        window.makeFirstResponder(rootContainer)
+    }
+
+    private func applyBackendUI() {
+        switch mode {
+        case .cpu:
+            window.title = "Luna-UI Test Harness — CPUFramebuffer (press G for GPU)"
+        case .gpu:
+            window.title = "Luna-UI Test Harness — Metal GPU (press G for CPU)"
+        }
+
+        overlayLabel.stringValue = "Backend: \(mode.labelText)   (press G to toggle)"
+
+        print("[LunaUITestApp] Backend: \(mode.labelText)")
+        fflush(stdout)
+    }
+
+    // MARK: - Frame tick
+
+    private func tick() {
+
+        guard window.isVisible else { return }
+
+        let t = CACurrentMediaTime() - t0
+        let backingScale: CGFloat = window.backingScaleFactor
+
+        let bounds = rootContainer.bounds
+        let pointW = bounds.width
+        let pointH = bounds.height
+
+        switch mode {
+
+        case .cpu:
+            let effectiveScale: CGFloat = backingScale * cpuHiDPIQuality
+
+            let pixelW = max(1, Int((pointW * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+            let pixelH = max(1, Int((pointH * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+
+            cpuView.layer?.contentsScale = backingScale
+
+            if pixelW != cpuFramebuffer.width || pixelH != cpuFramebuffer.height {
+                cpuFramebuffer.resize(width: pixelW, height: pixelH)
+            }
+
+            let dl = buildTestDisplayList(
+                t: t,
+                widthPx: cpuFramebuffer.width,
+                heightPx: cpuFramebuffer.height,
+                pixelsPerPoint: Double(effectiveScale)
+            )
+
+            cpuRenderer.render(displayList: dl, into: &cpuFramebuffer)
+            cpuView.framebuffer = cpuFramebuffer
+            cpuView.needsDisplay = true
+
+        case .gpu:
+            let effectiveScale: CGFloat = backingScale
+
+            let pixelW = max(1, Int((pointW * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+            let pixelH = max(1, Int((pointH * effectiveScale).rounded(.toNearestOrAwayFromZero)))
+
+            gpuView.layer?.contentsScale = backingScale
+
+            let dl = buildTestDisplayList(
+                t: t,
+                widthPx: pixelW,
+                heightPx: pixelH,
+                pixelsPerPoint: Double(effectiveScale)
+            )
+
+            gpuView.present(displayList: dl, drawablePixelWidth: pixelW, drawablePixelHeight: pixelH)
+        }
     }
 }
 
@@ -196,7 +322,7 @@ app.run()
 #endif
 
 // -----------------------------------------------------------------------------
-// Linux host (SDL loop for now)
+// Linux host (CPU + SDL for now)
 // -----------------------------------------------------------------------------
 #if os(Linux)
 import SDL2
@@ -240,7 +366,6 @@ while running {
 
     let t = nowSeconds() - t0
 
-    // HiDPI-correct pixel size from renderer output
     let (pixelW, pixelH) = presenter.getOutputPixelSize(
         fallbackWidth: framebuffer.width,
         fallbackHeight: framebuffer.height
@@ -251,13 +376,7 @@ while running {
         presenter.ensureTexture(width: Int32(pixelW), height: Int32(pixelH))
     }
 
-    // Linux "points" are not formalized yet; treat pixelsPerPoint = 1.0 for now.
-    let dl = buildTestDisplayList(
-        t: t,
-        widthPx: framebuffer.width,
-        heightPx: framebuffer.height,
-        pixelsPerPoint: 1.0
-    )
+    let dl = buildTestDisplayList(t: t, widthPx: framebuffer.width, heightPx: framebuffer.height, pixelsPerPoint: 1.0)
 
     renderer.render(displayList: dl, into: &framebuffer)
     presenter.present(framebuffer: framebuffer)
