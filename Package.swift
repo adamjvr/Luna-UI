@@ -25,15 +25,46 @@ let package = Package(
         ),
 
         // ---------------------------------------------------------------------
-        // Core Luna modules
+        // HarfBuzz + FreeType system libraries (cross-platform text shaping)
+        //
+        // Ubuntu / Pop!_OS:
+        //   sudo apt install libharfbuzz-dev libfreetype6-dev pkg-config
+        //
+        // macOS:
+        //   brew install harfbuzz freetype pkg-config
         // ---------------------------------------------------------------------
-        .target(
-            name: "LunaRender"
+        .systemLibrary(
+            name: "HarfBuzz",
+            pkgConfig: "harfbuzz",
+            providers: [
+                .apt(["libharfbuzz-dev", "pkg-config"]),
+                .brew(["harfbuzz", "pkg-config"])
+            ]
         ),
 
-        // NEW: Theme module (stub for now, becomes Sublime theme parser later)
+        .systemLibrary(
+            name: "FreeType",
+            pkgConfig: "freetype2",
+            providers: [
+                .apt(["libfreetype6-dev", "pkg-config"]),
+                .brew(["freetype", "pkg-config"])
+            ]
+        ),
+
+        // ---------------------------------------------------------------------
+        // Core Luna modules
+        // ---------------------------------------------------------------------
+        .target(name: "LunaRender"),
+
+        .target(name: "LunaTheme"),
+
+        // NEW: LunaText (shaping + font loading)
         .target(
-            name: "LunaTheme"
+            name: "LunaText",
+            dependencies: [
+                "HarfBuzz",
+                "FreeType"
+            ]
         ),
 
         .target(
@@ -49,7 +80,8 @@ let package = Package(
             dependencies: [
                 "LunaRender",
                 "LunaHost",
-                "LunaTheme"
+                "LunaTheme",
+                "LunaText"
             ]
         ),
 
@@ -60,6 +92,7 @@ let package = Package(
                 "LunaRender",
                 "LunaHost",
                 "LunaTheme",
+                "LunaText",
                 "SDL2"
             ]
         ),

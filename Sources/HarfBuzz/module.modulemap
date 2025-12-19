@@ -1,0 +1,6 @@
+module HarfBuzz [system] {
+    header "/usr/include/harfbuzz/hb.h"
+    header "/usr/include/harfbuzz/hb-ft.h"
+    link "harfbuzz"
+    export *
+}

@@ -1,0 +1,5 @@
+module FreeType [system] {
+    header "/usr/include/freetype2/ft2build.h"
+    link "freetype"
+    export *
+}
