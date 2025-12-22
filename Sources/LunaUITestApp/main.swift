@@ -1,4 +1,3 @@
-//
 // Sources/LunaUITestApp/main.swift
 //
 // Cross-platform test harness:
@@ -19,7 +18,16 @@
 import Foundation
 import LunaUI
 import LunaRender
-import LunaHost
+import LunaHostCore
+
+#if os(Linux)
+import LunaHostSDL
+#endif
+
+#if os(macOS)
+import LunaHostMetal
+#endif
+
 import LunaText
 
 #if os(Linux)
@@ -35,6 +43,16 @@ private func hb26_6_to_px(_ v: Int32) -> Int {
     // Add 32 for rounding, then divide by 64.
     return Int((v + 32) / 64)
 }
+
+@inline(__always)
+func packBGRA(_ c: (UInt8, UInt8, UInt8, UInt8)) -> UInt32 {
+    let (b, g, r, a) = c
+    return (UInt32(b)      ) |
+           (UInt32(g) <<  8) |
+           (UInt32(r) << 16) |
+           (UInt32(a) << 24)
+}
+
 
 // ------------------------------------------------------------
 // MARK: - Text draw helper (CPU framebuffer)
@@ -56,10 +74,19 @@ private func drawTextCPU(
     baselineX: Int,
     baselineY: Int,
     colorBGRA: (UInt8, UInt8, UInt8, UInt8)
+
 ) {
+    let colorBGRA32: UInt32 = packBGRA(colorBGRA)
     // 1) Shape using HarfBuzz.
     // NOTE: If you want automatic script/lang detection later, we’ll add that.
-    let run = try shaper.shape(text, direction: .ltr)
+    let run: LunaShapedRun
+do {
+    run = try shaper.shape(text: text, direction: .ltr)
+} catch {
+    // If shaping fails, don’t crash the demo; just draw nothing this frame.
+    return
+}
+
 
 
     // 2) Walk glyphs, rasterize each glyph, and blit its coverage mask.
@@ -78,7 +105,7 @@ private func drawTextCPU(
         // If rasterization fails for some glyph, skip it without crashing the demo.
         let mask: LunaGlyphMask8
         do {
-            mask = try shaper.rasterizeGlyphMask8(forGlyphID: g.glyphID)
+            mask = try shaper.rasterizeGlyphMask8(glyphID: g.glyphID)
         } catch {
             // If raster fails, still advance using HB.
             penX += xAdvPx
@@ -101,13 +128,12 @@ private func drawTextCPU(
         let dstX = penX + xOffPx + mask.bearingX
         let dstY = penY - yOffPx - mask.bearingY
 
-        // Blit mask into framebuffer.
         LunaCPUGlyphBlitter.blitMask8_BGRA8888(
             fb: &fb,
             mask: mask,
-            dstX: penX + xOff,
-            dstY: baseline - yOff,
-            colorBGRA: 0xFFFFFFFF
+            dstX: dstX,
+            dstY: dstY,
+            colorBGRA: colorBGRA32
         )
 
 
@@ -150,12 +176,14 @@ let presenter = LunaSDLPresenter(window: window)
 // Basic framebuffer we render into each frame.
 var framebuffer = LunaFramebuffer(width: width, height: height)
 
-let shaper = try! LunaTextShaper(
-    font: LunaFontDescriptor(
+let shaper = try! LunaTextShaper()
+try! shaper.loadFont(
+    LunaFontDescriptor(
         filePath: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         pointSize: 28
     )
 )
+
 
 var running = true
 var t: Double = 0.0

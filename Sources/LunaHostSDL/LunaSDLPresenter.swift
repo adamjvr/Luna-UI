@@ -6,11 +6,12 @@
 // NOTE:
 // - We do NOT assume a particular LunaFramebuffer storage property name.
 // - We use `LunaFramebuffer.withUnsafePixelBytes` (reflection shim in LunaRender) to access bytes.
+#if os(Linux)
 
 import Foundation
 import LunaRender
+import LunaHostCore
 
-#if os(Linux)
 import SDL2
 
 public final class LunaSDLPresenter {

@@ -29,6 +29,7 @@ let package = Package(
 
 
 
+
         // FreeType
         .systemLibrary(
             name: "FreeType",
@@ -75,14 +76,29 @@ let package = Package(
         ),
 
         .target(
-            name: "LunaHost",
+            name: "LunaHostCore",
             dependencies: [
                 "LunaRender",
-                // whatever else you already have...
-                "SDL2",
-            ],
-
+            ]
         ),
+
+        .target(
+            name: "LunaHostSDL",
+            dependencies: [
+                "LunaHostCore",
+                "LunaRender",
+                "SDL2",
+            ]
+        ),
+
+        .target(
+            name: "LunaHostMetal",
+            dependencies: [
+                "LunaHostCore",
+                "LunaRender",
+            ]
+        ),
+
 
 
         .target(
@@ -91,9 +107,16 @@ let package = Package(
                 "LunaTheme",
                 "LunaText",
                 "LunaRender",
-                "LunaHost",
+
+                // Always available host API surface (platform-agnostic)
+                "LunaHostCore",
+
+                // Platform host implementations (only linked where they exist)
+                .target(name: "LunaHostSDL", condition: .when(platforms: [.linux])),
+                .target(name: "LunaHostMetal", condition: .when(platforms: [.macOS])),
             ]
         ),
+
 
         .executableTarget(
             name: "LunaUITestApp",
