@@ -5,16 +5,18 @@ let package = Package(
     name: "Luna-UI",
     platforms: [
         .macOS(.v13)
+        // Linux supported implicitly
     ],
     products: [
         .library(name: "LunaUI", targets: ["LunaUI"]),
         .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"]),
     ],
     targets: [
+        // -------------------------
+        // System libraries (C deps)
+        // -------------------------
 
-        // ---------------------------------------------------------------------
-        // SDL2 system library (Linux windowing / presentation)
-        // ---------------------------------------------------------------------
+        // SDL2 (Linux presenter / windowing)
         .systemLibrary(
             name: "SDL2",
             pkgConfig: "sdl2",
@@ -24,24 +26,10 @@ let package = Package(
             ]
         ),
 
-        // ---------------------------------------------------------------------
-        // HarfBuzz + FreeType system libraries (cross-platform text shaping)
-        //
-        // Ubuntu / Pop!_OS:
-        //   sudo apt install libharfbuzz-dev libfreetype6-dev pkg-config
-        //
-        // macOS:
-        //   brew install harfbuzz freetype pkg-config
-        // ---------------------------------------------------------------------
-        .systemLibrary(
-            name: "HarfBuzz",
-            pkgConfig: "harfbuzz",
-            providers: [
-                .apt(["libharfbuzz-dev", "pkg-config"]),
-                .brew(["harfbuzz", "pkg-config"])
-            ]
-        ),
 
+
+
+        // FreeType
         .systemLibrary(
             name: "FreeType",
             pkgConfig: "freetype2",
@@ -51,19 +39,38 @@ let package = Package(
             ]
         ),
 
-        // ---------------------------------------------------------------------
-        // Core Luna modules
-        // ---------------------------------------------------------------------
-        .target(name: "LunaRender"),
+        // HarfBuzz
+        .systemLibrary(
+            name: "HarfBuzz",
+            pkgConfig: "harfbuzz",
+            providers: [
+                .apt(["libharfbuzz-dev", "pkg-config"]),
+                .brew(["harfbuzz", "pkg-config"])
+            ]
+        ),
 
-        .target(name: "LunaTheme"),
+        // -------------------------
+        // Swift targets
+        // -------------------------
 
-        // NEW: LunaText (shaping + font loading)
+        .target(
+            name: "LunaTheme",
+            dependencies: []
+        ),
+
         .target(
             name: "LunaText",
             dependencies: [
+                "FreeType",
                 "HarfBuzz",
-                "FreeType"
+                "LunaTheme",
+            ]
+        ),
+
+        .target(
+            name: "LunaRender",
+            dependencies: [
+                "LunaText"
             ]
         ),
 
@@ -71,29 +78,27 @@ let package = Package(
             name: "LunaHost",
             dependencies: [
                 "LunaRender",
-                "SDL2"
-            ]
+                // whatever else you already have...
+                "SDL2",
+            ],
+
         ),
+
 
         .target(
             name: "LunaUI",
             dependencies: [
+                "LunaTheme",
+                "LunaText",
                 "LunaRender",
                 "LunaHost",
-                "LunaTheme",
-                "LunaText"
             ]
         ),
 
         .executableTarget(
             name: "LunaUITestApp",
             dependencies: [
-                "LunaUI",
-                "LunaRender",
-                "LunaHost",
-                "LunaTheme",
-                "LunaText",
-                "SDL2"
+                "LunaUI"
             ]
         ),
     ]
