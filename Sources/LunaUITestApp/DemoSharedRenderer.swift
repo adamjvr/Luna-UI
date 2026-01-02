@@ -140,14 +140,22 @@ private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, fram
     // Draw a translucent-ish bar (we still write opaque alpha; translucency is
     // achieved by using a dark color over the checker).
     let barH = max(28, min(44, fb.height / 12))
-    fillRectBGRA(into: &fb, x: 0, y: 0, w: fb.width, h: barH, b: 8, g: 8, r: 8, a: 255)
+    // NOTE: Our framebuffer coordinate system is **bottom-left** (y increases upward).
+    // Users expect HUD at the top, so place it at `height - barH`.
+    let barY = max(0, fb.height - barH)
+    fillRectBGRA(into: &fb, x: 0, y: barY, w: fb.width, h: barH, b: 8, g: 8, r: 8, a: 255)
 
     // Text (5x7 font, scaled).
     let title = "Luna-UI CPU Demo"
     let info = String(format: "t=%.2fs  frame=%llu", t, frameIndex)
 
-    drawText5x7BGRA(into: &fb, x: 10, y: 8, text: title, scale: 2, b: 240, g: 240, r: 240, a: 255)
-    drawText5x7BGRA(into: &fb, x: 10, y: 8 + 2 * (7 * 2 + 4), text: info, scale: 2, b: 200, g: 200, r: 200, a: 255)
+    // Keep text inside the HUD bar.
+    let textX = 10
+    let titleY = barY + 8
+    let infoY  = barY + 8 + 2 * (7 * 2 + 4)
+
+    drawText5x7BGRA(into: &fb, x: textX, y: titleY, text: title, scale: 2, b: 240, g: 240, r: 240, a: 255)
+    drawText5x7BGRA(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, b: 200, g: 200, r: 200, a: 255)
 }
 
 /// Fill a rectangle (clipped) with a solid BGRA color.
@@ -270,7 +278,10 @@ private func drawText5x7BGRA(
 
                 // Draw a scaled pixel as a filled rect.
                 let px = penX + col * s
-                let py = y + row * s
+                // Framebuffer coordinates are bottom-left origin, but the 5x7
+                // font data is authored with "row 0" at the TOP of the glyph.
+                // Flip vertically so the text renders right-side-up.
+                let py = y + (6 - row) * s
                 fillRectBGRA(into: &fb, x: px, y: py, w: s, h: s, b: b, g: g, r: r, a: a)
             }
         }

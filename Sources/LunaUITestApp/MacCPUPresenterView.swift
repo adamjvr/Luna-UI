@@ -70,15 +70,13 @@ final class MacCPUPresenterView: NSView {
     }
 
     // IMPORTANT:
-    // Our demo renderer writes pixels assuming a *top-left* origin (x→right, y→down)
-    // which is the most natural for software rasterizers.
+    // Our CPU renderer writes pixels assuming a *top-left* origin (x→right, y→down).
+    // AppKit's default NSView coordinate system is bottom-left (y→up), so if we draw
+    // the CGImage directly the framebuffer will appear vertically flipped.
     //
-    // AppKit/CoreGraphics gives us a CGContext whose default user-space is
-    // *bottom-left* origin (x→right, y→up). Rather than flipping the entire view
-    // coordinate system (which interacts in surprising ways with CGImage drawing),
-    // we keep the view non-flipped and explicitly flip the CGContext when drawing
-    // the backing CGImage.
-    override var isFlipped: Bool { false }
+    // We keep AppKit's default coordinate system and apply an explicit vertical flip
+    // in `draw(_:)`. This avoids surprising side-effects from `isFlipped` (many
+    // AppKit layout and event APIs implicitly assume the default coordinate system).
 
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -119,13 +117,13 @@ final class MacCPUPresenterView: NSView {
         }
 
         // Draw image scaled to view bounds.
-        // Our framebuffer is top-left origin; CoreGraphics draws with bottom-left
-        // origin. We flip Y so row 0 in the buffer appears at the top of the view.
+        // Flip the CoreGraphics context so that framebuffer row 0 (top) shows at the
+        // top of the window.
         ctx.saveGState()
-        ctx.interpolationQuality = .none
         ctx.translateBy(x: 0, y: self.bounds.height)
         ctx.scaleBy(x: 1, y: -1)
-        ctx.draw(image, in: self.bounds)
+        ctx.interpolationQuality = .none
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: self.bounds.width, height: self.bounds.height))
         ctx.restoreGState()
     }
 }
