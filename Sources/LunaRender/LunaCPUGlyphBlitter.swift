@@ -1,5 +1,5 @@
 import Foundation
-import LunaText
+import LunaTextCore
 
 public enum LunaCPUGlyphBlitter {
 

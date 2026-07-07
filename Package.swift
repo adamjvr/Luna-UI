@@ -12,6 +12,7 @@ let package = Package(
         .library(name: "LunaCore", targets: ["LunaCore"]),
         .library(name: "LunaAccessibility", targets: ["LunaAccessibility"]),
         .library(name: "LunaCommands", targets: ["LunaCommands"]),
+        .library(name: "LunaTextCore", targets: ["LunaTextCore"]),
         .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"]),
     ],
     targets: [
@@ -82,10 +83,16 @@ let package = Package(
         ),
 
         .target(
+            name: "LunaTextCore",
+            dependencies: []
+        ),
+
+        .target(
             name: "LunaText",
             dependencies: [
                 "FreeType",
                 "HarfBuzz",
+                "LunaTextCore",
                 "LunaTheme",
             ]
         ),
@@ -93,7 +100,7 @@ let package = Package(
         .target(
             name: "LunaRender",
             dependencies: [
-                "LunaText"
+                "LunaTextCore"
             ]
         ),
 
@@ -130,15 +137,12 @@ let package = Package(
                 "LunaAccessibility",
                 "LunaCommands",
                 "LunaTheme",
-                "LunaText",
                 "LunaRender",
 
-                // Always available host API surface (platform-agnostic)
+                // Always available host API surface (platform-agnostic).
+                // Concrete platform hosts stay outside LunaUI so pure UI tests do
+                // not require SDL/Metal/system headers. Apps opt into hosts.
                 "LunaHostCore",
-
-                // Platform host implementations (only linked where they exist)
-                .target(name: "LunaHostSDL", condition: .when(platforms: [.linux])),
-                .target(name: "LunaHostMetal", condition: .when(platforms: [.macOS])),
             ]
         ),
 
@@ -159,6 +163,14 @@ let package = Package(
                 "LunaCore",
                 "LunaAccessibility",
                 "LunaCommands",
+            ]
+        ),
+
+        .testTarget(
+            name: "LunaUIPhase1Tests",
+            dependencies: [
+                "LunaUI",
+                "LunaRender",
             ]
         ),
     ]

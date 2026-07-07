@@ -257,3 +257,12 @@ For Moth Text, Luna is the difference between fighting a framework and owning th
 ## License
 
 See [`LICENSE`](LICENSE).
+
+## Phase 1 Semantic Widget Proof
+
+```bash
+swift build --target LunaUIPhase1Tests
+swift test --filter LunaUIPhase1Tests
+```
+
+`LunaSemanticActionWidget` is the first real widget wired through the complete Luna contract.

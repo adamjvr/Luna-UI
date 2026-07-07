@@ -147,9 +147,11 @@ Exit criteria:
 
 ## Phase 1 — Real Widget Through the Full Contract
 
+Status: implemented as the first proof slice.
+
 Purpose: prove the new spine is actually becoming Luna, not sitting beside Luna.
 
-Build one real widget, likely `LunaDemoPanel` or `LunaButton`, that uses:
+Build one real widget, implemented as `LunaSemanticActionWidget`, that uses:
 
 - `LunaNodeID`;
 - explicit `LunaRect` bounds;
@@ -163,10 +165,10 @@ Build one real widget, likely `LunaDemoPanel` or `LunaButton`, that uses:
 
 Exit criteria:
 
-- the widget appears in `LunaUITestApp`;
+- `LunaSemanticActionWidget` appears in `LunaUITestApp` as a rendered Phase 1 proof panel;
 - it can be hit-tested;
 - it exposes a semantic accessibility node;
-- a command/action path can be exercised in tests;
+- a command/action path is exercised in `LunaUIPhase1Tests`;
 - the same widget state drives rendering, interaction, and accessibility.
 
 ---

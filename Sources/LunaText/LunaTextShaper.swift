@@ -1,6 +1,7 @@
 import Foundation
 import HarfBuzz
 import FreeType
+import LunaTextCore
 
 /// Text shaping + glyph rasterization.
 /// IMPORTANT ARCH RULE:

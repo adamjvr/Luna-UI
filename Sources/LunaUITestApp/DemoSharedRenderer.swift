@@ -20,6 +20,8 @@
 
 import Foundation
 import LunaRender
+import LunaTheme
+import LunaUI
 
 // MARK: - Public demo API
 
@@ -55,6 +57,7 @@ public struct LunaCPUDemoScene {
         // Draw.
         drawBackgroundChecker(into: &fb)
         drawMovingBlock(into: &fb, timeSeconds: t)
+        drawSemanticWidgetProof(into: &fb)
         drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex)
     }
 
@@ -133,6 +136,34 @@ private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Doub
 
     // A darker outline so motion is crisp.
     strokeRectBGRA(into: &fb, x: x0, y: y0, w: blockW, h: blockH, thickness: 2, b: 10, g: 10, r: 10, a: 255)
+}
+
+
+/// Draw the Phase 1 semantic widget proof through Luna's actual widget contract.
+///
+/// This deliberately uses `LunaSemanticActionWidget.buildDisplayList` instead of
+/// hand-writing rectangles in the demo. The same widget can also hit-test, expose
+/// an accessibility node, and request a command through `LunaUIContext`.
+private func drawSemanticWidgetProof(into fb: inout LunaFramebuffer) {
+    let panelW = min(300, max(180, fb.width / 3))
+    let panelH = 56
+    let margin = 18
+    let x = max(margin, fb.width - panelW - margin)
+    let y = max(54, margin)
+
+    let widget = LunaSemanticActionWidget(
+        id: "demo.phase1.semantic-widget",
+        bounds: LunaRectI(x: x, y: y, w: panelW, h: panelH),
+        title: "Phase 1",
+        subtitle: "Semantic widget proof",
+        primaryCommand: "luna.demo.phase1",
+        theme: .default,
+        isFocused: true
+    )
+
+    var displayList = LunaDisplayList()
+    widget.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
 }
 
 /// Heads-up display: title + time + frame.

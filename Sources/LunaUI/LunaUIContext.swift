@@ -6,6 +6,7 @@
 
 import Foundation
 import LunaAccessibility
+import LunaCommands
 import LunaCore
 import LunaTheme
 
@@ -15,6 +16,7 @@ public struct LunaUIContext: Sendable {
     public private(set) var statusRight: String?
     public private(set) var requestedTheme: LunaTheme?
     public private(set) var requestedRefresh: Bool = false
+    public private(set) var requestedCommands: [LunaCommandID] = []
     public private(set) var modalRequests: [LunaModalRequest] = []
     public private(set) var announcements: [LunaLiveAnnouncement] = []
 
@@ -38,6 +40,16 @@ public struct LunaUIContext: Sendable {
 
     public mutating func requestRefresh() {
         self.requestedRefresh = true
+    }
+
+    /// Queue an application command requested by a semantic widget.
+    ///
+    /// Luna does not execute commands itself. The app/runtime drains this queue
+    /// and dispatches through its command table, keeping widgets independent
+    /// from editor/product policy.
+    public mutating func requestCommand(_ id: LunaCommandID) {
+        requestedCommands.append(id)
+        requestRefresh()
     }
 
     public mutating func announce(_ text: String, politeness: LunaAccessibilityPoliteness = .polite) {
