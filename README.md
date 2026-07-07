@@ -1,221 +1,187 @@
 # Luna UI
 
-**Luna UI** is a from-scratch, cross-platform UI and rendering engine written in Swift. It exists as the foundational UI layer for **Moth Text** — a modern, Sublime-class text editor — but it is intentionally designed as a **standalone, reusable UI framework** that can power other applications in the future.
+**Luna UI** is a from-scratch, cross-platform UI and rendering engine written in Swift. It is the foundational UI layer for **Moth Text**, a future Sublime-class text editor, but Luna is intentionally designed as a standalone reusable engine that can power other applications.
 
-This repository is **not an app**.
+This repository is **not Moth Text**.
 
-It is the engine.
+This repository is the engine.
 
-Luna UI is where rendering, layout, text shaping, input, theming, and platform abstraction live. Moth Text is simply the first (and primary) consumer of this engine.
+Luna UI owns the reusable infrastructure that a serious custom editor needs: rendering, layout, text shaping, input routing, theming, widgets, accessibility semantics, commands, modal overlays, and platform hosting. Moth Text will sit above Luna and define the editor product behavior.
+
+---
+
+## Current Roadmap Documents
+
+The project direction is split into two roadmap documents:
+
+- [`docs/LUNA_UI_ROADMAP.md`](docs/LUNA_UI_ROADMAP.md) — engine/runtime roadmap for Luna UI.
+- [`docs/MOTH_TEXT_ROADMAP.md`](docs/MOTH_TEXT_ROADMAP.md) — editor-product roadmap for Moth Text.
+
+The short version:
+
+```text
+Luna UI  = reusable Swift UI/runtime/rendering/accessibility engine
+Moth Text = Sublime-class editor product built on Luna UI
+```
 
 ---
 
 ## Why Luna UI Exists
 
-Moth Text is not built on top of SwiftUI, AppKit, GTK, Qt, Electron, or any web stack. That decision is deliberate.
+Moth Text is not being built on top of SwiftUI, AppKit widgets, GTK, Qt, Electron, or a web stack. That decision is deliberate.
 
-Existing UI frameworks fail hard on the things that matter most for a serious text editor:
+Existing UI frameworks break down at the exact points that matter for a serious editor:
 
-- Precise pixel control
-- Deterministic layout and rendering
-- Large-document performance
-- Proper complex text shaping (ligatures, bidi, combining marks)
-- Theme compatibility with editors like Sublime Text
-- Cross-platform visual parity
+- precise pixel control;
+- deterministic layout and rendering;
+- huge-document performance;
+- custom cursor, selection, gutter, minimap, and overlay rendering;
+- proper complex text shaping;
+- ligatures, bidi text, combining marks, and font fallback;
+- theme compatibility with editors like Sublime Text;
+- cross-platform visual parity;
+- accessibility that matches the custom UI instead of being bolted on later.
 
-Rather than fight those frameworks, Luna UI replaces them entirely.
-
-Luna UI gives Moth Text:
-
-- A **fully custom rendering pipeline**
-- **Pixel-identical UI** across macOS and Linux
-- A **text-first architecture**, not a widget-first one
-- Long-term freedom to target Metal, Vulkan, or pure CPU rendering without rewriting the app
-
-This is the same philosophical move that Sublime Text made years ago — but implemented in Swift, with modern GPU expectations, and without legacy baggage.
+Rather than fight those frameworks, Luna owns the stack.
 
 ---
 
 ## Relationship to Moth Text
 
-Think of the stack like this:
+```text
+Moth Text
+  Editor application, documents, projects, commands, packages, Sublime compatibility.
 
-```
-Moth Text (application)
-└── Luna UI (engine)
-    ├── Rendering & compositing
-    ├── Text layout & shaping
-    ├── Event & input system
-    ├── Theme & styling system
-    ├── Platform abstraction (macOS / Linux)
-    └── GPU / CPU backends
+Luna UI
+  Reusable UI/runtime engine: widgets, overlays, focus, commands, accessibility.
+
+Luna Render / Text / Theme / Host
+  Rendering, shaping, styling, and platform-specific host bridges.
 ```
 
-- **Moth Text** defines *what* the editor does
-- **Luna UI** defines *how* it is drawn, interacted with, and rendered
+Moth Text defines **what** the editor does.
 
-Moth Text has no dependency on native UI widgets. Windows, panels, tabs, text views, gutters, cursors, selections — all of it is implemented using Luna UI primitives.
+Luna UI defines **how** it is drawn, interacted with, hosted, themed, and exposed semantically.
 
-This repository exists so Luna UI can evolve independently, be tested in isolation, and potentially be reused in other projects.
+This means Moth should not own the renderer, SDL/AppKit/Metal imports, accessibility bridge, generic overlays, command palette UI, completion popup UI, menus, or platform event loop. Those belong in Luna.
 
 ---
 
 ## Design Goals
 
-Luna UI is opinionated. Every major decision in this codebase exists to satisfy one or more of the following goals.
+### Pixel-Exact Rendering
 
-### 1. Pixel-Exact Rendering
+If a rectangle is supposed to be 1px wide at `(x: 12, y: 7)`, that is where it is drawn. No hidden platform padding. No accidental layout drift. No uninspectable framework heuristics.
 
-If a rectangle is supposed to be 1px wide at `(x: 12, y: 7)`, that is where it is drawn. No layout drift. No fractional rounding surprises. No OS-specific padding heuristics.
+### Text Is First-Class
 
-This matters enormously for:
+Luna is editor-first. Text shaping, glyph positioning, caret placement, selection geometry, line layout, and font metrics are core requirements, not later polish.
 
-- Text cursor placement
-- Selection rendering
-- Grid alignment
-- Font metrics
-- Theme accuracy
+### Accessibility From Day One
 
-### 2. Text Is a First-Class Citizen
+A custom UI engine must not create a separate inaccessible reality. Luna's rule is:
 
-Luna UI is built around text, not widgets.
+> If Luna can draw a widget, Luna must also be able to describe it semantically.
 
-That means:
+Every serious widget should eventually provide stable identity, bounds, display output, hit testing, and accessibility output from the same underlying state.
 
-- Proper Unicode shaping from day one
-- Ligatures, combining marks, emoji, and bidi text are non-negotiable
-- Line layout and glyph positioning are explicit and inspectable
-- Rendering large documents is a core requirement, not an afterthought
+### Command-Driven UI
 
-### 3. Cross-Platform Visual Parity
+Commands are shared infrastructure. Menus, shortcuts, command palettes, accessibility actions, tests, and eventually plugins should be able to call the same typed command IDs.
 
-Moth Text must look the same on macOS and Linux.
+### Cross-Platform Visual Parity
 
-Not “close enough.”
+macOS and Linux are first-class targets. The goal is not “close enough.” The goal is same spacing, same theme interpretation, same rendering model, and predictable behavior.
 
-The same theme, the same spacing, the same glyph metrics, the same animations.
+### GPU-Accelerated, CPU-Capable
 
-### 4. GPU-Accelerated, CPU-Capable
-
-Luna UI supports:
-
-- GPU rendering (Metal, Vulkan)
-- CPU fallback rendering for bring-up, testing, and debugging
-
-The CPU renderer is not a toy. It is a correctness reference.
-
-### 5. Long-Term Maintainability
-
-This is not a prototype.
-
-The codebase favors explicit data flow, clear ownership, minimal magic, and boring, readable abstractions.
-
----
-
-## Philosophy & Principles
-
-Luna UI exists because everything else breaks down at the exact point where serious editors start to matter.
-
-This project follows the same mindset I bring to hardware, firmware, and systems engineering work: eliminate unknowns, own the stack, and never hide complexity behind abstractions you can’t reason about.
-
-Core principles:
-
-- **Precision over convenience** — every pixel and glyph must land exactly where intended
-- **Control over abstraction** — if we can’t inspect it, debug it, or reason about it, it doesn’t belong here
-- **Performance over guesswork** — large documents are normal, not an edge case
-- **Cross-platform by design** — parity is engineered, not hoped for
-
-Luna UI is intentionally narrow so it can be brutally good at what it does.
-
----
-
-## Non-Goals
-
-Luna UI is intentionally *not* trying to be everything.
-
-It does **not** aim to:
-
-- Replace SwiftUI for general app development
-- Compete with Qt, GTK, or Electron as a universal UI toolkit
-- Provide drag-and-drop designers or visual editors
-- Abstract rendering details away to the point of opacity
-- Optimize for rapid prototyping over correctness
-- Chase native platform look-and-feel conventions
-
-If something reduces determinism, predictability, or performance, it does not belong here.
+The CPU renderer is the correctness reference and debug backend. GPU backends are the long-term production path. Both should consume backend-independent display lists.
 
 ---
 
 ## Architecture Overview
 
-```
-+---------------------------------------------------+
-|                   Moth Text                       |
-|        (Editor logic, buffers, commands)          |
-+-----------------------+---------------------------+
-                        |
-                        v
-+---------------------------------------------------+
-|                    Luna UI                        |
-|                                                   |
-|  +---------------------------------------------+  |
-|  | Layout & UI Primitives                      |  |
-|  |  - Explicit geometry                        |  |
-|  |  - Panels, views, regions                   |  |
-|  +---------------------------------------------+  |
-|                                                   |
-|  +---------------------------------------------+  |
-|  | Text System                                 |  |
-|  |  - Unicode shaping                          |  |
-|  |  - Glyph layout & metrics                   |  |
-|  |  - Cursor & selection                      |  |
-|  +---------------------------------------------+  |
-|                                                   |
-|  +---------------------------------------------+  |
-|  | Event & Input System                        |  |
-|  |  - Keyboard, mouse, scroll                  |  |
-|  |  - Deterministic dispatch                   |  |
-|  +---------------------------------------------+  |
-|                                                   |
-|  +---------------------------------------------+  |
-|  | Rendering & Compositing                     |  |
-|  |  - Draw lists                               |  |
-|  |  - Damage & redraw                          |  |
-|  +---------------------------------------------+  |
-|                                                   |
-|  +----------------------+----------------------+  |
-|  | CPU Renderer         | GPU Renderers        |  |
-|  | (Reference / Debug)  | (Metal / Vulkan)     |  |
-|  +----------------------+----------------------+  |
-+---------------------------+-----------------------+
-                            |
-                            v
-+---------------------------------------------------+
-|           Platform Abstraction Layer               |
-|   (macOS / Linux windowing, timing, input)        |
-+---------------------------------------------------+
+Current and intended modules:
+
+```text
+LunaCore
+  Stable IDs, geometry primitives, diagnostics.
+
+LunaAccessibility
+  Pure Swift accessibility nodes, roles, actions, text ranges, live announcements.
+
+LunaCommands
+  Typed command IDs, key equivalents, command descriptors, command registry.
+
+LunaText
+  Font lookup, shaping, ligatures, bidi, combining marks, glyph runs, metrics.
+
+LunaRender
+  Display lists, CPU renderer, framebuffer contract, future GPU backends.
+
+LunaTheme
+  Theme tokens, color roles, style system, Sublime color scheme import later.
+
+LunaHostCore
+  Platform-neutral host contracts.
+
+LunaHostSDL
+  SDL-backed host boundary for Linux/macOS bring-up. SDL imports stay here.
+
+LunaHostMetal
+  macOS Metal path. Metal/AppKit details stay here.
+
+LunaUI
+  Widgets, layout, focus, overlays, menus, prompts, status bars, UI context.
+
+LunaUITestApp
+  Proof app only. It exercises Luna but should not become the engine.
 ```
 
-Rule of thumb:
+Boundary rule:
 
-> Platform code never leaks upward, and rendering details never leak sideways.
+> Platform code never leaks upward, renderer backend details never leak sideways, and Moth Text does not import platform UI APIs to draw normal editor UI.
+
+---
+
+## HybX / Hybrid RobotiX Credit
+
+The current Luna architecture cut is influenced by ideas mined from **HybX / Hybrid RobotiX**, especially the accessibility-first custom UI direction in the HybX Functional Code Editor work.
+
+- Hybrid RobotiX / HybX: <https://codeberg.org/hybridrobotix>
+
+Luna does **not** vendor or port HybX Rust code. The influence is architectural:
+
+- accessibility as part of the widget contract;
+- commands as shared infrastructure for menus, shortcuts, palettes, tests, and apps;
+- modal overlays and UI context as runtime services;
+- separation between app policy, UI runtime, renderer, and platform host;
+- visible UI, hit testing, and semantic accessibility all derived from the same widget state.
+
+Luna remains a Swift-native engine with its own implementation, renderer, text stack, theme system, and platform hosts.
 
 ---
 
 ## Build & Run
 
-Luna UI currently builds as a Swift Package. On Ubuntu / Pop!_OS, install the
-system libraries used by the Linux host, text shaper, and CPU demo path:
+Luna UI builds as a Swift Package.
+
+On Ubuntu / Pop!_OS:
 
 ```bash
 sudo apt update
 sudo apt install libharfbuzz-dev libfreetype6-dev libsdl2-dev pkg-config
 ```
 
-Then build and test:
+Build:
 
 ```bash
 swift build
+```
+
+Run tests:
+
+```bash
 swift test
 ```
 
@@ -225,165 +191,69 @@ Run the current CPU demo app:
 swift run LunaUITestApp
 ```
 
-The SDL2 `pkg-config` package may emit SwiftPM warnings about filtered
-`-D_REENTRANT` flags. Those warnings are expected on current Linux SwiftPM and
-do not indicate a failed build.
-
----
-
-## HybX-Inspired Architecture Cut
-
-The first Luna-UI integration target is not Moth Text itself. It is the reusable
-UI/runtime layer Moth will stand on.
-
-This architecture cut is credited to ideas mined from **HybX / Hybrid RobotiX**,
-especially the accessibility-first custom UI direction in the HybX Functional
-Code Editor work. See: <https://codeberg.org/hybridrobotix>
-
-Luna does **not** vendor or port HybX Rust code. The influence is architectural:
-widgets should not be drawing-only objects; they should carry identity, input
-semantics, command behavior, and accessibility meaning from the beginning.
-
-Luna now treats accessibility, commands, widgets, modal overlays, and UI metrics
-as core architecture instead of later app features:
-
-```
-LunaCore
-  Stable IDs, shared primitive values, diagnostics
-
-LunaAccessibility
-  Pure Swift accessibility nodes, roles, actions, trees, and live announcements
-
-LunaCommands
-  Command IDs and descriptors shared by menus, keymaps, palettes, tests, and apps
-
-LunaUI
-  Widget contract, UI context, modal request model, metrics, public API
-
-LunaRender / LunaText / LunaTheme / LunaHost*
-  Rendering, shaping, styling, and platform-specific host bridges
-```
-
-The key rule borrowed from HybX is:
-
-> If Luna can draw a widget, Luna must also be able to describe it semantically.
-
-That means a widget participates in the same three realities at once:
-
-- display list generation
-- hit testing
-- accessibility tree generation
-
-Moth Text should later consume this through a thin app layer: command registry,
-editor state, file/project policy, and Sublime-compatible importers. Moth should
-not own the renderer, host loop, accessibility bridge, or overlay system.
-
----
-
-## Why Swift
-
-Swift is a deliberate, pragmatic choice.
-
-It provides predictable performance, strong typing, value semantics, and memory safety without a garbage collector. It also allows direct, first-class access to Metal while remaining far more maintainable than C++ and less restrictive than Rust for UI-heavy work.
-
-### Why Not C++
-
-C++ carries decades of legacy complexity and footguns that actively work against maintainability in large UI systems.
-
-### Why Not Rust
-
-Rust enforces correctness through friction that slows iteration in UI and rendering code, where experimentation and tuning are constant.
-
-### Why Not SwiftUI
-
-SwiftUI optimizes for developer convenience.
-
-Luna UI optimizes for deterministic rendering, explicit layout control, and cross-platform parity.
-
-Swift the language is the tool.
-
-SwiftUI the framework is the wrong abstraction.
-
----
-
-## Comparison: Luna UI vs SwiftUI / Qt / Electron
-
-| Criteria                     | Luna UI              | SwiftUI           | Qt / GTK          | Electron         |
-|-----------------------------|----------------------|-------------------|-------------------|------------------|
-| Pixel-exact control         | Yes                  | No                | Varies            | No               |
-| Text shaping correctness    | First-class          | Limited           | Varies            | Browser-driven   |
-| Cross-platform parity       | Explicit             | Apple-first       | Toolkit-specific  | Browser quirks   |
-| Large-doc performance       | Engine-focused       | Not optimized     | Variable          | Poor             |
-| Rendering backend control   | CPU / GPU pluggable  | Locked            | Locked            | None             |
-
-This isn’t about being “better.” It’s about solving a very specific problem without compromise.
-
----
-
-## What This Enables in Moth Text
-
-Luna UI unlocks capabilities that are not realistically achievable on top of existing UI frameworks:
-
-- Pixel-perfect cursor and selection rendering
-- Consistent glyph shaping across platforms
-- Efficient redraw for very large files
-- Explicit layout pipelines with no hidden heuristics
-- Clean separation between editor logic and rendering
-
-In short: Luna UI makes a serious text editor *possible*.
+On current Linux SwiftPM, SDL2 may emit warnings about filtered `-D_REENTRANT` flags. Those warnings are expected and do not indicate a failed build.
 
 ---
 
 ## Current State
 
-Luna UI is under active development.
+The current checkpoint has:
 
-- macOS is the primary development platform
-- Linux is a first-class target
-- CPU rendering exists as a correctness reference
-- GPU backends are being introduced deliberately
+- initial architecture spine: `LunaCore`, `LunaAccessibility`, `LunaCommands`, and expanded `LunaUI` contracts;
+- existing renderer/text/theme/host goals preserved;
+- Linux SDL2 package wiring fixed;
+- Swift 6.2 Linux SDL enum and stderr issues fixed;
+- CPU demo running on Linux;
+- demo coordinate/text mirroring bug fixed;
+- HybX / Hybrid RobotiX credited as architectural influence.
 
-Expect refactors. Expect breaking changes.
-
----
-
-## Why This Repository Is Public
-
-Two reasons:
-
-1. Transparency — this is foundational infrastructure and benefits from scrutiny
-2. Future reuse — Luna UI is designed to outlive Moth Text
-
-For now, its job is singular:
-
-> Make Moth Text possible.
+Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.
 
 ---
 
-## Credits & Acknowledgements
+## Non-Goals
 
-Luna UI's current accessibility/command/widget spine is inspired by the HybX
-architecture direction from **Hybrid RobotiX**:
+Luna UI does not aim to:
 
-- Hybrid RobotiX / HybX: <https://codeberg.org/hybridrobotix>
+- replace SwiftUI for normal app development;
+- become a universal Qt/GTK competitor;
+- provide visual designers or drag-and-drop GUI builders;
+- chase native platform look-and-feel conventions;
+- optimize for rapid prototyping over correctness;
+- hide rendering details behind opaque abstractions;
+- become the Moth Text application itself.
 
-The specific ideas carried into Luna are:
-
-- accessibility as a first-class part of the widget contract
-- commands as shared infrastructure for menus, shortcuts, palettes, and tests
-- modal overlays and UI context as runtime services rather than app hacks
-- strict separation between app policy, UI runtime, renderer, and platform host
-
-Luna UI remains a Swift-native engine with its own implementation, renderer,
-text stack, theme system, and platform hosts. HybX is credited here as an
-architectural influence, not as vendored source code.
+Luna is intentionally narrow so it can be brutally good at editor-class custom UI.
 
 ---
 
-## Final Note
+## Why Swift
 
-Luna UI exists because the problem demanded it.
+Swift is a deliberate choice. It provides strong typing, value semantics, predictable performance, memory safety, and direct access to native platform capabilities without committing the project to C++ complexity or Rust friction in UI-heavy code.
 
-Moth Text could not be built correctly on top of existing UI frameworks without unacceptable compromises. Rather than accept those compromises, Luna UI was created.
+Swift the language is the tool.
 
-This repository is where that work happens.
+SwiftUI the framework is the wrong abstraction for this project.
+
+---
+
+## What Luna Enables in Moth Text
+
+Luna makes the following realistic:
+
+- pixel-perfect cursor and selection rendering;
+- consistent glyph shaping across platforms;
+- explicit layout and paint pipelines;
+- fast redraw and damage tracking for large files;
+- Sublime-style theme compatibility;
+- custom command palette, quick panel, completion popup, and status UI;
+- accessible custom widgets and text views;
+- clean separation between editor logic and UI infrastructure.
+
+For Moth Text, Luna is the difference between fighting a framework and owning the editor.
+
+---
+
+## License
+
+See [`LICENSE`](LICENSE).
