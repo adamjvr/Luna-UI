@@ -205,6 +205,8 @@ The current checkpoint has:
 - Swift 6.2 Linux SDL enum and stderr issues fixed;
 - CPU demo running on Linux;
 - demo coordinate/text mirroring bug fixed;
+- Phase 1 semantic widget proof implemented;
+- Phase 1B live SDL mouse-click routing into the semantic widget implemented;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.

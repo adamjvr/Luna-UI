@@ -19,6 +19,7 @@
 //
 
 import Foundation
+import LunaCore
 import LunaRender
 import LunaTheme
 import LunaUI
@@ -30,12 +31,20 @@ import LunaUI
 /// Feature set (matches your request):
 /// - Moving block
 /// - Text overlay
+/// - Phase 1B semantic pointer activation demo
 public struct LunaCPUDemoScene {
     /// Scene start time reference.
     private let startTime: UInt64
 
     /// Monotonic frame counter (increments each render).
     public private(set) var frameIndex: UInt64 = 0
+
+    /// Number of successful semantic widget activations received through the
+    /// platform-neutral Luna pointer routing path.
+    public private(set) var semanticActivationCount: Int = 0
+
+    /// Last interaction string displayed in the demo status area.
+    private var lastInteractionStatus: String = "Click the Phase 1 panel to test hit-test + command routing"
 
     /// Create a new demo scene.
     public init(startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()) {
@@ -45,7 +54,7 @@ public struct LunaCPUDemoScene {
     /// Render one frame into the provided framebuffer.
     ///
     /// - Important: This function does *not* allocate on the hot path other than
-    ///   small, short-lived strings for the HUD text.
+    ///   small, short-lived strings for the HUD/status text.
     public mutating func render(into fb: inout LunaFramebuffer) {
         frameIndex &+= 1
 
@@ -57,8 +66,64 @@ public struct LunaCPUDemoScene {
         // Draw.
         drawBackgroundChecker(into: &fb)
         drawMovingBlock(into: &fb, timeSeconds: t)
-        drawSemanticWidgetProof(into: &fb)
+        drawSemanticWidgetProof(
+            into: &fb,
+            activationCount: semanticActivationCount,
+            status: lastInteractionStatus
+        )
         drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex)
+    }
+
+    /// Route a host pointer-down event into the Phase 1 semantic widget.
+    ///
+    /// This is the Phase 1B proof: SDL/AppKit stays at the host boundary, while
+    /// Luna receives a platform-neutral point/event, hit-tests the semantic
+    /// widget, activates it, queues a command, announces, and requests refresh.
+    @discardableResult
+    public mutating func handlePointerDown(
+        at point: LunaPointI,
+        framebufferSize: LunaSizeI
+    ) -> LunaPointerActivationResult {
+        var widget = Self.semanticWidget(for: framebufferSize, isFocused: true)
+        var context = LunaUIContext()
+        let event = LunaPointerEvent(phase: .down, location: point, button: .primary)
+        let result = widget.handlePointerEvent(event, context: &context)
+
+        if let command = result.requestedCommand {
+            semanticActivationCount += 1
+            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount)"
+        } else if result.didHit {
+            lastInteractionStatus = "Hit semantic widget, but no command was requested"
+        } else {
+            lastInteractionStatus = "Missed semantic widget at x=\(point.x), y=\(point.y)"
+        }
+
+        return result
+    }
+
+
+    /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
+    /// path and input path both call this helper, which keeps draw bounds and
+    /// hit-test bounds identical.
+    public static func semanticWidget(
+        for framebufferSize: LunaSizeI,
+        isFocused: Bool
+    ) -> LunaSemanticActionWidget {
+        let panelW = min(300, max(180, framebufferSize.width / 3))
+        let panelH = 56
+        let margin = 18
+        let x = max(margin, framebufferSize.width - panelW - margin)
+        let y = max(54, margin)
+
+        return LunaSemanticActionWidget(
+            id: "demo.phase1.semantic-widget",
+            bounds: LunaRectI(x: x, y: y, w: panelW, h: panelH),
+            title: "Phase 1",
+            subtitle: "Semantic widget proof",
+            primaryCommand: "luna.demo.phase1",
+            theme: .default,
+            isFocused: isFocused
+        )
     }
 
     // MARK: - Time helper
@@ -142,28 +207,35 @@ private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Doub
 /// Draw the Phase 1 semantic widget proof through Luna's actual widget contract.
 ///
 /// This deliberately uses `LunaSemanticActionWidget.buildDisplayList` instead of
-/// hand-writing rectangles in the demo. The same widget can also hit-test, expose
-/// an accessibility node, and request a command through `LunaUIContext`.
-private func drawSemanticWidgetProof(into fb: inout LunaFramebuffer) {
-    let panelW = min(300, max(180, fb.width / 3))
-    let panelH = 56
-    let margin = 18
-    let x = max(margin, fb.width - panelW - margin)
-    let y = max(54, margin)
-
-    let widget = LunaSemanticActionWidget(
-        id: "demo.phase1.semantic-widget",
-        bounds: LunaRectI(x: x, y: y, w: panelW, h: panelH),
-        title: "Phase 1",
-        subtitle: "Semantic widget proof",
-        primaryCommand: "luna.demo.phase1",
-        theme: .default,
+/// hand-writing the panel rectangles in the demo. The same widget can also
+/// hit-test, expose an accessibility node, and request a command through
+/// `LunaUIContext`.
+private func drawSemanticWidgetProof(
+    into fb: inout LunaFramebuffer,
+    activationCount: Int,
+    status: String
+) {
+    let widget = LunaCPUDemoScene.semanticWidget(
+        for: LunaSizeI(width: fb.width, height: fb.height),
         isFocused: true
     )
 
     var displayList = LunaDisplayList()
     widget.buildDisplayList(into: &displayList)
     LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    // Text is still drawn by the demo's tiny debug font until LunaDisplayList
+    // grows a real text/glyph-run command. The semantic panel itself is drawn
+    // through the widget/display-list path above.
+    let textX = widget.bounds.x + 14
+    let textY = widget.bounds.y + 10
+    let title = activationCount > 0 ? "Phase 1B x\(activationCount)" : "Phase 1B"
+    drawText5x7BGRA(into: &fb, x: textX, y: textY, text: title, scale: 2, b: 255, g: 255, r: 255, a: 255)
+    drawText5x7BGRA(into: &fb, x: textX, y: textY + 24, text: "Click routing proof", scale: 1, b: 230, g: 230, r: 230, a: 255)
+
+    let statusY = min(max(widget.bounds.y + widget.bounds.h + 12, 120), max(120, fb.height - 28))
+    let clippedStatus = String(status.prefix(64))
+    drawText5x7BGRA(into: &fb, x: 18, y: statusY, text: clippedStatus, scale: 2, b: 220, g: 220, r: 220, a: 255)
 }
 
 /// Heads-up display: title + time + frame.

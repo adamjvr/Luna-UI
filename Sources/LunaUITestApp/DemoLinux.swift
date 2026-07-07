@@ -19,6 +19,7 @@
 import Foundation
 import SDL2
 
+import LunaCore
 import LunaRender
 import LunaHostSDL
 
@@ -86,6 +87,20 @@ func runLinuxDemo() {
                     if newW != fb.width || newH != fb.height {
                         fb = LunaFramebuffer(width: newW, height: newH)
                         // The presenter recreates its streaming texture on the next present.
+                    }
+                }
+
+            case SDL_MOUSEBUTTONDOWN:
+                // Phase 1B: translate SDL mouse input into Luna's platform-neutral
+                // pointer activation path. SDL button 1 is the primary/left button.
+                if event.button.button == 1 {
+                    let result = demo.handlePointerDown(
+                        at: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
+                        framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+                    )
+
+                    if let command = result.requestedCommand {
+                        print("Luna demo requested command: \(command.rawValue)")
                     }
                 }
 

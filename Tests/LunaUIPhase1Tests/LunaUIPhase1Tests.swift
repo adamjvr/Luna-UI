@@ -90,3 +90,73 @@ final class LunaUIPhase1Tests: XCTestCase {
         )
     }
 }
+
+final class LunaUIPhase1BTests: XCTestCase {
+    func testPrimaryPointerDownInsideActionWidgetRoutesActivation() {
+        var widget = LunaSemanticActionWidget(
+            id: "phase1b.pointer",
+            bounds: LunaRectI(x: 20, y: 30, w: 120, h: 44),
+            title: "Pointer",
+            primaryCommand: "luna.phase1b.pointer"
+        )
+        var context = LunaUIContext()
+        let event = LunaPointerEvent(
+            phase: .down,
+            location: LunaPointI(x: 24, y: 36),
+            button: .primary
+        )
+
+        let result = widget.handlePointerEvent(event, context: &context)
+
+        XCTAssertEqual(result.hitNodeID, "phase1b.pointer")
+        XCTAssertEqual(result.requestedCommand, "luna.phase1b.pointer")
+        XCTAssertEqual(result.announcementTexts, ["Pointer activated"])
+        XCTAssertEqual(context.requestedCommands, ["luna.phase1b.pointer"])
+        XCTAssertTrue(context.requestedRefresh)
+    }
+
+    func testPointerDownOutsideActionWidgetDoesNotRouteActivation() {
+        var widget = LunaSemanticActionWidget(
+            id: "phase1b.pointer.miss",
+            bounds: LunaRectI(x: 20, y: 30, w: 120, h: 44),
+            title: "Pointer",
+            primaryCommand: "luna.phase1b.pointer.miss"
+        )
+        var context = LunaUIContext()
+        let event = LunaPointerEvent(
+            phase: .down,
+            location: LunaPointI(x: 10, y: 36),
+            button: .primary
+        )
+
+        let result = widget.handlePointerEvent(event, context: &context)
+
+        XCTAssertNil(result.hitNodeID)
+        XCTAssertNil(result.requestedCommand)
+        XCTAssertTrue(result.announcementTexts.isEmpty)
+        XCTAssertTrue(context.requestedCommands.isEmpty)
+        XCTAssertFalse(context.requestedRefresh)
+    }
+
+    func testNonPrimaryPointerDoesNotActivateActionWidget() {
+        var widget = LunaSemanticActionWidget(
+            id: "phase1b.pointer.secondary",
+            bounds: LunaRectI(x: 20, y: 30, w: 120, h: 44),
+            title: "Pointer",
+            primaryCommand: "luna.phase1b.pointer.secondary"
+        )
+        var context = LunaUIContext()
+        let event = LunaPointerEvent(
+            phase: .down,
+            location: LunaPointI(x: 24, y: 36),
+            button: .secondary
+        )
+
+        let result = widget.handlePointerEvent(event, context: &context)
+
+        XCTAssertNil(result.hitNodeID)
+        XCTAssertNil(result.requestedCommand)
+        XCTAssertTrue(context.requestedCommands.isEmpty)
+    }
+
+}

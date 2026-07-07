@@ -173,6 +173,30 @@ Exit criteria:
 
 ---
 
+## Phase 1B — Live Pointer Routing Proof
+
+Status: implemented as the live demo interaction slice.
+
+Purpose: prove that host mouse input can enter Luna through a platform-neutral event path and activate the same semantic widget used for rendering and accessibility.
+
+Deliverables:
+
+- `LunaPointerEvent`, `LunaPointerButton`, and `LunaPointerPhase`;
+- `LunaPointerActivationResult`;
+- `LunaActionableWidget.handlePointerEvent(...)`;
+- SDL mouse button translation in `LunaUITestApp`;
+- demo status text showing hit/miss/command results;
+- tests proving inside clicks activate, outside clicks miss, and non-primary buttons do not activate.
+
+Exit criteria:
+
+- clicking the Phase 1B panel in the Linux SDL demo queues `luna.demo.phase1`;
+- a visible count/status update appears in the demo;
+- the terminal logs the requested command;
+- pure Swift tests cover the platform-neutral pointer routing path.
+
+---
+
 ## Phase 2 — UI Runtime, Focus, and Overlay Manager
 
 Purpose: create the reusable app runtime services Moth will need.
