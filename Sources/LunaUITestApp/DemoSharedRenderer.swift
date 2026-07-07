@@ -32,6 +32,7 @@ import LunaUI
 /// - Moving block
 /// - Text overlay
 /// - Phase 1B semantic pointer activation demo
+/// - Phase 2 modal/overlay runtime demo
 public struct LunaCPUDemoScene {
     /// Scene start time reference.
     private let startTime: UInt64
@@ -44,7 +45,11 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Click the Phase 1 panel to test hit-test + command routing"
+    private var lastInteractionStatus: String = "Click Phase 1B panel to open Phase 2 overlay; click OK to dismiss"
+
+    /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
+    /// click routes through: modal first, semantic widget second.
+    private var modalManager = LunaModalOverlayManager()
 
     /// Create a new demo scene.
     public init(startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()) {
@@ -72,6 +77,7 @@ public struct LunaCPUDemoScene {
             status: lastInteractionStatus
         )
         drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex)
+        drawActiveModalOverlay(into: &fb, manager: modalManager)
     }
 
     /// Route a host pointer-down event into the Phase 1 semantic widget.
@@ -84,14 +90,48 @@ public struct LunaCPUDemoScene {
         at point: LunaPointI,
         framebufferSize: LunaSizeI
     ) -> LunaPointerActivationResult {
+        let event = LunaPointerEvent(phase: .down, location: point, button: .primary)
+
+        // Phase 2 routing rule: active modal overlays see pointer events before
+        // background widgets.  Even a miss is consumed while a modal is open.
+        if modalManager.hasActiveModal {
+            var context = LunaUIContext()
+            let modalResult = modalManager.handlePointerEvent(event, context: &context)
+            if modalResult.didConsumeEvent {
+                if let label = modalResult.choiceLabel {
+                    lastInteractionStatus = modalResult.didDismiss
+                        ? "Phase 2 modal choice: \(label) dismissed overlay"
+                        : "Phase 2 modal choice: \(label)"
+                } else if modalResult.hitNodeID != nil {
+                    lastInteractionStatus = "Phase 2 modal panel hit"
+                } else {
+                    lastInteractionStatus = "Phase 2 modal consumed background click"
+                }
+
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: modalResult.hitNodeID,
+                    requestedCommand: modalResult.requestedCommand,
+                    announcementTexts: context.announcements.map(\.text)
+                )
+            }
+        }
+
         var widget = Self.semanticWidget(for: framebufferSize, isFocused: true)
         var context = LunaUIContext()
-        let event = LunaPointerEvent(phase: .down, location: point, button: .primary)
         let result = widget.handlePointerEvent(event, context: &context)
 
         if let command = result.requestedCommand {
             semanticActivationCount += 1
-            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount)"
+            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount); opened Phase 2 notice"
+            context.openNotice(
+                LunaNoticeRequest(
+                    id: "demo.phase2.notice",
+                    title: "Phase 2 Overlay",
+                    message: "Modal runtime active. This notice was opened by a semantic widget command. Click OK to dismiss."
+                )
+            )
+            modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
         } else if result.didHit {
             lastInteractionStatus = "Hit semantic widget, but no command was requested"
         } else {
@@ -236,6 +276,51 @@ private func drawSemanticWidgetProof(
     let statusY = min(max(widget.bounds.y + widget.bounds.h + 12, 120), max(120, fb.height - 28))
     let clippedStatus = String(status.prefix(64))
     drawText5x7BGRA(into: &fb, x: 18, y: statusY, text: clippedStatus, scale: 2, b: 220, g: 220, r: 220, a: 255)
+}
+
+
+/// Draw the active Phase 2 modal overlay through Luna's modal/display-list path.
+private func drawActiveModalOverlay(
+    into fb: inout LunaFramebuffer,
+    manager: LunaModalOverlayManager
+) {
+    guard let overlay = manager.active else { return }
+
+    var displayList = LunaDisplayList()
+    overlay.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    // Text is drawn using the demo debug font until display-list text lands.
+    let panel = overlay.panelBounds
+    let textX = panel.x + 18
+    let titleY = panel.y + 11
+    drawText5x7BGRA(into: &fb, x: textX, y: titleY, text: overlay.title, scale: 2, b: 245, g: 245, r: 245, a: 255)
+
+    if let message = overlay.message, !message.isEmpty {
+        let clipped = String(message.prefix(72))
+        drawText5x7BGRA(into: &fb, x: textX, y: panel.y + 52, text: clipped, scale: 1, b: 225, g: 225, r: 225, a: 255)
+    }
+
+    if let field = overlay.fieldBounds {
+        let text = overlay.initialText?.isEmpty == false ? overlay.initialText! : (overlay.placeholder ?? "")
+        drawText5x7BGRA(into: &fb, x: field.x + 8, y: field.y + 9, text: String(text.prefix(48)), scale: 1, b: 210, g: 210, r: 210, a: 255)
+    }
+
+    for choice in overlay.choices {
+        let label = String(choice.label.prefix(40))
+        let scale = choice.bounds.h >= 28 ? 1 : 1
+        drawText5x7BGRA(
+            into: &fb,
+            x: choice.bounds.x + 8,
+            y: choice.bounds.y + max(7, (choice.bounds.h - 7 * scale) / 2),
+            text: label,
+            scale: scale,
+            b: 255,
+            g: 255,
+            r: 255,
+            a: 255
+        )
+    }
 }
 
 /// Heads-up display: title + time + frame.

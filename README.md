@@ -207,6 +207,7 @@ The current checkpoint has:
 - demo coordinate/text mirroring bug fixed;
 - Phase 1 semantic widget proof implemented;
 - Phase 1B live SDL mouse-click routing into the semantic widget implemented;
+- Phase 2 modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.
@@ -268,3 +269,23 @@ swift test --filter LunaUIPhase1Tests
 ```
 
 `LunaSemanticActionWidget` is the first real widget wired through the complete Luna contract.
+
+
+## Phase 2 Modal / Overlay Runtime
+
+```bash
+swift build --target LunaUIPhase2Tests
+swift test --filter LunaUIPhase2Tests
+```
+
+Phase 2 adds the first reusable Luna overlay runtime primitives:
+
+- `LunaModalOverlay`;
+- `LunaModalOverlayManager`;
+- `LunaModalChoice`;
+- `LunaModalInteractionResult`;
+- concrete prompt, list, confirm, notice, and completion overlay construction from `LunaModalRequest`;
+- modal-first pointer routing so overlays block background widgets;
+- accessibility nodes for modal panels, static text, prompt fields, buttons, and list/completion choices.
+
+The Linux demo now proves the path live: click the Phase 1B semantic panel to open a Phase 2 notice overlay, then click **OK** to dismiss it.

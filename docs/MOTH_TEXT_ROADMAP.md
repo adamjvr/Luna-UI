@@ -420,3 +420,17 @@ Moth Text is successful when:
 - Luna owns generic UI/runtime/platform concerns;
 - editor behavior is testable outside the UI;
 - accessibility is available because it was designed into the stack, not retrofitted.
+
+
+## Luna Phase 2 Impact
+
+Luna Phase 2 overlay primitives now provide the reusable runtime pieces Moth will use for Sublime-style UI surfaces:
+
+- command palette shell via list/quick-panel overlay;
+- goto-anything shell via list/quick-panel overlay;
+- confirm-save/discard dialogs via confirm overlay;
+- notices and alerts via notice overlay;
+- completion popup shell via completion overlay;
+- prompt-style inputs for goto-line and find/replace bootstrap work.
+
+Moth should consume these as Luna primitives rather than implementing editor-specific ad-hoc overlays.

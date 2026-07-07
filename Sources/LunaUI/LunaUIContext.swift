@@ -81,4 +81,23 @@ public struct LunaUIContext: Sendable {
         modalRequests.append(.completion(request))
         requestRefresh()
     }
+
+    /// Drain queued modal requests so a runtime/overlay manager can open them.
+    ///
+    /// LunaUIContext records intent; runtime layers consume that intent at frame
+    /// boundaries.  This keeps application logic from directly owning overlay
+    /// presentation state.
+    public mutating func drainModalRequests() -> [LunaModalRequest] {
+        let requests = modalRequests
+        modalRequests.removeAll()
+        return requests
+    }
+
+    /// Drain queued command requests after the application has dispatched them.
+    public mutating func drainRequestedCommands() -> [LunaCommandID] {
+        let commands = requestedCommands
+        requestedCommands.removeAll()
+        return commands
+    }
+
 }

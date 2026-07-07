@@ -201,18 +201,30 @@ Exit criteria:
 
 Purpose: create the reusable app runtime services Moth will need.
 
-Deliverables:
+Status: initial implementation complete. Focus/menu work remains future Phase 2.x/Phase 3 support work, but the modal/overlay runtime is now real.
 
-- focus model;
-- hovered node vs keyboard focus vs accessibility focus separation;
-- overlay/modal coordinator;
-- prompt overlay;
-- list/quick-panel overlay;
-- confirmation dialog;
-- notice/toast;
+Delivered:
+
+- `LunaModalOverlayManager`;
+- `LunaModalOverlay`;
+- `LunaModalChoice`;
+- `LunaModalInteractionResult`;
+- prompt overlay shell;
+- list / quick-panel-style overlay shell;
+- confirmation dialog shell;
+- notice dialog shell;
 - completion popup shell;
-- live announcement queue;
-- basic menu model.
+- modal-first pointer routing that blocks background widgets;
+- accessibility trees for modal panels, static text, prompt fields, buttons, list rows, and completion rows;
+- Linux demo path: semantic widget command opens a notice overlay, and the OK choice dismisses it.
+
+Still to refine later:
+
+- full keyboard focus model;
+- hovered node vs keyboard focus vs accessibility focus separation;
+- text input editing inside prompt fields;
+- richer command arguments / payloads from modal choices;
+- menu model.
 
 Exit criteria:
 
