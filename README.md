@@ -202,10 +202,47 @@ Rule of thumb:
 
 ---
 
+## Build & Run
+
+Luna UI currently builds as a Swift Package. On Ubuntu / Pop!_OS, install the
+system libraries used by the Linux host, text shaper, and CPU demo path:
+
+```bash
+sudo apt update
+sudo apt install libharfbuzz-dev libfreetype6-dev libsdl2-dev pkg-config
+```
+
+Then build and test:
+
+```bash
+swift build
+swift test
+```
+
+Run the current CPU demo app:
+
+```bash
+swift run LunaUITestApp
+```
+
+The SDL2 `pkg-config` package may emit SwiftPM warnings about filtered
+`-D_REENTRANT` flags. Those warnings are expected on current Linux SwiftPM and
+do not indicate a failed build.
+
+---
+
 ## HybX-Inspired Architecture Cut
 
 The first Luna-UI integration target is not Moth Text itself. It is the reusable
 UI/runtime layer Moth will stand on.
+
+This architecture cut is credited to ideas mined from **HybX / Hybrid RobotiX**,
+especially the accessibility-first custom UI direction in the HybX Functional
+Code Editor work. See: <https://codeberg.org/hybridrobotix>
+
+Luna does **not** vendor or port HybX Rust code. The influence is architectural:
+widgets should not be drawing-only objects; they should carry identity, input
+semantics, command behavior, and accessibility meaning from the beginning.
 
 Luna now treats accessibility, commands, widgets, modal overlays, and UI metrics
 as core architecture instead of later app features:
@@ -320,6 +357,26 @@ Two reasons:
 For now, its job is singular:
 
 > Make Moth Text possible.
+
+---
+
+## Credits & Acknowledgements
+
+Luna UI's current accessibility/command/widget spine is inspired by the HybX
+architecture direction from **Hybrid RobotiX**:
+
+- Hybrid RobotiX / HybX: <https://codeberg.org/hybridrobotix>
+
+The specific ideas carried into Luna are:
+
+- accessibility as a first-class part of the widget contract
+- commands as shared infrastructure for menus, shortcuts, palettes, and tests
+- modal overlays and UI context as runtime services rather than app hacks
+- strict separation between app policy, UI runtime, renderer, and platform host
+
+Luna UI remains a Swift-native engine with its own implementation, renderer,
+text stack, theme system, and platform hosts. HybX is credited here as an
+architectural influence, not as vendored source code.
 
 ---
 
