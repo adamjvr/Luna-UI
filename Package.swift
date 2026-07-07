@@ -9,6 +9,9 @@ let package = Package(
     ],
     products: [
         .library(name: "LunaUI", targets: ["LunaUI"]),
+        .library(name: "LunaCore", targets: ["LunaCore"]),
+        .library(name: "LunaAccessibility", targets: ["LunaAccessibility"]),
+        .library(name: "LunaCommands", targets: ["LunaCommands"]),
         .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"]),
     ],
     targets: [
@@ -53,6 +56,25 @@ let package = Package(
         // -------------------------
         // Swift targets
         // -------------------------
+
+        .target(
+            name: "LunaCore",
+            dependencies: []
+        ),
+
+        .target(
+            name: "LunaAccessibility",
+            dependencies: [
+                "LunaCore",
+            ]
+        ),
+
+        .target(
+            name: "LunaCommands",
+            dependencies: [
+                "LunaCore",
+            ]
+        ),
 
         .target(
             name: "LunaTheme",
@@ -104,6 +126,9 @@ let package = Package(
         .target(
             name: "LunaUI",
             dependencies: [
+                "LunaCore",
+                "LunaAccessibility",
+                "LunaCommands",
                 "LunaTheme",
                 "LunaText",
                 "LunaRender",
@@ -121,7 +146,19 @@ let package = Package(
         .executableTarget(
             name: "LunaUITestApp",
             dependencies: [
-                "LunaUI"
+                "LunaUI",
+                "LunaRender",
+                .target(name: "LunaHostSDL", condition: .when(platforms: [.linux])),
+                .target(name: "SDL2", condition: .when(platforms: [.linux])),
+            ]
+        ),
+
+        .testTarget(
+            name: "LunaArchitectureTests",
+            dependencies: [
+                "LunaCore",
+                "LunaAccessibility",
+                "LunaCommands",
             ]
         ),
     ]

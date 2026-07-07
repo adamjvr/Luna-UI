@@ -140,9 +140,17 @@ private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, fram
     // Draw a translucent-ish bar (we still write opaque alpha; translucency is
     // achieved by using a dark color over the checker).
     let barH = max(28, min(44, fb.height / 12))
-    // NOTE: Our framebuffer coordinate system is **bottom-left** (y increases upward).
-    // Users expect HUD at the top, so place it at `height - barH`.
-    let barY = max(0, fb.height - barH)
+
+    // LunaFramebuffer is row-major and presented by SDL/CoreGraphics with the
+    // conventional framebuffer coordinate system: (0, 0) is the TOP-left pixel
+    // and y increases downward.
+    //
+    // Older versions of this demo accidentally treated the framebuffer as
+    // bottom-left-origin, which pushed the HUD to the bottom of the window and
+    // flipped the 5x7 text vertically. Keep the demo aligned with the actual
+    // byte layout so renderer bugs are visible instead of masked by coordinate
+    // conversion hacks.
+    let barY = 0
     fillRectBGRA(into: &fb, x: 0, y: barY, w: fb.width, h: barH, b: 8, g: 8, r: 8, a: 255)
 
     // Text (5x7 font, scaled).
@@ -278,10 +286,10 @@ private func drawText5x7BGRA(
 
                 // Draw a scaled pixel as a filled rect.
                 let px = penX + col * s
-                // Framebuffer coordinates are bottom-left origin, but the 5x7
-                // font data is authored with "row 0" at the TOP of the glyph.
-                // Flip vertically so the text renders right-side-up.
-                let py = y + (6 - row) * s
+                // Framebuffer coordinates are top-left origin, and the 5x7
+                // font data is authored with row 0 at the top of the glyph.
+                // Do not flip here; doing so mirrors text vertically.
+                let py = y + row * s
                 fillRectBGRA(into: &fb, x: px, y: py, w: s, h: s, b: b, g: g, r: r, a: a)
             }
         }

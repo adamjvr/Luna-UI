@@ -96,7 +96,7 @@ public final class LunaSDLPresenter {
         let pitch = Int32(fb.bytesPerRow)
 
         // Upload pixels using the stable helper (no dependency on fb.pixels name)
-        fb.withUnsafePixelBytes { ptr, _ in
+        _ = fb.withUnsafePixelBytes { ptr, _ in
             SDL_UpdateTexture(tex, nil, ptr, pitch)
         }
 

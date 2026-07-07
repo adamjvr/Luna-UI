@@ -4,7 +4,7 @@
 //
 //  Linux CPU-only demo host.
 //
-//  Uses SDL2 (via the SwiftPM system library target `CSDL2`) and the helper
+//  Uses SDL2 (via the SwiftPM system library target `SDL2`) and the helper
 //  presenter in `LunaHostSDL`.
 //
 //  The loop:
@@ -16,24 +16,29 @@
 
 #if os(Linux)
 
-import CSDL2
+import Foundation
+import SDL2
 
 import LunaRender
 import LunaHostSDL
 
 /// Top-level entry for Linux.
+private func lunaDemoLogError(_ message: String) {
+    FileHandle.standardError.write(Data((message + "\n").utf8))
+}
+
 func runLinuxDemo() {
     // SDL init.
     guard SDL_Init(UInt32(SDL_INIT_VIDEO)) == 0 else {
         let err = String(cString: SDL_GetError())
-        fputs("SDL_Init failed: \(err)\n", stderr)
+        lunaDemoLogError("SDL_Init failed: \(err)")
         return
     }
     defer { SDL_Quit() }
 
     // Initial window size.
-    var winW: Int32 = 960
-    var winH: Int32 = 640
+    let winW: Int32 = 960
+    let winH: Int32 = 640
 
     guard let window = SDL_CreateWindow(
         "Luna-UI CPU Demo",
@@ -41,10 +46,10 @@ func runLinuxDemo() {
         Int32(SDL_WINDOWPOS_CENTERED_MASK),
         winW,
         winH,
-        UInt32(SDL_WINDOW_RESIZABLE)
+        SDL_WINDOW_RESIZABLE.rawValue
     ) else {
         let err = String(cString: SDL_GetError())
-        fputs("SDL_CreateWindow failed: \(err)\n", stderr)
+        lunaDemoLogError("SDL_CreateWindow failed: \(err)")
         return
     }
     defer { SDL_DestroyWindow(window) }
@@ -52,24 +57,13 @@ func runLinuxDemo() {
     // CPU framebuffer.
     var fb = LunaFramebuffer(width: Int(winW), height: Int(winH))
 
-    // Presenter (owns renderer + texture).
-    func makePresenter(width: Int, height: Int) -> LunaSDLPresenter? {
-        do {
-            return try LunaSDLPresenter(window: window, width: width, height: height)
-        } catch {
-            fputs("LunaSDLPresenter init failed: \(error)\n", stderr)
-            return nil
-        }
-    }
-
-    guard var presenter = makePresenter(width: fb.width, height: fb.height) else { return }
+    // Presenter owns the SDL renderer + streaming texture. The texture is
+    // resized lazily by `present(framebuffer:)`, so the presenter itself does
+    // not need to be recreated when the window size changes.
+    let presenter = LunaSDLPresenter(window: window)
 
     // Shared demo renderer (pure Swift, shared with macOS).
     var demo = LunaCPUDemoScene()
-
-    // Frame counter + clock.
-    var frameIndex: UInt64 = 0
-    let startTicks = SDL_GetTicks()
 
     // Timing.
     let targetFPS: UInt32 = 60
@@ -86,15 +80,12 @@ func runLinuxDemo() {
 
             case SDL_WINDOWEVENT:
                 // Handle resize.
-                if event.window.event == UInt8(SDL_WINDOWEVENT_SIZE_CHANGED) {
+                if event.window.event == UInt8(SDL_WINDOWEVENT_SIZE_CHANGED.rawValue) {
                     let newW = max(1, Int(event.window.data1))
                     let newH = max(1, Int(event.window.data2))
                     if newW != fb.width || newH != fb.height {
                         fb = LunaFramebuffer(width: newW, height: newH)
-                        // Recreate presenter so texture matches the new size.
-                        if let newPresenter = makePresenter(width: newW, height: newH) {
-                            presenter = newPresenter
-                        }
+                        // The presenter recreates its streaming texture on the next present.
                     }
                 }
 
@@ -104,10 +95,7 @@ func runLinuxDemo() {
         }
 
         // -------- Render --------
-        frameIndex &+= 1
-        let nowTicks = SDL_GetTicks()
-        let tSeconds = Double(nowTicks &- startTicks) / 1000.0
-        demo.render(into: &fb, frameIndex: frameIndex, timeSeconds: tSeconds)
+        demo.render(into: &fb)
         presenter.present(framebuffer: fb)
 
         // -------- Throttle --------

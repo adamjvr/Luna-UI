@@ -202,6 +202,47 @@ Rule of thumb:
 
 ---
 
+## HybX-Inspired Architecture Cut
+
+The first Luna-UI integration target is not Moth Text itself. It is the reusable
+UI/runtime layer Moth will stand on.
+
+Luna now treats accessibility, commands, widgets, modal overlays, and UI metrics
+as core architecture instead of later app features:
+
+```
+LunaCore
+  Stable IDs, shared primitive values, diagnostics
+
+LunaAccessibility
+  Pure Swift accessibility nodes, roles, actions, trees, and live announcements
+
+LunaCommands
+  Command IDs and descriptors shared by menus, keymaps, palettes, tests, and apps
+
+LunaUI
+  Widget contract, UI context, modal request model, metrics, public API
+
+LunaRender / LunaText / LunaTheme / LunaHost*
+  Rendering, shaping, styling, and platform-specific host bridges
+```
+
+The key rule borrowed from HybX is:
+
+> If Luna can draw a widget, Luna must also be able to describe it semantically.
+
+That means a widget participates in the same three realities at once:
+
+- display list generation
+- hit testing
+- accessibility tree generation
+
+Moth Text should later consume this through a thin app layer: command registry,
+editor state, file/project policy, and Sublime-compatible importers. Moth should
+not own the renderer, host loop, accessibility bridge, or overlay system.
+
+---
+
 ## Why Swift
 
 Swift is a deliberate, pragmatic choice.
