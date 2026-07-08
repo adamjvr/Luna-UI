@@ -439,6 +439,62 @@ public struct LunaModalKeyboardInteractionResult: Hashable, Sendable {
     }
 }
 
+
+// MARK: - Layout / resize reflow
+
+public extension LunaModalOverlay {
+    /// Recompute overlay, panel, field, and choice bounds for a new viewport
+    /// while preserving semantic IDs and interaction identity where possible.
+    ///
+    /// This is the Phase 2D resize law for modals: the same calculated bounds
+    /// drive drawing, hit testing, and accessibility nodes after every reflow.
+    mutating func reflow(to viewportSize: LunaSizeI) {
+        let oldFocused = focusedChoiceID
+        let oldHovered = hoveredChoiceID
+        let oldPressed = pressedChoiceID
+
+        let layout: (overlay: LunaRectI, panel: LunaRectI)
+        switch kind {
+        case .prompt:
+            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 520, preferredHeight: 160)
+            fieldBounds = LunaRectI(x: layout.panel.x + 18, y: layout.panel.y + 58, w: max(1, layout.panel.w - 36), h: 28)
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
+
+        case .list:
+            let visibleCount = min(max(choices.count, 1), 10)
+            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 520, preferredHeight: 42 + visibleCount * 24)
+            fieldBounds = nil
+            choices = Self.reflowVerticalChoices(choices, startY: layout.panel.y + 38, panel: layout.panel, rowHeight: 22)
+
+        case .confirm:
+            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 480, preferredHeight: 150)
+            fieldBounds = nil
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: nil)
+
+        case .notice:
+            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 460, preferredHeight: 138)
+            fieldBounds = nil
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
+
+        case .completion:
+            let visibleCount = min(max(choices.count, 1), 10)
+            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 420, preferredHeight: 42 + visibleCount * 24)
+            fieldBounds = nil
+            choices = Self.reflowVerticalChoices(choices, startY: layout.panel.y + 38, panel: layout.panel, rowHeight: 22)
+        }
+
+        bounds = layout.overlay
+        panelBounds = layout.panel
+
+        let validChoiceIDs = Set(choices.map(\.id))
+        focusedChoiceID = oldFocused.flatMap { validChoiceIDs.contains($0) ? $0 : nil }
+            ?? choices.first(where: { $0.isDefault && $0.isEnabled })?.id
+            ?? choices.first(where: \.isEnabled)?.id
+        hoveredChoiceID = oldHovered.flatMap { validChoiceIDs.contains($0) ? $0 : nil }
+        pressedChoiceID = oldPressed.flatMap { validChoiceIDs.contains($0) ? $0 : nil }
+    }
+}
+
 /// Owns the currently active modal overlay and converts queued LunaUIContext
 /// modal requests into concrete overlay state.
 public struct LunaModalOverlayManager: Sendable {
@@ -457,6 +513,17 @@ public struct LunaModalOverlayManager: Sendable {
 
     public mutating func dismissActive() {
         active = nil
+    }
+
+    /// Reflow the active overlay when the host viewport changes size.
+    ///
+    /// The active modal keeps its semantic IDs and interaction identity, but all
+    /// draw/hit-test/accessibility bounds are recalculated from the new viewport.
+    public mutating func reflow(viewportSize: LunaSizeI) {
+        guard var overlay = active else { return }
+        overlay.style = style
+        overlay.reflow(to: viewportSize)
+        active = overlay
     }
 
     @discardableResult
@@ -967,6 +1034,63 @@ private extension LunaModalOverlay {
             )
         }
     }
+
+    static func reflowVerticalChoices(
+        _ choices: [LunaModalChoice],
+        startY: Int,
+        panel: LunaRectI,
+        rowHeight: Int
+    ) -> [LunaModalChoice] {
+        let maxVisible = min(choices.count, 10)
+        let visibleChoices = Array(choices.prefix(maxVisible))
+        let x = panel.x + 6
+        let w = max(1, panel.w - 12)
+        let gap = 2
+
+        return visibleChoices.enumerated().map { index, old in
+            LunaModalChoice(
+                id: old.id,
+                label: old.label,
+                command: old.command,
+                dismissesModal: old.dismissesModal,
+                bounds: LunaRectI(x: x, y: startY + index * (rowHeight + gap), w: w, h: rowHeight),
+                index: index,
+                isEnabled: old.isEnabled,
+                isDefault: old.isDefault,
+                isCancel: old.isCancel
+            )
+        }
+    }
+
+    static func reflowHorizontalChoices(
+        _ choices: [LunaModalChoice],
+        panel: LunaRectI,
+        fixedWidth: Int?
+    ) -> [LunaModalChoice] {
+        let clampedChoices = Array(choices.prefix(max(1, min(choices.count, 4))))
+        guard !clampedChoices.isEmpty else { return [] }
+
+        let gap = 8
+        let buttonW = fixedWidth ?? max(72, min(104, (panel.w - 36 - gap * max(0, clampedChoices.count - 1)) / max(1, clampedChoices.count)))
+        let totalW = buttonW * clampedChoices.count + gap * max(0, clampedChoices.count - 1)
+        let startX = panel.x + panel.w - 18 - totalW
+        let y = panel.y + panel.h - 38
+
+        return clampedChoices.enumerated().map { index, old in
+            LunaModalChoice(
+                id: old.id,
+                label: old.label,
+                command: old.command,
+                dismissesModal: old.dismissesModal,
+                bounds: LunaRectI(x: startX + index * (buttonW + gap), y: y, w: buttonW, h: 24),
+                index: index,
+                isEnabled: old.isEnabled,
+                isDefault: old.isDefault,
+                isCancel: old.isCancel
+            )
+        }
+    }
+
 }
 
 // MARK: - Draw helpers

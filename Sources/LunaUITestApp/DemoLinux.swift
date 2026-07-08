@@ -73,6 +73,7 @@ func runLinuxDemo() {
             case .windowResized(let size):
                 if size.width != fb.width || size.height != fb.height {
                     fb = LunaFramebuffer(width: size.width, height: size.height)
+                    demo.handleWindowResize(size)
                 }
 
             case .pointer(let pointerEvent):

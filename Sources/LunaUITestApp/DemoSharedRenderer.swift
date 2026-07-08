@@ -20,11 +20,44 @@
 
 import Foundation
 import LunaCore
+import LunaLayout
 import LunaRender
 import LunaTheme
 import LunaUI
 
 // MARK: - Public demo API
+
+
+/// Layout snapshot for the CPU demo scene.
+///
+/// Phase 2D uses this as the integration proof that drawing, hit testing, and
+/// future accessibility bounds are derived from the same reflowed geometry.
+public struct LunaCPUDemoSceneLayout: Sendable {
+    public static let semanticWidgetID: LunaNodeID = "demo.phase1.semantic-widget"
+    public static let hudID: LunaNodeID = "demo.hud"
+    public static let statusID: LunaNodeID = "demo.status"
+
+    public var viewport: LunaViewport
+    public var frames: LunaLayoutResult
+
+    public init(viewport: LunaViewport, frames: LunaLayoutResult) {
+        self.viewport = viewport
+        self.frames = frames
+    }
+
+    public var semanticWidgetBounds: LunaRectI {
+        frames.frame(for: Self.semanticWidgetID) ?? LunaRectI(x: 0, y: 0, w: 0, h: 0)
+    }
+
+    public var hudBounds: LunaRectI {
+        frames.frame(for: Self.hudID) ?? LunaRectI(x: 0, y: 0, w: viewport.size.width, h: 36)
+    }
+
+    public var statusBounds: LunaRectI {
+        frames.frame(for: Self.statusID) ?? LunaRectI(x: 18, y: max(120, viewport.size.height - 34), w: max(1, viewport.size.width - 36), h: 28)
+    }
+}
+
 
 /// A small, deterministic demo scene that can be rendered purely on CPU.
 ///
@@ -64,6 +97,18 @@ public struct LunaCPUDemoScene {
         self.startTime = startTimeNanoseconds
         self.theme = theme
         self.modalManager = LunaModalOverlayManager(style: LunaMothDefaultDarkControlStyle(theme: theme))
+    }
+
+
+
+    /// Reflow scene-owned overlays after the host window/framebuffer resizes.
+    ///
+    /// Background widgets are recomputed from `layout(for:)` during render and
+    /// hit testing. Active modals are stateful, so the manager explicitly
+    /// recalculates their panel/choice/accessibility bounds here.
+    public mutating func handleWindowResize(_ size: LunaSizeI) {
+        modalManager.reflow(viewportSize: size)
+        lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
     }
 
     /// Render one frame into the provided framebuffer.
@@ -188,6 +233,41 @@ public struct LunaCPUDemoScene {
     }
 
 
+
+    /// Compute the current demo layout for a framebuffer size.
+    ///
+    /// This is intentionally public/testable so resize/reflow correctness can be
+    /// validated without relying on screenshots.
+    public static func layout(for framebufferSize: LunaSizeI) -> LunaCPUDemoSceneLayout {
+        let viewport = LunaViewport(size: framebufferSize)
+        let context = LunaLayoutContext(viewport: viewport)
+        var result = LunaLayoutResult()
+
+        let hudHeight = max(28, min(44, viewport.size.height / 12))
+        result.set(id: LunaCPUDemoSceneLayout.hudID, bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: hudHeight))
+
+        let panelW = min(300, max(180, viewport.size.width / 3))
+        let semanticFrame = LunaAnchoredLayoutSpec(
+            id: LunaCPUDemoSceneLayout.semanticWidgetID,
+            anchor: .topRight,
+            sizeRule: LunaLayoutSizeRule(
+                preferred: LunaSizeI(width: panelW, height: 56),
+                minimum: LunaSizeI(width: 180, height: 56),
+                maximum: LunaSizeI(width: 300, height: 56)
+            ),
+            margin: LunaInsetsI(top: 54, right: 18, bottom: 18, left: 18)
+        ).frame(in: context)
+        result.set(semanticFrame)
+
+        let statusY = min(max(semanticFrame.bounds.y + semanticFrame.bounds.h + 12, 120), max(120, viewport.size.height - 28))
+        result.set(
+            id: LunaCPUDemoSceneLayout.statusID,
+            bounds: LunaRectI(x: 18, y: statusY, w: max(1, viewport.size.width - 36), h: 28)
+        )
+
+        return LunaCPUDemoSceneLayout(viewport: viewport, frames: result)
+    }
+
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
     /// path and input path both call this helper, which keeps draw bounds and
     /// hit-test bounds identical.
@@ -196,15 +276,11 @@ public struct LunaCPUDemoScene {
         isFocused: Bool,
         theme: LunaTheme = .mothDefaultDark
     ) -> LunaSemanticActionWidget {
-        let panelW = min(300, max(180, framebufferSize.width / 3))
-        let panelH = 56
-        let margin = 18
-        let x = max(margin, framebufferSize.width - panelW - margin)
-        let y = max(54, margin)
+        let layout = Self.layout(for: framebufferSize)
 
         return LunaSemanticActionWidget(
-            id: "demo.phase1.semantic-widget",
-            bounds: LunaRectI(x: x, y: y, w: panelW, h: panelH),
+            id: LunaCPUDemoSceneLayout.semanticWidgetID,
+            bounds: layout.semanticWidgetBounds,
             title: "Phase 1",
             subtitle: "Semantic widget proof",
             primaryCommand: "luna.demo.phase1",
@@ -318,9 +394,10 @@ private func drawSemanticWidgetProof(
     drawText5x7BGRA(into: &fb, x: textX, y: textY, text: title, scale: 2, b: 255, g: 255, r: 255, a: 255)
     drawText5x7BGRA(into: &fb, x: textX, y: textY + 24, text: "Click routing proof", scale: 1, b: 230, g: 230, r: 230, a: 255)
 
-    let statusY = min(max(widget.bounds.y + widget.bounds.h + 12, 120), max(120, fb.height - 28))
+    let layout = LunaCPUDemoScene.layout(for: LunaSizeI(width: fb.width, height: fb.height))
+    let statusBounds = layout.statusBounds
     let clippedStatus = String(status.prefix(64))
-    drawText5x7Color(into: &fb, x: 18, y: statusY, text: clippedStatus, scale: 2, color: theme.ui.statusText)
+    drawText5x7Color(into: &fb, x: statusBounds.x, y: statusBounds.y, text: clippedStatus, scale: 2, color: theme.ui.statusText)
 }
 
 

@@ -248,16 +248,17 @@ The current checkpoint has:
 - Phase 2A modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
 - Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and Sublime/Moth-style default control visuals;
 - Phase 2C host-boundary cleanup implemented: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
+- Phase 2D layout/resize/accessibility reflow implemented with `LunaLayout`, viewport-driven demo frames, modal reflow, and tests proving draw/hit-test/accessibility bounds stay synchronized after resize;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, text view phases, Sublime/Moth UI surfaces, editor chrome, renderer correctness, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 2D — Layout, Resize, and Accessibility Reflow
+Phase 2E — Visual Style Token Lockdown
 ```
 
-This must happen before the text view so Luna does not build editor primitives on fixed coordinates or stale accessibility bounds.
+Phase 2D is complete. Phase 2E should lock the Sublime/Moth visual token set before the text view and editor chrome start depending on it.
 
 ---
 
@@ -282,6 +283,7 @@ Phase 2 modal/overlay tests:
 ```bash
 swift build --target LunaUIPhase2Tests
 swift test --filter LunaUIPhase2Tests
+swift test --filter LunaUIPhase2DTests
 ```
 
 Full Linux check:

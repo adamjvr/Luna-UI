@@ -368,7 +368,7 @@ Tests required:
 
 ### Phase 2D — Layout, Resize, and Accessibility Reflow
 
-**Status:** next required phase before Phase 3.
+**Status:** complete.
 
 Goal: make resize/layout/accessibility correctness real before building the text view.
 
@@ -377,11 +377,9 @@ Scope:
 - `LunaViewport`;
 - `LunaLayoutContext`;
 - `LunaLayoutResult`;
-- root scene layout;
+- root scene layout in the demo;
 - anchored layout primitives;
-- stack or row/column layout starter;
-- modal recentering;
-- modal clamping inside small viewports;
+- modal recentering/reflow;
 - widget reflow on resize;
 - hit-test bounds update after resize;
 - accessibility bounds update after resize.
@@ -468,7 +466,7 @@ Tests required:
 
 ## Phase 3 — Accessible Text View
 
-Phase 3 should not begin until Phase 2D is complete.
+Phase 3 should not begin until Phase 2D is complete. Phase 2D is complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
 
 ### Phase 3A — Static Accessible Text View
 
@@ -732,7 +730,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 2D — Layout, Resize, and Accessibility Reflow
+Phase 2E — Visual Style Token Lockdown
 ```
 
-This must come before the text view so Luna does not build editor primitives on fixed coordinates or stale accessibility bounds.
+Phase 2D is complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.
