@@ -59,7 +59,7 @@ func runLinuxDemo() {
     var inputTranslator = LunaSDLInputTranslator()
 
     // Shared demo scene (pure Luna, no platform event decoding).
-    var demo = LunaCPUDemoScene(theme: .mothDefaultDark)
+    var demo = LunaCPUDemoScene(theme: .mothUserPalette)
 
     let targetFPS: UInt32 = 60
     let targetFrameMS: UInt32 = 1000 / targetFPS

@@ -109,4 +109,32 @@ final class LunaUIPhase2ETests: XCTestCase {
         XCTAssertEqual(style.fieldBackground, LunaRender.LunaRGBA8(r: 80, g: 81, b: 82, a: 255))
         XCTAssertEqual(style.fieldBorder, LunaRender.LunaRGBA8(r: 96, g: 97, b: 98, a: 255))
     }
+    func testUserMothPaletteMatchesUploadedSwatchesAndDemoTheme() {
+        let theme = LunaTheme.mothUserPalette
+
+        XCTAssertEqual(LunaMothUserPalette.void.hexRGBA, "#070709FF")
+        XCTAssertEqual(LunaMothUserPalette.base.hexRGBA, "#131416FF")
+        XCTAssertEqual(LunaMothUserPalette.raised.hexRGBA, "#242426FF")
+        XCTAssertEqual(LunaMothUserPalette.cobalt.hexRGBA, "#13308FFF")
+        XCTAssertEqual(LunaMothUserPalette.text.hexRGBA, "#888991FF")
+
+        XCTAssertEqual(theme.background.hexRGBA, "#131416FF")
+        XCTAssertEqual(theme.foreground.hexRGBA, "#888991FF")
+        XCTAssertEqual(theme.ui.windowBackground.hexRGBA, "#070709FF")
+        XCTAssertEqual(theme.ui.panel.background.hexRGBA, "#131416FF")
+        XCTAssertEqual(theme.ui.panel.titleBackground.hexRGBA, "#242426FF")
+        XCTAssertEqual(theme.ui.controlColors.hoveredBackground.hexRGBA, "#13308FFF")
+        XCTAssertEqual(theme.ui.statusBar.foreground.hexRGBA, "#888991FF")
+    }
+
+    func testUserMothPaletteFlowsIntoRenderReadyStyles() {
+        let theme = LunaTheme.mothUserPalette
+        let styles = LunaThemeVisualStyles(theme: theme)
+
+        XCTAssertEqual(styles.editor.background, LunaRender.LunaRGBA8(r: 19, g: 20, b: 22, a: 255))
+        XCTAssertEqual(styles.panel.titleBackground, LunaRender.LunaRGBA8(r: 36, g: 36, b: 38, a: 255))
+        XCTAssertEqual(styles.menu.rowHoveredBackground, LunaRender.LunaRGBA8(r: 19, g: 48, b: 143, a: 255))
+        XCTAssertEqual(styles.statusBar.foreground, LunaRender.LunaRGBA8(r: 136, g: 137, b: 145, a: 255))
+    }
+
 }

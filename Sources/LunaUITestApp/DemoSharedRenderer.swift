@@ -91,7 +91,7 @@ public struct LunaCPUDemoScene {
 
     /// Create a new demo scene.
     public init(
-        theme: LunaTheme = .mothDefaultDark,
+        theme: LunaTheme = .mothUserPalette,
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         self.startTime = startTimeNanoseconds
@@ -120,7 +120,7 @@ public struct LunaCPUDemoScene {
         theme = newTheme
         modalManager.style = LunaMothDefaultDarkControlStyle(theme: newTheme)
         modalManager.reflow(viewportSize: framebufferSize)
-        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=Moth dark, 3=high contrast."
+        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=Moth palette, 3=high contrast."
     }
 
     /// Render one frame into the provided framebuffer.
@@ -249,7 +249,7 @@ public struct LunaCPUDemoScene {
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
             return true
         case .number(2):
-            setTheme(.mothDefaultDark, framebufferSize: framebufferSize)
+            setTheme(.mothUserPalette, framebufferSize: framebufferSize)
             return true
         case .number(3):
             setTheme(.highContrastProof, framebufferSize: framebufferSize)
@@ -301,7 +301,7 @@ public struct LunaCPUDemoScene {
     public static func semanticWidget(
         for framebufferSize: LunaSizeI,
         isFocused: Bool,
-        theme: LunaTheme = .mothDefaultDark
+        theme: LunaTheme = .mothUserPalette
     ) -> LunaSemanticActionWidget {
         let layout = Self.layout(for: framebufferSize)
 

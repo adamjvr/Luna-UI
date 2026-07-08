@@ -337,7 +337,7 @@ Scope:
 - hex parsing for `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`;
 - `LunaControlColorSet`;
 - `LunaUIThemeColors`;
-- `LunaTheme.mothDefaultDark`;
+- `LunaTheme.mothDefaultDark` / `LunaTheme.mothUserPalette`;
 - theme-driven widget/control colors.
 
 Architecture rule:
@@ -548,7 +548,7 @@ Goal: formalize the Sublime/Moth visual language from the screenshot references.
 
 Scope:
 
-- `LunaTheme.mothDefaultDark` and component-specific Moth/Sublime token groups;
+- `LunaTheme.mothDefaultDark` / `LunaTheme.mothUserPalette` and component-specific Moth/Sublime token groups;
 - editor, gutter, minimap, scrollbar, caret, selection, and current-line tokens;
 - chrome, menu-bar, active-menu underline, tab-strip, and separator tokens;
 - dropdown/menu row, shortcut, disabled, checked, submenu-arrow, and separator tokens;
