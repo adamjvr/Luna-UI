@@ -20,9 +20,11 @@ The project direction is split into two roadmap documents:
 The short version:
 
 ```text
-Luna UI  = reusable Swift UI/runtime/rendering/accessibility engine
+Luna UI   = reusable Swift UI/runtime/rendering/accessibility engine
 Moth Text = Sublime-class editor product built on Luna UI
 ```
+
+The roadmap is intentionally broken into implementation gates. Recent work showed that broad phases like “modal overlays” hide too much detail. The repo now tracks subphases such as pointer routing, modal interaction polish, host-boundary cleanup, theme customization, layout/reflow, and accessibility bounds validation.
 
 ---
 
@@ -85,9 +87,19 @@ A custom UI engine must not create a separate inaccessible reality. Luna's rule 
 
 Every serious widget should eventually provide stable identity, bounds, display output, hit testing, and accessibility output from the same underlying state.
 
+The geometry law is:
+
+```text
+draw bounds = hit-test bounds = accessibility bounds
+```
+
 ### Command-Driven UI
 
 Commands are shared infrastructure. Menus, shortcuts, command palettes, accessibility actions, tests, and eventually plugins should be able to call the same typed command IDs.
+
+### Theme-Driven Visuals
+
+Widgets do not own permanent colors. Themes/styles own colors. Luna has hex-driven color primitives so Moth Text can supply exact values for editor backgrounds, chrome, tabs, menus, buttons, overlays, selections, caret, minimap, scrollbars, and status UI.
 
 ### Cross-Platform Visual Parity
 
@@ -113,6 +125,12 @@ LunaAccessibility
 LunaCommands
   Typed command IDs, key equivalents, command descriptors, command registry.
 
+LunaInput
+  Platform-neutral pointer, keyboard, window, and host input events.
+
+LunaTextCore
+  Pure text/glyph data types that do not require system text-shaping libraries.
+
 LunaText
   Font lookup, shaping, ligatures, bidi, combining marks, glyph runs, metrics.
 
@@ -120,13 +138,13 @@ LunaRender
   Display lists, CPU renderer, framebuffer contract, future GPU backends.
 
 LunaTheme
-  Theme tokens, color roles, style system, Sublime color scheme import later.
+  Color primitives, hex parsing, theme tokens, control styles, Sublime color scheme import later.
 
 LunaHostCore
   Platform-neutral host contracts.
 
 LunaHostSDL
-  SDL-backed host boundary for Linux/macOS bring-up. SDL imports stay here.
+  SDL-backed host boundary for Linux/macOS bring-up. SDL imports and SDL event normalization stay here.
 
 LunaHostMetal
   macOS Metal path. Metal/AppKit details stay here.
@@ -135,12 +153,32 @@ LunaUI
   Widgets, layout, focus, overlays, menus, prompts, status bars, UI context.
 
 LunaUITestApp
-  Proof app only. It exercises Luna but should not become the engine.
+  Proof app only. It must exercise Luna through the same architecture that Moth Text will use.
 ```
 
 Boundary rule:
 
 > Platform code never leaks upward, renderer backend details never leak sideways, and Moth Text does not import platform UI APIs to draw normal editor UI.
+
+---
+
+## Visual Direction
+
+Luna is reusable, but the default editor-facing controls are being shaped by the Moth Text goal: a Swift-native Sublime-class editor.
+
+The default visual language is:
+
+- dark editor-first interface;
+- charcoal chrome, menus, panels, and overlays;
+- blue-gray editor/content regions where the theme chooses that look;
+- compact rectangular controls;
+- thin borders and restrained contrast;
+- subtle cyan/teal hover and selection accents;
+- compact tabs, menus, quick panels, find panels, and status bars;
+- no mobile-style bubbly controls;
+- no Electron/VS Code/JetBrains default aesthetic.
+
+Menu dropdowns are the main area where Luna/Moth can innovate beyond strict visual mimicry. The behavior should preserve Sublime-like command coverage while allowing better command discovery, descriptions, search, and accessibility.
 
 ---
 
@@ -205,14 +243,56 @@ The current checkpoint has:
 - Swift 6.2 Linux SDL enum and stderr issues fixed;
 - CPU demo running on Linux;
 - demo coordinate/text mirroring bug fixed;
-- Phase 1 semantic widget proof implemented;
-- Phase 1B live SDL mouse-click routing into the semantic widget implemented;
-- Phase 2 modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
+- Phase 1A semantic widget proof implemented;
+- Phase 1B live mouse-click routing into the semantic widget implemented;
+- Phase 2A modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
 - Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and Sublime/Moth-style default control visuals;
-- Phase 2C host-boundary cleanup started: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
+- Phase 2C host-boundary cleanup implemented: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
+- roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, text view phases, Sublime/Moth UI surfaces, editor chrome, renderer correctness, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
-Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.
+The next implementation target is:
+
+```text
+Phase 2D — Layout, Resize, and Accessibility Reflow
+```
+
+This must happen before the text view so Luna does not build editor primitives on fixed coordinates or stale accessibility bounds.
+
+---
+
+## Phase Test Commands
+
+Architecture tests:
+
+```bash
+swift build --target LunaArchitectureTests
+swift test --filter LunaArchitectureTests
+```
+
+Phase 1 semantic widget tests:
+
+```bash
+swift build --target LunaUIPhase1Tests
+swift test --filter LunaUIPhase1Tests
+```
+
+Phase 2 modal/overlay tests:
+
+```bash
+swift build --target LunaUIPhase2Tests
+swift test --filter LunaUIPhase2Tests
+```
+
+Full Linux check:
+
+```bash
+rm -rf .build
+swift build
+swift test --filter LunaUIPhase1Tests
+swift test --filter LunaUIPhase2Tests
+swift run LunaUITestApp
+```
 
 ---
 
@@ -262,78 +342,3 @@ For Moth Text, Luna is the difference between fighting a framework and owning th
 ## License
 
 See [`LICENSE`](LICENSE).
-
-## Phase 1 Semantic Widget Proof
-
-```bash
-swift build --target LunaUIPhase1Tests
-swift test --filter LunaUIPhase1Tests
-```
-
-`LunaSemanticActionWidget` is the first real widget wired through the complete Luna contract.
-
-
-## Phase 2 / 2B Modal and Overlay Runtime
-
-```bash
-swift build --target LunaUIPhase2Tests
-swift test --filter LunaUIPhase2Tests
-```
-
-Phase 2 adds the first reusable Luna overlay runtime primitives:
-
-- `LunaModalOverlay`;
-- `LunaModalOverlayManager`;
-- `LunaModalChoice`;
-- `LunaModalInteractionResult`;
-- concrete prompt, list, confirm, notice, and completion overlay construction from `LunaModalRequest`;
-- modal-first pointer routing so overlays block background widgets;
-- accessibility nodes for modal panels, static text, prompt fields, buttons, and list/completion choices.
-
-Phase 2B polishes those shell controls into a real interaction model shaped by Sublime Text / Moth Text visuals:
-
-- `LunaControlInteractionState`;
-- `LunaMothDefaultDarkControlStyle`;
-- hovered modal choice state;
-- pressed modal choice state;
-- focused/default choice state;
-- cancel/default choice metadata;
-- Enter/Space activation;
-- Escape dismissal/cancel;
-- Tab focus cycling;
-- compact dark rectangular control colors with cyan/teal hover and focus accents.
-
-The Linux demo now proves the path live: click the Phase 1B semantic panel to open a Phase 2B notice overlay. Hover over **OK**, hold the mouse down to see the pressed state, release to dismiss, or use Enter/Escape from the keyboard.
-
-
-## Phase 2C Host Boundary and Theme Customization
-
-Phase 2C corrects architectural debt exposed by the Phase 2B Linux demo work.
-The demo is not allowed to become a side-channel around Luna. It must exercise
-Luna the same way Moth Text eventually will.
-
-Phase 2C adds:
-
-- `LunaInput` platform-neutral pointer, keyboard, and host input events;
-- `LunaSDLInputTranslator` inside `LunaHostSDL` for SDL-to-Luna event translation;
-- SDL keycode/mouse/window-event normalization below the host boundary;
-- a Linux demo loop that consumes `LunaHostInputEvent` instead of manually decoding SDL keycodes;
-- `LunaColor` with hex parsing for `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA`;
-- `LunaControlColorSet` and `LunaUIThemeColors` for app-supplied UI/control colors;
-- `LunaTheme.mothDefaultDark` as a default Sublime/Moth-shaped dark theme;
-- theme-driven semantic widget and modal control colors.
-
-The rule going forward:
-
-```text
-Rendering code draws pixels.
-Widgets describe semantic intent and interaction state.
-Themes decide colors.
-Host targets translate platform input.
-Apps decide which theme is active.
-```
-
-Moth Text will not be forced to inherit the current demo colors. It will supply
-its own `LunaTheme`/`LunaUIThemeColors` values, with exact hex colors, for editor
-backgrounds, chrome, tabs, sidebars, overlays, menus, buttons, selections,
-scrollbars, minimap colors, and other UI elements.
