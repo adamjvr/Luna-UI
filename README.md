@@ -209,6 +209,7 @@ The current checkpoint has:
 - Phase 1B live SDL mouse-click routing into the semantic widget implemented;
 - Phase 2 modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
 - Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and Sublime/Moth-style default control visuals;
+- Phase 2C host-boundary cleanup started: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.
@@ -303,3 +304,36 @@ Phase 2B polishes those shell controls into a real interaction model shaped by S
 - compact dark rectangular control colors with cyan/teal hover and focus accents.
 
 The Linux demo now proves the path live: click the Phase 1B semantic panel to open a Phase 2B notice overlay. Hover over **OK**, hold the mouse down to see the pressed state, release to dismiss, or use Enter/Escape from the keyboard.
+
+
+## Phase 2C Host Boundary and Theme Customization
+
+Phase 2C corrects architectural debt exposed by the Phase 2B Linux demo work.
+The demo is not allowed to become a side-channel around Luna. It must exercise
+Luna the same way Moth Text eventually will.
+
+Phase 2C adds:
+
+- `LunaInput` platform-neutral pointer, keyboard, and host input events;
+- `LunaSDLInputTranslator` inside `LunaHostSDL` for SDL-to-Luna event translation;
+- SDL keycode/mouse/window-event normalization below the host boundary;
+- a Linux demo loop that consumes `LunaHostInputEvent` instead of manually decoding SDL keycodes;
+- `LunaColor` with hex parsing for `#RGB`, `#RGBA`, `#RRGGBB`, and `#RRGGBBAA`;
+- `LunaControlColorSet` and `LunaUIThemeColors` for app-supplied UI/control colors;
+- `LunaTheme.mothDefaultDark` as a default Sublime/Moth-shaped dark theme;
+- theme-driven semantic widget and modal control colors.
+
+The rule going forward:
+
+```text
+Rendering code draws pixels.
+Widgets describe semantic intent and interaction state.
+Themes decide colors.
+Host targets translate platform input.
+Apps decide which theme is active.
+```
+
+Moth Text will not be forced to inherit the current demo colors. It will supply
+its own `LunaTheme`/`LunaUIThemeColors` values, with exact hex colors, for editor
+backgrounds, chrome, tabs, sidebars, overlays, menus, buttons, selections,
+scrollbars, minimap colors, and other UI elements.

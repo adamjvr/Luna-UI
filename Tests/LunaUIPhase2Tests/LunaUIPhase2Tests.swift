@@ -3,6 +3,7 @@ import LunaAccessibility
 import LunaCommands
 import LunaCore
 import LunaRender
+import LunaTheme
 import LunaUI
 
 final class LunaUIPhase2Tests: XCTestCase {
@@ -418,5 +419,35 @@ final class LunaUIPhase2Tests: XCTestCase {
         XCTAssertEqual(result.requestedCommand, "luna.phase2b.escape.choice")
         XCTAssertTrue(result.didDismiss)
         XCTAssertNil(manager.active)
+    }
+}
+
+final class LunaUIPhase2CThemeTests: XCTestCase {
+    func testHexColorParsingSupportsShortLongAndAlphaForms() throws {
+        XCTAssertEqual(try LunaColor(hex: "#123"), LunaColor(r: 0x11, g: 0x22, b: 0x33, a: 0xFF))
+        XCTAssertEqual(try LunaColor(hex: "#1234"), LunaColor(r: 0x11, g: 0x22, b: 0x33, a: 0x44))
+        XCTAssertEqual(try LunaColor(hex: "#112233"), LunaColor(r: 0x11, g: 0x22, b: 0x33, a: 0xFF))
+        XCTAssertEqual(try LunaColor(hex: "11223344"), LunaColor(r: 0x11, g: 0x22, b: 0x33, a: 0x44))
+    }
+
+    func testControlStyleCanBeBuiltFromThemeHexTokens() {
+        var ui = LunaUIThemeColors.mothDefaultDark
+        ui.panelBackground = .hex("#101112")
+        ui.controlColors.hoveredBackground = .hex("#ABCDEF")
+        ui.controlColors.selectedForeground = .hex("#010203")
+
+        let theme = LunaTheme(
+            name: "Moth Custom",
+            background: .hex("#202122"),
+            foreground: .hex("#E0E1E2"),
+            caret: .hex("#FFFFFF"),
+            selection: .hex("#303132"),
+            ui: ui
+        )
+
+        let style = LunaMothDefaultDarkControlStyle(theme: theme)
+        XCTAssertEqual(style.panelBackground, LunaRender.LunaRGBA8(r: 0x10, g: 0x11, b: 0x12, a: 0xFF))
+        XCTAssertEqual(style.background(for: .hovered), LunaRender.LunaRGBA8(r: 0xAB, g: 0xCD, b: 0xEF, a: 0xFF))
+        XCTAssertEqual(style.foreground(for: .selected), LunaRender.LunaRGBA8(r: 0x01, g: 0x02, b: 0x03, a: 0xFF))
     }
 }

@@ -11,6 +11,7 @@ import Foundation
 import LunaAccessibility
 import LunaCommands
 import LunaCore
+import LunaInput
 import LunaRender
 
 // MARK: - Modal kind / choice models
@@ -442,9 +443,14 @@ public struct LunaModalKeyboardInteractionResult: Hashable, Sendable {
 /// modal requests into concrete overlay state.
 public struct LunaModalOverlayManager: Sendable {
     public private(set) var active: LunaModalOverlay?
+    public var style: LunaMothDefaultDarkControlStyle
 
-    public init(active: LunaModalOverlay? = nil) {
+    public init(
+        active: LunaModalOverlay? = nil,
+        style: LunaMothDefaultDarkControlStyle = .default
+    ) {
         self.active = active
+        self.style = style
     }
 
     public var hasActiveModal: Bool { active != nil }
@@ -455,7 +461,8 @@ public struct LunaModalOverlayManager: Sendable {
 
     @discardableResult
     public mutating func open(_ request: LunaModalRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
-        let overlay = LunaModalOverlay(request: request, viewportSize: viewportSize)
+        var overlay = LunaModalOverlay(request: request, viewportSize: viewportSize)
+        overlay.style = style
         active = overlay
         return overlay
     }

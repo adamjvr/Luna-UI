@@ -6,6 +6,7 @@ import LunaAccessibility
 import LunaCommands
 import LunaCore
 import LunaTheme
+@_exported import LunaInput
 
 /// CPU vs GPU selection for the renderer.
 /// (GPU paths are platform-specific internally, but API is uniform.)

@@ -93,9 +93,10 @@ public struct LunaSemanticActionWidget: LunaActionableWidget, Sendable {
             primaryCommand: primaryCommand,
             isEnabled: isEnabled,
             isFocused: isFocused,
-            backgroundColor: LunaSemanticActionWidget.renderColor(r: theme.selection.r, g: theme.selection.g, b: theme.selection.b, a: theme.selection.a, fallbackAlpha: 255),
-            accentColor: LunaSemanticActionWidget.renderColor(r: theme.caret.r, g: theme.caret.g, b: theme.caret.b, a: theme.caret.a, fallbackAlpha: 255),
-            focusColor: LunaSemanticActionWidget.renderColor(r: theme.foreground.r, g: theme.foreground.g, b: theme.foreground.b, a: theme.foreground.a, fallbackAlpha: 255)
+            backgroundColor: theme.ui.controlColors.normalBackground.asRenderColor,
+            accentColor: theme.ui.controlColors.accent.asRenderColor,
+            focusColor: theme.ui.controlColors.focusedBorder.asRenderColor,
+            disabledOverlayColor: theme.ui.controlColors.disabledBackground.asRenderColor
         )
     }
 
@@ -154,12 +155,4 @@ public struct LunaSemanticActionWidget: LunaActionableWidget, Sendable {
         return primaryCommand
     }
 
-    private static func renderColor(r: UInt8, g: UInt8, b: UInt8, a: UInt8, fallbackAlpha: UInt8) -> LunaRender.LunaRGBA8 {
-        LunaRender.LunaRGBA8(
-            r: r,
-            g: g,
-            b: b,
-            a: a == 0 ? fallbackAlpha : a
-        )
-    }
 }

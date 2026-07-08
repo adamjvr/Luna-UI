@@ -86,9 +86,44 @@ final class LunaUIPhase1Tests: XCTestCase {
 
         XCTAssertEqual(
             displayList.commands.first,
-            .rect(LunaRectI(x: 0, y: 0, w: 50, h: 20), LunaRender.LunaRGBA8(r: 80, g: 120, b: 160, a: 180))
+            .rect(LunaRectI(x: 0, y: 0, w: 50, h: 20), LunaRender.LunaRGBA8(r: 48, g: 53, b: 61, a: 255))
         )
     }
+
+    func testSemanticActionWidgetUsesCustomHexThemeColors() {
+        var ui = LunaUIThemeColors.mothDefaultDark
+        ui.controlColors.normalBackground = .hex("#112233")
+        ui.controlColors.accent = .hex("#445566")
+        ui.controlColors.focusedBorder = .hex("#778899")
+
+        let theme = LunaTheme(
+            name: "Custom Moth Test",
+            background: .hex("#010203"),
+            foreground: .hex("#AABBCC"),
+            caret: .hex("#DDEEFF"),
+            selection: .hex("#334455"),
+            ui: ui
+        )
+
+        let widget = LunaSemanticActionWidget(
+            id: "phase2c.theme.widget",
+            bounds: LunaRectI(x: 0, y: 0, w: 60, h: 24),
+            title: "Theme",
+            primaryCommand: "luna.phase2c.theme",
+            theme: theme,
+            isFocused: true
+        )
+
+        var displayList = LunaDisplayList()
+        widget.buildDisplayList(into: &displayList)
+
+        XCTAssertEqual(
+            displayList.commands.first,
+            .rect(LunaRectI(x: 0, y: 0, w: 60, h: 24), LunaRender.LunaRGBA8(r: 0x11, g: 0x22, b: 0x33, a: 255))
+        )
+        XCTAssertTrue(displayList.commands.contains(.rect(LunaRectI(x: 0, y: 0, w: 3, h: 24), LunaRender.LunaRGBA8(r: 0x44, g: 0x55, b: 0x66, a: 255))))
+    }
+
 }
 
 final class LunaUIPhase1BTests: XCTestCase {

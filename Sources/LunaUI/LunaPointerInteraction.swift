@@ -1,48 +1,12 @@
 // LunaPointerInteraction.swift
 //
-// Phase 1B: small, platform-neutral pointer routing helpers.
-//
-// Host layers translate SDL/AppKit/etc. mouse events into these pure Luna
-// events. Widgets stay platform-agnostic and can be tested without a window.
+// Phase 1B/2C: platform-neutral pointer routing helpers. The pointer event
+// model lives in LunaInput so hosts can translate SDL/AppKit input below LunaUI.
 
 import Foundation
 import LunaCommands
 import LunaCore
-
-/// Platform-neutral pointer button used by Luna's semantic interaction layer.
-public enum LunaPointerButton: Hashable, Sendable {
-    case primary
-    case secondary
-    case middle
-    case other(Int)
-}
-
-/// Platform-neutral pointer event phase.
-public enum LunaPointerPhase: Hashable, Sendable {
-    case down
-    case up
-    case moved
-}
-
-/// Minimal pointer event shape needed to route Phase 1B widget activation.
-public struct LunaPointerEvent: Hashable, Sendable {
-    public var phase: LunaPointerPhase
-    public var location: LunaPointI
-    public var button: LunaPointerButton
-    public var clickCount: Int
-
-    public init(
-        phase: LunaPointerPhase,
-        location: LunaPointI,
-        button: LunaPointerButton = .primary,
-        clickCount: Int = 1
-    ) {
-        self.phase = phase
-        self.location = location
-        self.button = button
-        self.clickCount = max(0, clickCount)
-    }
-}
+import LunaInput
 
 /// Result of routing a pointer event through a semantic/actionable widget.
 public struct LunaPointerActivationResult: Hashable, Sendable {

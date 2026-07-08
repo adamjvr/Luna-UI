@@ -236,6 +236,55 @@ Exit criteria:
 - accessibility tree updates include modal content;
 - command palette and completion UI can later be implemented using the same primitives.
 
+
+---
+
+## Phase 2C — Host Boundary and Theme Customization Cleanup
+
+Purpose: correct the remaining demo/host architecture debt before Phase 3, and
+make sure Luna's visual system is app/theme-driven rather than hardcoded.
+
+Status: implemented as the checkpoint before the text-view prototype.
+
+Delivered:
+
+- `LunaInput` platform-neutral input module;
+- `LunaHostInputEvent` for quit, resize, pointer, and keyboard events;
+- `LunaSDLInputTranslator` inside `LunaHostSDL`;
+- SDL keycode, mouse button, and window-event normalization below the host boundary;
+- Linux demo event loop rewritten to consume Luna input events rather than decoding SDL keycodes directly;
+- `LunaColor` with hex parsing;
+- `LunaControlColorSet` and `LunaUIThemeColors`;
+- `LunaTheme.mothDefaultDark` as the default Sublime/Moth-shaped dark theme;
+- semantic widget and modal controls drawing from theme/style tokens;
+- tests for hex parsing and theme-driven control colors.
+
+Architecture rule:
+
+```text
+SDL/AppKit/etc. events
+  -> LunaHost platform translator
+  -> LunaInput events
+  -> LunaUI routing
+  -> widgets/modals/commands
+```
+
+Color rule:
+
+```text
+Widgets do not own permanent colors.
+Themes and styles own colors.
+Apps choose themes.
+Moth Text will supply its own exact hex-driven color scheme.
+```
+
+Exit criteria:
+
+- demo app no longer manually maps SDL keycodes;
+- demo uses the same input/theme path future Moth code will use;
+- all Phase 1/2 tests continue to pass;
+- custom theme colors can be supplied without changing widget code.
+
 ---
 
 ## Phase 3 — Accessible Text View Prototype

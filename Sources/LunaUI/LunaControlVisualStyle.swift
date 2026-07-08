@@ -1,14 +1,14 @@
 // LunaControlVisualStyle.swift
 //
-// Phase 2B: shared interaction-state and default control palette.
+// Phase 2B/2C: shared interaction-state and default control palette.
 //
-// The default palette is intentionally shaped by Sublime Text / Moth Text:
-// compact, dark, rectangular, low-noise controls with cyan/teal hover and
-// focus accents.  This is not a random Luna demo look; it is the beginning of
-// the visual language Moth Text will use on top of Luna-UI.
+// Phase 2B proved hover/press/focus states. Phase 2C moves the palette onto
+// LunaTheme color tokens so Moth Text can supply exact hex-driven colors
+// without inheriting demo colors.
 
 import Foundation
 import LunaRender
+import LunaTheme
 
 /// Platform-neutral interaction state for controls, menu rows, modal choices,
 /// quick-panel rows, and future editor chrome widgets.
@@ -21,14 +21,11 @@ public enum LunaControlInteractionState: String, Hashable, Sendable {
     case disabled
 }
 
-/// Sublime/Moth-shaped default control colors for Luna widgets and overlays.
+/// Sublime/Moth-shaped control colors for Luna widgets and overlays.
 ///
-/// The values are intentionally conservative:
-/// - charcoal chrome/panels
-/// - blue-gray editor-adjacent surfaces
-/// - cyan/teal selected/hover rows
-/// - thin focus/default outlines
-/// - no bubbly/oversized modern app styling
+/// This struct stores render-ready colors because it is consumed directly by
+/// display-list builders. It can be created from `LunaControlColorSet`, whose
+/// values are app/theme supplied and can be defined with hex strings.
 public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
     public var overlayBackdrop: LunaRender.LunaRGBA8
     public var panelBackground: LunaRender.LunaRGBA8
@@ -47,6 +44,7 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
     public var text: LunaRender.LunaRGBA8
     public var mutedText: LunaRender.LunaRGBA8
     public var disabledText: LunaRender.LunaRGBA8
+    public var selectedText: LunaRender.LunaRGBA8
     public var accent: LunaRender.LunaRGBA8
     public var accentStrong: LunaRender.LunaRGBA8
 
@@ -66,6 +64,7 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
         text: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 232, g: 236, b: 240, a: 255),
         mutedText: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 184, g: 191, b: 198, a: 255),
         disabledText: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 122, g: 128, b: 136, a: 255),
+        selectedText: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 22, g: 30, b: 34, a: 255),
         accent: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 118, g: 206, b: 203, a: 255),
         accentStrong: LunaRender.LunaRGBA8 = LunaRender.LunaRGBA8(r: 148, g: 240, b: 237, a: 255)
     ) {
@@ -84,11 +83,40 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
         self.text = text
         self.mutedText = mutedText
         self.disabledText = disabledText
+        self.selectedText = selectedText
         self.accent = accent
         self.accentStrong = accentStrong
     }
 
-    public static let `default` = LunaMothDefaultDarkControlStyle()
+    public init(uiColors: LunaUIThemeColors) {
+        let controls = uiColors.controlColors
+        self.init(
+            overlayBackdrop: uiColors.overlayBackdrop.asRenderColor,
+            panelBackground: uiColors.panelBackground.asRenderColor,
+            panelBorder: uiColors.panelBorder.asRenderColor,
+            titleBackground: uiColors.panelTitleBackground.asRenderColor,
+            fieldBackground: uiColors.fieldBackground.asRenderColor,
+            fieldBorder: uiColors.fieldBorder.asRenderColor,
+            controlNormal: controls.normalBackground.asRenderColor,
+            controlHovered: controls.hoveredBackground.asRenderColor,
+            controlPressed: controls.pressedBackground.asRenderColor,
+            controlFocused: controls.focusedBackground.asRenderColor,
+            controlSelected: controls.selectedBackground.asRenderColor,
+            controlDisabled: controls.disabledBackground.asRenderColor,
+            text: controls.foreground.asRenderColor,
+            mutedText: controls.mutedForeground.asRenderColor,
+            disabledText: controls.disabledForeground.asRenderColor,
+            selectedText: controls.selectedForeground.asRenderColor,
+            accent: controls.accent.asRenderColor,
+            accentStrong: controls.accentStrong.asRenderColor
+        )
+    }
+
+    public init(theme: LunaTheme) {
+        self.init(uiColors: theme.ui)
+    }
+
+    public static let `default` = LunaMothDefaultDarkControlStyle(theme: .mothDefaultDark)
 
     public func background(for state: LunaControlInteractionState) -> LunaRender.LunaRGBA8 {
         switch state {
@@ -112,9 +140,17 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
         case .disabled:
             return disabledText
         case .selected:
-            return LunaRender.LunaRGBA8(r: 22, g: 30, b: 34, a: 255)
+            return selectedText
         default:
             return text
         }
+    }
+}
+
+public extension LunaColor {
+    /// Convert theme color data into the renderer's current display-list color.
+    /// The conversion lives in LunaUI so LunaTheme stays renderer-independent.
+    var asRenderColor: LunaRender.LunaRGBA8 {
+        LunaRender.LunaRGBA8(r: r, g: g, b: b, a: a)
     }
 }

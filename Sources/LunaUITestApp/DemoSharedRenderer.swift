@@ -37,6 +37,11 @@ public struct LunaCPUDemoScene {
     /// Scene start time reference.
     private let startTime: UInt64
 
+    /// Active theme. Demo colors are theme-provided so the demo exercises the
+    /// same customization path Moth Text will use instead of hardcoding Luna's
+    /// appearance.
+    public var theme: LunaTheme
+
     /// Monotonic frame counter (increments each render).
     public private(set) var frameIndex: UInt64 = 0
 
@@ -52,8 +57,13 @@ public struct LunaCPUDemoScene {
     private var modalManager = LunaModalOverlayManager()
 
     /// Create a new demo scene.
-    public init(startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()) {
+    public init(
+        theme: LunaTheme = .mothDefaultDark,
+        startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
+    ) {
         self.startTime = startTimeNanoseconds
+        self.theme = theme
+        self.modalManager = LunaModalOverlayManager(style: LunaMothDefaultDarkControlStyle(theme: theme))
     }
 
     /// Render one frame into the provided framebuffer.
@@ -69,14 +79,15 @@ public struct LunaCPUDemoScene {
         let t = Double(dtNs) / 1_000_000_000.0
 
         // Draw.
-        drawBackgroundChecker(into: &fb)
-        drawMovingBlock(into: &fb, timeSeconds: t)
+        drawBackgroundChecker(into: &fb, theme: theme)
+        drawMovingBlock(into: &fb, timeSeconds: t, theme: theme)
         drawSemanticWidgetProof(
             into: &fb,
             activationCount: semanticActivationCount,
-            status: lastInteractionStatus
+            status: lastInteractionStatus,
+            theme: theme
         )
-        drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex)
+        drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex, theme: theme)
         drawActiveModalOverlay(into: &fb, manager: modalManager)
     }
 
@@ -120,7 +131,7 @@ public struct LunaCPUDemoScene {
         // The background semantic widget still uses the Phase 1B activation rule:
         // primary pointer-down activates. Hover support for ordinary widgets will
         // come after the modal/control-state model is proven.
-        var widget = Self.semanticWidget(for: framebufferSize, isFocused: true)
+        var widget = Self.semanticWidget(for: framebufferSize, isFocused: true, theme: theme)
         var context = LunaUIContext()
         let result = widget.handlePointerEvent(event, context: &context)
 
@@ -182,7 +193,8 @@ public struct LunaCPUDemoScene {
     /// hit-test bounds identical.
     public static func semanticWidget(
         for framebufferSize: LunaSizeI,
-        isFocused: Bool
+        isFocused: Bool,
+        theme: LunaTheme = .mothDefaultDark
     ) -> LunaSemanticActionWidget {
         let panelW = min(300, max(180, framebufferSize.width / 3))
         let panelH = 56
@@ -196,7 +208,7 @@ public struct LunaCPUDemoScene {
             title: "Phase 1",
             subtitle: "Semantic widget proof",
             primaryCommand: "luna.demo.phase1",
-            theme: .default,
+            theme: theme,
             isFocused: isFocused
         )
     }
@@ -215,7 +227,7 @@ public struct LunaCPUDemoScene {
 
 /// Fill the entire framebuffer with a subtle checker so “black window” bugs
 /// are immediately obvious.
-private func drawBackgroundChecker(into fb: inout LunaFramebuffer) {
+private func drawBackgroundChecker(into fb: inout LunaFramebuffer, theme: LunaTheme) {
     // Capture these *outside* the pixel closure to avoid overlapping-access traps.
     let w = fb.width
     let h = fb.height
@@ -240,21 +252,20 @@ private func drawBackgroundChecker(into fb: inout LunaFramebuffer) {
                 let cy = (y >> 4) & 1
                 let on = (cx ^ cy) != 0
 
-                // Two close greys so it’s not visually loud.
-                let v: UInt8 = on ? 28 : 22
+                let color = on ? theme.ui.editorBackground : theme.ui.windowBackground
 
                 let p = row.advanced(by: x * 4)
-                p[0] = v               // B
-                p[1] = v               // G
-                p[2] = v               // R
-                p[3] = 255             // A
+                p[0] = color.b         // B
+                p[1] = color.g         // G
+                p[2] = color.r         // R
+                p[3] = color.a         // A
             }
         }
     }
 }
 
 /// Draw a moving rectangle whose motion is driven by time.
-private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Double) {
+private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Double, theme: LunaTheme) {
     let w = fb.width
     let h = fb.height
     if w <= 0 || h <= 0 { return }
@@ -271,11 +282,8 @@ private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Doub
     let x0 = Int(px.rounded(.toNearestOrAwayFromZero))
     let y0 = Int(py.rounded(.toNearestOrAwayFromZero))
 
-    // Bright accent color so it pops.
-    fillRectBGRA(into: &fb, x: x0, y: y0, w: blockW, h: blockH, b: 60, g: 190, r: 255, a: 255)
-
-    // A darker outline so motion is crisp.
-    strokeRectBGRA(into: &fb, x: x0, y: y0, w: blockW, h: blockH, thickness: 2, b: 10, g: 10, r: 10, a: 255)
+    fillRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, color: theme.ui.movingBlock)
+    strokeRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, thickness: 2, color: theme.ui.movingBlockBorder)
 }
 
 
@@ -288,11 +296,13 @@ private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Doub
 private func drawSemanticWidgetProof(
     into fb: inout LunaFramebuffer,
     activationCount: Int,
-    status: String
+    status: String,
+    theme: LunaTheme
 ) {
     let widget = LunaCPUDemoScene.semanticWidget(
         for: LunaSizeI(width: fb.width, height: fb.height),
-        isFocused: true
+        isFocused: true,
+        theme: theme
     )
 
     var displayList = LunaDisplayList()
@@ -310,7 +320,7 @@ private func drawSemanticWidgetProof(
 
     let statusY = min(max(widget.bounds.y + widget.bounds.h + 12, 120), max(120, fb.height - 28))
     let clippedStatus = String(status.prefix(64))
-    drawText5x7BGRA(into: &fb, x: 18, y: statusY, text: clippedStatus, scale: 2, b: 220, g: 220, r: 220, a: 255)
+    drawText5x7Color(into: &fb, x: 18, y: statusY, text: clippedStatus, scale: 2, color: theme.ui.statusText)
 }
 
 
@@ -360,7 +370,7 @@ private func drawActiveModalOverlay(
 }
 
 /// Heads-up display: title + time + frame.
-private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, frameIndex: UInt64) {
+private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, frameIndex: UInt64, theme: LunaTheme) {
     // Draw a translucent-ish bar (we still write opaque alpha; translucency is
     // achieved by using a dark color over the checker).
     let barH = max(28, min(44, fb.height / 12))
@@ -375,7 +385,7 @@ private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, fram
     // byte layout so renderer bugs are visible instead of masked by coordinate
     // conversion hacks.
     let barY = 0
-    fillRectBGRA(into: &fb, x: 0, y: barY, w: fb.width, h: barH, b: 8, g: 8, r: 8, a: 255)
+    fillRectColor(into: &fb, x: 0, y: barY, w: fb.width, h: barH, color: theme.ui.hudBackground)
 
     // Text (5x7 font, scaled).
     let title = "Luna-UI CPU Demo"
@@ -386,8 +396,46 @@ private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, fram
     let titleY = barY + 8
     let infoY  = barY + 8 + 2 * (7 * 2 + 4)
 
-    drawText5x7BGRA(into: &fb, x: textX, y: titleY, text: title, scale: 2, b: 240, g: 240, r: 240, a: 255)
-    drawText5x7BGRA(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, b: 200, g: 200, r: 200, a: 255)
+    drawText5x7Color(into: &fb, x: textX, y: titleY, text: title, scale: 2, color: theme.ui.editorForeground)
+    drawText5x7Color(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, color: theme.ui.statusText)
+}
+
+
+/// Fill a rectangle from a theme color.
+private func fillRectColor(
+    into fb: inout LunaFramebuffer,
+    x: Int,
+    y: Int,
+    w: Int,
+    h: Int,
+    color: LunaColor
+) {
+    fillRectBGRA(into: &fb, x: x, y: y, w: w, h: h, b: color.b, g: color.g, r: color.r, a: color.a)
+}
+
+/// Stroke a rectangle from a theme color.
+private func strokeRectColor(
+    into fb: inout LunaFramebuffer,
+    x: Int,
+    y: Int,
+    w: Int,
+    h: Int,
+    thickness: Int,
+    color: LunaColor
+) {
+    strokeRectBGRA(into: &fb, x: x, y: y, w: w, h: h, thickness: thickness, b: color.b, g: color.g, r: color.r, a: color.a)
+}
+
+/// Draw text from a theme color.
+private func drawText5x7Color(
+    into fb: inout LunaFramebuffer,
+    x: Int,
+    y: Int,
+    text: String,
+    scale: Int,
+    color: LunaColor
+) {
+    drawText5x7BGRA(into: &fb, x: x, y: y, text: text, scale: scale, b: color.b, g: color.g, r: color.r, a: color.a)
 }
 
 /// Fill a rectangle (clipped) with a solid BGRA color.
