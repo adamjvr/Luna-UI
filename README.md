@@ -208,6 +208,7 @@ The current checkpoint has:
 - Phase 1 semantic widget proof implemented;
 - Phase 1B live SDL mouse-click routing into the semantic widget implemented;
 - Phase 2 modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
+- Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and Sublime/Moth-style default control visuals;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 Expect refactors. The architecture is being made stricter on purpose so Moth Text does not become a tangled ball of editor, renderer, platform, accessibility, and file-system code.
@@ -271,7 +272,7 @@ swift test --filter LunaUIPhase1Tests
 `LunaSemanticActionWidget` is the first real widget wired through the complete Luna contract.
 
 
-## Phase 2 Modal / Overlay Runtime
+## Phase 2 / 2B Modal and Overlay Runtime
 
 ```bash
 swift build --target LunaUIPhase2Tests
@@ -288,4 +289,17 @@ Phase 2 adds the first reusable Luna overlay runtime primitives:
 - modal-first pointer routing so overlays block background widgets;
 - accessibility nodes for modal panels, static text, prompt fields, buttons, and list/completion choices.
 
-The Linux demo now proves the path live: click the Phase 1B semantic panel to open a Phase 2 notice overlay, then click **OK** to dismiss it.
+Phase 2B polishes those shell controls into a real interaction model shaped by Sublime Text / Moth Text visuals:
+
+- `LunaControlInteractionState`;
+- `LunaMothDefaultDarkControlStyle`;
+- hovered modal choice state;
+- pressed modal choice state;
+- focused/default choice state;
+- cancel/default choice metadata;
+- Enter/Space activation;
+- Escape dismissal/cancel;
+- Tab focus cycling;
+- compact dark rectangular control colors with cyan/teal hover and focus accents.
+
+The Linux demo now proves the path live: click the Phase 1B semantic panel to open a Phase 2B notice overlay. Hover over **OK**, hold the mouse down to see the pressed state, release to dismiss, or use Enter/Escape from the keyboard.

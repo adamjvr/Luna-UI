@@ -80,32 +80,32 @@ public struct LunaCPUDemoScene {
         drawActiveModalOverlay(into: &fb, manager: modalManager)
     }
 
-    /// Route a host pointer-down event into the Phase 1 semantic widget.
+    /// Route a host pointer event into Luna's modal-first pointer path.
     ///
-    /// This is the Phase 1B proof: SDL/AppKit stays at the host boundary, while
-    /// Luna receives a platform-neutral point/event, hit-tests the semantic
-    /// widget, activates it, queues a command, announces, and requests refresh.
+    /// Phase 2B extends Phase 1B so the demo can prove hover/press/focus states
+    /// on modal choices before background widgets ever see the event.
     @discardableResult
-    public mutating func handlePointerDown(
-        at point: LunaPointI,
+    public mutating func handlePointerEvent(
+        _ event: LunaPointerEvent,
         framebufferSize: LunaSizeI
     ) -> LunaPointerActivationResult {
-        let event = LunaPointerEvent(phase: .down, location: point, button: .primary)
-
-        // Phase 2 routing rule: active modal overlays see pointer events before
-        // background widgets.  Even a miss is consumed while a modal is open.
+        // Phase 2/2B routing rule: active modal overlays see pointer events
+        // before background widgets. Even a miss is consumed while a modal is
+        // open, preventing accidental background activation.
         if modalManager.hasActiveModal {
             var context = LunaUIContext()
             let modalResult = modalManager.handlePointerEvent(event, context: &context)
             if modalResult.didConsumeEvent {
                 if let label = modalResult.choiceLabel {
                     lastInteractionStatus = modalResult.didDismiss
-                        ? "Phase 2 modal choice: \(label) dismissed overlay"
-                        : "Phase 2 modal choice: \(label)"
-                } else if modalResult.hitNodeID != nil {
-                    lastInteractionStatus = "Phase 2 modal panel hit"
+                        ? "Phase 2B modal choice: \(label) dismissed overlay"
+                        : "Phase 2B modal choice: \(label)"
+                } else if let hit = modalResult.hitNodeID {
+                    lastInteractionStatus = "Phase 2B modal hit: \(hit.rawValue)"
+                } else if modalResult.didChangeVisualState {
+                    lastInteractionStatus = "Phase 2B modal hover/press state changed"
                 } else {
-                    lastInteractionStatus = "Phase 2 modal consumed background click"
+                    lastInteractionStatus = "Phase 2B modal consumed background pointer"
                 }
 
                 return LunaPointerActivationResult(
@@ -117,28 +117,63 @@ public struct LunaCPUDemoScene {
             }
         }
 
+        // The background semantic widget still uses the Phase 1B activation rule:
+        // primary pointer-down activates. Hover support for ordinary widgets will
+        // come after the modal/control-state model is proven.
         var widget = Self.semanticWidget(for: framebufferSize, isFocused: true)
         var context = LunaUIContext()
         let result = widget.handlePointerEvent(event, context: &context)
 
         if let command = result.requestedCommand {
             semanticActivationCount += 1
-            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount); opened Phase 2 notice"
+            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount); opened Phase 2B notice"
             context.openNotice(
                 LunaNoticeRequest(
                     id: "demo.phase2.notice",
-                    title: "Phase 2 Overlay",
-                    message: "Modal runtime active. This notice was opened by a semantic widget command. Click OK to dismiss."
+                    title: "Phase 2B Overlay",
+                    message: "Hover OK, hold mouse down to see pressed state, release to dismiss. Enter activates OK; Escape dismisses."
                 )
             )
             modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
         } else if result.didHit {
             lastInteractionStatus = "Hit semantic widget, but no command was requested"
-        } else {
-            lastInteractionStatus = "Missed semantic widget at x=\(point.x), y=\(point.y)"
+        } else if event.phase == .down {
+            lastInteractionStatus = "Missed semantic widget at x=\(event.location.x), y=\(event.location.y)"
         }
 
         return result
+    }
+
+    /// Backward-compatible helper kept for the Linux/macOS demo hosts while the
+    /// host event loop migrates from pointer-down only to full pointer routing.
+    @discardableResult
+    public mutating func handlePointerDown(
+        at point: LunaPointI,
+        framebufferSize: LunaSizeI
+    ) -> LunaPointerActivationResult {
+        handlePointerEvent(
+            LunaPointerEvent(phase: .down, location: point, button: .primary),
+            framebufferSize: framebufferSize
+        )
+    }
+
+    @discardableResult
+    public mutating func handleKeyboardEvent(_ event: LunaKeyboardEvent) -> Bool {
+        guard modalManager.hasActiveModal else { return false }
+        var context = LunaUIContext()
+        let result = modalManager.handleKeyboardEvent(event, context: &context)
+
+        if let label = result.choiceLabel {
+            lastInteractionStatus = result.didDismiss
+                ? "Phase 2B keyboard choice: \(label) dismissed overlay"
+                : "Phase 2B keyboard choice: \(label)"
+        } else if result.didDismiss {
+            lastInteractionStatus = "Phase 2B keyboard dismissed modal"
+        } else if result.didChangeVisualState {
+            lastInteractionStatus = "Phase 2B keyboard focus moved"
+        }
+
+        return result.didConsumeEvent
     }
 
 
@@ -308,17 +343,18 @@ private func drawActiveModalOverlay(
 
     for choice in overlay.choices {
         let label = String(choice.label.prefix(40))
-        let scale = choice.bounds.h >= 28 ? 1 : 1
+        let scale = 1
+        let fg = overlay.foregroundColor(for: choice)
         drawText5x7BGRA(
             into: &fb,
             x: choice.bounds.x + 8,
             y: choice.bounds.y + max(7, (choice.bounds.h - 7 * scale) / 2),
             text: label,
             scale: scale,
-            b: 255,
-            g: 255,
-            r: 255,
-            a: 255
+            b: fg.b,
+            g: fg.g,
+            r: fg.r,
+            a: fg.a
         )
     }
 }

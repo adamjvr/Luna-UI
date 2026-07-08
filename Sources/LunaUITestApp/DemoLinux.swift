@@ -22,6 +22,7 @@ import SDL2
 import LunaCore
 import LunaRender
 import LunaHostSDL
+import LunaUI
 
 /// Top-level entry for Linux.
 private func lunaDemoLogError(_ message: String) {
@@ -90,18 +91,77 @@ func runLinuxDemo() {
                     }
                 }
 
+            case SDL_MOUSEMOTION:
+                _ = demo.handlePointerEvent(
+                    LunaPointerEvent(
+                        phase: .moved,
+                        location: LunaPointI(x: Int(event.motion.x), y: Int(event.motion.y)),
+                        button: .primary
+                    ),
+                    framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+                )
+
             case SDL_MOUSEBUTTONDOWN:
-                // Phase 1B: translate SDL mouse input into Luna's platform-neutral
-                // pointer activation path. SDL button 1 is the primary/left button.
+                // Translate SDL mouse input into Luna's platform-neutral pointer
+                // interaction path. SDL button 1 is the primary/left button.
                 if event.button.button == 1 {
-                    let result = demo.handlePointerDown(
-                        at: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
+                    let result = demo.handlePointerEvent(
+                        LunaPointerEvent(
+                            phase: .down,
+                            location: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
+                            button: .primary
+                        ),
                         framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                     )
 
                     if let command = result.requestedCommand {
                         print("Luna demo requested command: \(command.rawValue)")
                     }
+                }
+
+            case SDL_MOUSEBUTTONUP:
+                if event.button.button == 1 {
+                    let result = demo.handlePointerEvent(
+                        LunaPointerEvent(
+                            phase: .up,
+                            location: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
+                            button: .primary
+                        ),
+                        framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+                    )
+
+                    if let command = result.requestedCommand {
+                        print("Luna demo requested command: \(command.rawValue)")
+                    }
+                }
+
+            case SDL_KEYDOWN:
+                let key: LunaKeyboardKey?
+
+                // Swift 6.2 imports SDL key constants as typed SDL_KeyCode values,
+                // while SDL_Keysym.sym is the raw SDL_Keycode Int32 alias. Normalize
+                // both sides to the enum raw value before matching.
+                let symRaw = UInt32(bitPattern: event.key.keysym.sym)
+                switch symRaw {
+                case SDLK_RETURN.rawValue, SDLK_KP_ENTER.rawValue:
+                    key = .enter
+                case SDLK_ESCAPE.rawValue:
+                    key = .escape
+                case SDLK_TAB.rawValue:
+                    key = .tab
+                case SDLK_SPACE.rawValue:
+                    key = .space
+                default:
+                    key = nil
+                }
+
+                if let key {
+                    let keyboardEvent = LunaKeyboardEvent(
+                        key: key,
+                        modifiers: .none,
+                        isRepeat: event.key.repeat != 0
+                    )
+                    _ = demo.handleKeyboardEvent(keyboardEvent)
                 }
 
             default:

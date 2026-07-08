@@ -201,7 +201,7 @@ Exit criteria:
 
 Purpose: create the reusable app runtime services Moth will need.
 
-Status: initial implementation complete. Focus/menu work remains future Phase 2.x/Phase 3 support work, but the modal/overlay runtime is now real.
+Status: Phase 2 and Phase 2B are implemented for modal overlays. Menu work remains future Phase 2.x/Phase 3 support work, but modal hover/press/focus/default/cancel interaction is now real.
 
 Delivered:
 
@@ -215,13 +215,16 @@ Delivered:
 - notice dialog shell;
 - completion popup shell;
 - modal-first pointer routing that blocks background widgets;
+- hovered, pressed, focused, default, disabled, and selected control states;
+- Sublime/Moth-shaped default dark control palette;
+- Enter/Space activation, Escape cancel/dismiss, and Tab focus cycling;
 - accessibility trees for modal panels, static text, prompt fields, buttons, list rows, and completion rows;
 - Linux demo path: semantic widget command opens a notice overlay, and the OK choice dismisses it.
 
 Still to refine later:
 
-- full keyboard focus model;
-- hovered node vs keyboard focus vs accessibility focus separation;
+- broader app-wide keyboard focus model beyond active modals;
+- hovered node vs keyboard focus vs accessibility focus separation across the full widget tree;
 - text input editing inside prompt fields;
 - richer command arguments / payloads from modal choices;
 - menu model.
