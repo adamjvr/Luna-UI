@@ -156,3 +156,91 @@ public struct LunaSemanticActionWidget: LunaActionableWidget, Sendable {
     }
 
 }
+
+// MARK: - Bounded semantic-widget text
+
+/// Visual text layout for `LunaSemanticActionWidget`.
+///
+/// The widget's accessibility node still exposes the full title/subtitle. This
+/// layout is only the bounded visual representation for debug/demo rendering and
+/// future display-list text commands.
+public struct LunaSemanticActionWidgetTextLayout: Hashable, Sendable {
+    public var title: LunaBoundedTextLine
+    public var subtitle: LunaBoundedTextLine?
+    public var titleBounds: LunaRectI
+    public var subtitleBounds: LunaRectI?
+
+    public init(
+        title: LunaBoundedTextLine,
+        subtitle: LunaBoundedTextLine?,
+        titleBounds: LunaRectI,
+        subtitleBounds: LunaRectI?
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.titleBounds = titleBounds
+        self.subtitleBounds = subtitleBounds
+    }
+}
+
+public extension LunaSemanticActionWidget {
+    /// Content bounds that leave room for the accent stripe and internal padding.
+    var contentBounds: LunaRectI {
+        let stripeWidth = min(max(3, bounds.w / 18), max(3, bounds.w))
+        return bounds.lunaInset(top: 8, right: 10, bottom: 8, left: stripeWidth + 9)
+    }
+
+    /// Bounded visual text for the widget. This is deliberately generic: future
+    /// tabs, menu rows, sidebar rows, status cells, and editor chrome should use
+    /// the same `LunaBoundedTextLayout` primitive instead of drawing unbounded
+    /// strings into the framebuffer.
+    func textLayout(
+        title visualTitle: String? = nil,
+        subtitle visualSubtitle: String? = nil
+    ) -> LunaSemanticActionWidgetTextLayout {
+        let fullTitle = visualTitle ?? title
+        let fullSubtitle = visualSubtitle ?? subtitle
+        let content = contentBounds
+
+        let titleBounds = LunaRectI(
+            x: content.x,
+            y: content.y,
+            w: content.w,
+            h: LunaDebugTextMetrics.title.lineHeight
+        )
+        let titleLine = LunaBoundedTextLayout.layout(
+            fullTitle,
+            in: titleBounds,
+            metrics: .title,
+            overflow: .ellipsizeTail
+        ).firstLine ?? LunaBoundedTextLine(text: "", fullText: fullTitle, bounds: titleBounds, isClipped: !fullTitle.isEmpty)
+
+        let subtitleBounds: LunaRectI? = fullSubtitle.map { _ in
+            LunaRectI(
+                x: content.x,
+                y: content.y + 24,
+                w: content.w,
+                h: LunaDebugTextMetrics.body.lineHeight
+            )
+        }
+
+        let subtitleLine: LunaBoundedTextLine?
+        if let fullSubtitle, let subtitleBounds {
+            subtitleLine = LunaBoundedTextLayout.layout(
+                fullSubtitle,
+                in: subtitleBounds,
+                metrics: .body,
+                overflow: .ellipsizeTail
+            ).firstLine ?? LunaBoundedTextLine(text: "", fullText: fullSubtitle, bounds: subtitleBounds, isClipped: !fullSubtitle.isEmpty)
+        } else {
+            subtitleLine = nil
+        }
+
+        return LunaSemanticActionWidgetTextLayout(
+            title: titleLine,
+            subtitle: subtitleLine,
+            titleBounds: titleBounds,
+            subtitleBounds: subtitleBounds
+        )
+    }
+}

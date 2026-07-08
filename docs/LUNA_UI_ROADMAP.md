@@ -453,6 +453,47 @@ Definition of done:
 
 - modal box geometry, hit testing, accessibility bounds, and visible text content all respond correctly to resize.
 
+
+### Phase 2D.2 — Universal Bounded Text and Control Reflow
+
+**Status:** complete.
+
+Goal: promote the modal-only text reflow fix into a shared Luna primitive so every text-bearing control respects assigned bounds.
+
+Scope:
+
+- `LunaBoundedTextLayout`;
+- `LunaBoundedTextLine`;
+- `LunaTextOverflowMode`;
+- `LunaTextHorizontalAlignment`;
+- `LunaDebugTextMetrics`;
+- shared clip, tail-ellipsis, and word-wrap behavior;
+- semantic widget title/subtitle layout through bounded text;
+- modal choice/button labels through bounded text;
+- prompt/status/control labels prepared for the same primitive;
+- full semantic text preserved for accessibility even when visual text is clipped or ellipsized.
+
+Critical law:
+
+```text
+text-bearing widgets never draw as if they have infinite width
+```
+
+Demo requirement:
+
+- semantic widget title/subtitle text stays inside its panel while resizing;
+- modal title/body/choice labels stay inside their visual regions;
+- status text ellipsizes inside the status region;
+- accessibility labels keep the full underlying strings.
+
+Tests required:
+
+- bounded text ellipsizes single-line labels;
+- bounded text wraps and clips multi-line body content;
+- semantic widget title/subtitle use bounded text;
+- modal choice labels use bounded text;
+- accessibility exposes full semantic labels while visual text is constrained.
+
 ### Phase 2E — Visual Style Token Lockdown
 
 **Status:** planned; can be implemented with or immediately after 2D.
@@ -509,7 +550,7 @@ Tests required:
 
 ## Phase 3 — Accessible Text View
 
-Phase 3 should not begin until Phase 2D/2D.1 are complete. Phase 2D and 2D.1 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
+Phase 3 should not begin until Phase 2D/2D.1/2D.2 are complete. Phase 2D, 2D.1, and 2D.2 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
 
 ### Phase 3A — Static Accessible Text View
 
@@ -776,4 +817,4 @@ The next implementation target is:
 Phase 2E — Visual Style Token Lockdown
 ```
 
-Phase 2D and the 2D.1 modal text/content correction are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.
+Phase 2D, 2D.1, and 2D.2 are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.

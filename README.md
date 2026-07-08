@@ -250,6 +250,7 @@ The current checkpoint has:
 - Phase 2C host-boundary cleanup implemented: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
 - Phase 2D layout/resize/accessibility reflow implemented with `LunaLayout`, viewport-driven demo frames, modal reflow, and tests proving draw/hit-test/accessibility bounds stay synchronized after resize;
 - Phase 2D.1 modal text/content reflow implemented so modal titles ellipsize, body text wraps/clips inside panel content bounds, and accessibility exposes full semantic text while using reflowed content regions;
+- Phase 2D.2 universal bounded-text primitive implemented so semantic widgets, modal labels, prompt fields, status lines, and future controls use shared clip/ellipsize/wrap behavior while accessibility keeps full semantic labels;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, text view phases, Sublime/Moth UI surfaces, editor chrome, renderer correctness, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -259,7 +260,7 @@ The next implementation target is:
 Phase 2E — Visual Style Token Lockdown
 ```
 
-Phase 2D and the 2D.1 modal text reflow correction are complete. Phase 2E should lock the Sublime/Moth visual token set before the text view and editor chrome start depending on it.
+Phase 2D, 2D.1, and 2D.2 are complete. Phase 2E should lock the Sublime/Moth visual token set before the text view and editor chrome start depending on it.
 
 ---
 

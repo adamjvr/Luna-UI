@@ -386,18 +386,57 @@ private func drawSemanticWidgetProof(
     LunaCPURenderer().render(displayList: displayList, into: &fb)
 
     // Text is still drawn by the demo's tiny debug font until LunaDisplayList
-    // grows a real text/glyph-run command. The semantic panel itself is drawn
-    // through the widget/display-list path above.
-    let textX = widget.bounds.x + 14
-    let textY = widget.bounds.y + 10
+    // grows a real text/glyph-run command. Phase 2D.2 routes that text through
+    // the same bounded-text primitive used by modal title/body/button labels so
+    // demo widgets expose real Luna behavior instead of unbounded proof art.
     let title = activationCount > 0 ? "Phase 1B x\(activationCount)" : "Phase 1B"
-    drawText5x7BGRA(into: &fb, x: textX, y: textY, text: title, scale: 2, b: 255, g: 255, r: 255, a: 255)
-    drawText5x7BGRA(into: &fb, x: textX, y: textY + 24, text: "Click routing proof", scale: 1, b: 230, g: 230, r: 230, a: 255)
+    let widgetText = widget.textLayout(
+        title: title,
+        subtitle: "Click routing proof"
+    )
+    drawText5x7BGRA(
+        into: &fb,
+        x: widgetText.title.bounds.x,
+        y: widgetText.title.bounds.y,
+        text: widgetText.title.text,
+        scale: 2,
+        b: 255,
+        g: 255,
+        r: 255,
+        a: 255
+    )
+    if let subtitle = widgetText.subtitle {
+        drawText5x7BGRA(
+            into: &fb,
+            x: subtitle.bounds.x,
+            y: subtitle.bounds.y,
+            text: subtitle.text,
+            scale: 1,
+            b: 230,
+            g: 230,
+            r: 230,
+            a: 255
+        )
+    }
 
     let layout = LunaCPUDemoScene.layout(for: LunaSizeI(width: fb.width, height: fb.height))
     let statusBounds = layout.statusBounds
-    let clippedStatus = String(status.prefix(64))
-    drawText5x7Color(into: &fb, x: statusBounds.x, y: statusBounds.y, text: clippedStatus, scale: 2, color: theme.ui.statusText)
+    let statusLayout = LunaBoundedTextLayout.layout(
+        status,
+        in: statusBounds,
+        metrics: LunaDebugTextMetrics(scale: 2),
+        overflow: .ellipsizeTail
+    )
+    if let statusLine = statusLayout.firstLine {
+        drawText5x7Color(
+            into: &fb,
+            x: statusLine.bounds.x,
+            y: statusLine.bounds.y,
+            text: statusLine.text,
+            scale: 2,
+            color: theme.ui.statusText
+        )
+    }
 }
 
 

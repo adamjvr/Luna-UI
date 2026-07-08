@@ -198,3 +198,93 @@ extension LunaUIPhase2DTests {
         XCTAssertGreaterThan(narrow.panelBounds.h, wide.panelBounds.h)
     }
 }
+
+extension LunaUIPhase2DTests {
+    func testUniversalBoundedTextEllipsizesSingleLineInsideBounds() {
+        let bounds = LunaRectI(x: 10, y: 20, w: 42, h: 12) // 7 debug-font chars at scale 1.
+        let layout = LunaBoundedTextLayout.layout(
+            "This label is far too long",
+            in: bounds,
+            metrics: .body,
+            overflow: .ellipsizeTail
+        )
+
+        XCTAssertEqual(layout.lines.count, 1)
+        XCTAssertTrue(layout.didClip)
+        XCTAssertTrue(layout.lines[0].text.hasSuffix("..."))
+        XCTAssertEqual(layout.lines[0].fullText, "This label is far too long")
+        XCTAssertLessThanOrEqual(layout.lines[0].bounds.x + layout.lines[0].bounds.w, bounds.x + bounds.w)
+    }
+
+    func testUniversalBoundedTextWrapsAndClipsWithinVerticalBounds() {
+        let bounds = LunaRectI(x: 4, y: 8, w: 60, h: 24) // Two body lines.
+        let layout = LunaBoundedTextLayout.layout(
+            "This body text should wrap into more than two lines and then clip the last visible line",
+            in: bounds,
+            metrics: .body,
+            overflow: .wrap
+        )
+
+        XCTAssertEqual(layout.lines.count, 2)
+        XCTAssertTrue(layout.didClip)
+        for line in layout.lines {
+            XCTAssertGreaterThanOrEqual(line.bounds.x, bounds.x)
+            XCTAssertLessThanOrEqual(line.bounds.x + line.bounds.w, bounds.x + bounds.w)
+            XCTAssertLessThanOrEqual(line.bounds.y + line.bounds.h, bounds.y + bounds.h)
+        }
+    }
+
+    func testSemanticWidgetTitleAndSubtitleUseBoundedTextLayout() {
+        let widget = LunaSemanticActionWidget(
+            id: "layout.semantic.text",
+            bounds: LunaRectI(x: 20, y: 30, w: 96, h: 56),
+            title: "A very long semantic widget title",
+            subtitle: "A very long semantic widget subtitle",
+            primaryCommand: "luna.semantic.text",
+            theme: .mothDefaultDark
+        )
+
+        let text = widget.textLayout()
+        XCTAssertTrue(text.title.text.hasSuffix("..."))
+        XCTAssertEqual(text.title.fullText, widget.title)
+        XCTAssertTrue(text.subtitle?.text.hasSuffix("...") ?? false)
+        XCTAssertEqual(text.subtitle?.fullText, widget.subtitle)
+        XCTAssertLessThanOrEqual(text.title.bounds.x + text.title.bounds.w, widget.bounds.x + widget.bounds.w)
+        XCTAssertLessThanOrEqual(text.subtitle!.bounds.x + text.subtitle!.bounds.w, widget.bounds.x + widget.bounds.w)
+
+        let a11y = widget.buildAccessibilityNode()
+        XCTAssertEqual(a11y.label, widget.title)
+        XCTAssertEqual(a11y.value, widget.subtitle)
+        XCTAssertEqual(a11y.bounds, widget.bounds.asAccessibilityRect)
+    }
+
+    func testModalChoiceLabelUsesUniversalBoundedTextLayout() {
+        let overlay = LunaModalOverlay(
+            request: .confirm(
+                LunaConfirmRequest(
+                    id: "layout.choice.label",
+                    title: "Choice Label",
+                    message: "Choice labels must not draw outside their button bounds.",
+                    buttons: ["A very long cancel label", "A very long default label"],
+                    commandOnChoice: "luna.choice"
+                )
+            ),
+            viewportSize: LunaSizeI(width: 310, height: 300)
+        )
+
+        for choice in overlay.choices {
+            let label = overlay.visualLabel(for: choice)
+            XCTAssertTrue(label.isClipped, "Expected long choice label to be clipped/ellipsized")
+            XCTAssertEqual(label.fullText, choice.label)
+            XCTAssertLessThanOrEqual(label.bounds.x, choice.bounds.x + choice.bounds.w)
+            XCTAssertLessThanOrEqual(label.bounds.x + label.bounds.w, choice.bounds.x + choice.bounds.w)
+        }
+
+        let children = overlay.buildAccessibilityChildren()
+        for choice in overlay.choices {
+            let node = children.first { $0.id == choice.id }
+            XCTAssertEqual(node?.label, choice.label)
+            XCTAssertEqual(node?.bounds, choice.bounds.asAccessibilityRect)
+        }
+    }
+}

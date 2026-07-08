@@ -424,6 +424,7 @@ Before serious Moth implementation, Luna should finish at least:
 
 ```text
 Luna Phase 2D — Layout, Resize, and Accessibility Reflow
+Luna Phase 2D.2 — Universal Bounded Text and Control Reflow
 Luna Phase 3A — Static Accessible Text View
 Luna Phase 3B — Editable Text Input
 ```
