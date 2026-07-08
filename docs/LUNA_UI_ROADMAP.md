@@ -494,6 +494,52 @@ Tests required:
 - modal choice labels use bounded text;
 - accessibility exposes full semantic labels while visual text is constrained.
 
+
+### Phase 2D.3 — Responsive Modal Control Layout
+
+**Status:** complete.
+
+Goal: correct the second content-level resize bug found after Phase 2D.2: text respected its bounds, but modal buttons/choice rows could still be assigned bad fixed-width/right-anchored bounds in very narrow viewports.
+
+Scope:
+
+- adaptive modal content insets;
+- shared modal content bounds for title, body, fields, and controls;
+- responsive horizontal choice/button layout;
+- single-button rows become full-width inside the content column when the panel is too narrow for the preferred button width;
+- multi-button rows shrink to a usable minimum, then stack vertically when they cannot fit horizontally;
+- prompt field bounds follow the same adaptive content column;
+- emergency-narrow message text ellipsizes instead of wrapping into one-character columns;
+- choice/button labels remain bounded inside their responsive button frames;
+- accessibility bounds continue to follow the actual reflowed control bounds.
+
+Critical law:
+
+```text
+controls must choose sane bounds for the available viewport before text is laid out
+```
+
+Demo requirement:
+
+- resize a notice modal extremely narrow;
+- OK remains inside the modal panel;
+- OK remains clickable;
+- OK label remains inside the button;
+- body text does not become a useless single-character column;
+- multi-button confirm overlays stack rather than spilling outside the panel.
+
+Tests required:
+
+- notice OK button remains inside the panel in emergency-narrow viewports;
+- single-button rows use full available content width when preferred width cannot fit;
+- multi-button confirm rows stack vertically when too narrow for horizontal minimums;
+- emergency-narrow message text ellipsizes instead of wrapping into one-character columns;
+- button hit-test and accessibility bounds match the responsive button frame.
+
+Definition of done:
+
+- modal controls have responsive bounds, not merely bounded text inside broken bounds.
+
 ### Phase 2E — Visual Style Token Lockdown
 
 **Status:** planned; can be implemented with or immediately after 2D.
@@ -550,7 +596,7 @@ Tests required:
 
 ## Phase 3 — Accessible Text View
 
-Phase 3 should not begin until Phase 2D/2D.1/2D.2 are complete. Phase 2D, 2D.1, and 2D.2 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
+Phase 3 should not begin until Phase 2D/2D.1/2D.2/2D.3 are complete. Phase 2D, 2D.1, 2D.2, and 2D.3 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
 
 ### Phase 3A — Static Accessible Text View
 
@@ -817,4 +863,4 @@ The next implementation target is:
 Phase 2E — Visual Style Token Lockdown
 ```
 
-Phase 2D, 2D.1, and 2D.2 are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.
+Phase 2D, 2D.1, 2D.2, and 2D.3 are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.

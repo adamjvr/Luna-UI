@@ -52,19 +52,21 @@ public extension LunaModalOverlay {
         let titleLine = titleLayout.firstLine ?? LunaModalTextLine(text: "", fullText: title, bounds: titleBounds, isClipped: !title.isEmpty)
 
         let messageRegion = Self.modalMessageRegion(in: panelBounds, choices: choices, fieldBounds: fieldBounds)
+        let messageOverflow: LunaTextOverflowMode = messageRegion.w >= Self.minimumReadableTextWidth ? .wrap : .ellipsizeTail
         let messageLayout = LunaBoundedTextLayout.layout(
             message ?? "",
             in: messageRegion,
             metrics: .body,
-            overflow: .wrap
+            overflow: messageOverflow
         )
 
         let fieldLine: LunaModalTextLine? = fieldBounds.map { field in
             let full = initialText?.isEmpty == false ? initialText! : (placeholder ?? "")
+            let fieldInset = Self.controlTextInset(forWidth: field.w)
             let textBounds = LunaRectI(
-                x: field.x + 8,
+                x: field.x + fieldInset,
                 y: field.y + max(0, (field.h - Self.debugFontHeight(scale: Self.bodyScale)) / 2),
-                w: max(0, field.w - 16),
+                w: max(0, field.w - fieldInset * 2),
                 h: Self.debugFontLineHeight(scale: Self.bodyScale)
             )
             return LunaBoundedTextLayout.layout(
@@ -86,7 +88,8 @@ public extension LunaModalOverlay {
     /// The visual label for a choice constrained to its current button/list-row
     /// bounds. This keeps labels from spilling outside modal controls.
     func visualLabel(for choice: LunaModalChoice) -> LunaModalTextLine {
-        let textBounds = choice.bounds.lunaInset(top: 0, right: 8, bottom: 0, left: 8)
+        let inset = Self.controlTextInset(forWidth: choice.bounds.w)
+        let textBounds = choice.bounds.lunaInset(top: 0, right: inset, bottom: 0, left: inset)
         let centeredBounds = LunaRectI(
             x: textBounds.x,
             y: choice.bounds.y + max(0, (choice.bounds.h - Self.debugFontHeight(scale: Self.bodyScale)) / 2),
@@ -122,11 +125,46 @@ public extension LunaModalOverlay {
         LunaDebugTextMetrics(scale: scale).characterCapacity(width: width)
     }
 
+
+    /// Minimum body-message width before the modal attempts word wrapping. Below
+    /// this, wrapping into one-character columns is worse than clipping/ellipsizing.
+    static let minimumReadableTextWidth = 96
+
+    /// Adaptive panel/content inset. Narrow windows must still keep controls
+    /// inside the panel; fixed 18 px insets can erase all usable width.
+    static func modalContentInset(forPanelWidth width: Int) -> Int {
+        if width >= 180 { return 18 }
+        if width >= 96 { return 12 }
+        if width >= 48 { return 6 }
+        return max(1, width / 8)
+    }
+
+    /// Content rectangle shared by title/body/fields/buttons. This makes modal
+    /// text and controls agree on the same available horizontal space.
+    static func modalContentBounds(in panel: LunaRectI) -> LunaRectI {
+        let inset = modalContentInset(forPanelWidth: panel.w)
+        return LunaRectI(
+            x: panel.x + inset,
+            y: panel.y,
+            w: max(0, panel.w - inset * 2),
+            h: panel.h
+        )
+    }
+
+    /// Adaptive text inset for control labels. A fixed 8 px inset is fine for
+    /// normal buttons, but ridiculous for emergency-narrow controls.
+    static func controlTextInset(forWidth width: Int) -> Int {
+        if width >= 48 { return 8 }
+        if width >= 24 { return 4 }
+        return max(0, width / 8)
+    }
+
     static func modalTitleTextBounds(in panel: LunaRectI) -> LunaRectI {
-        LunaRectI(
-            x: panel.x + 18,
+        let content = modalContentBounds(in: panel)
+        return LunaRectI(
+            x: content.x,
             y: panel.y + 11,
-            w: max(0, panel.w - 36),
+            w: content.w,
             h: debugFontLineHeight(scale: titleScale)
         )
     }
@@ -136,7 +174,8 @@ public extension LunaModalOverlay {
         choices: [LunaModalChoice],
         fieldBounds: LunaRectI?
     ) -> LunaRectI {
-        let x = panel.x + 18
+        let content = modalContentBounds(in: panel)
+        let x = content.x
         let y: Int
         if let fieldBounds {
             y = fieldBounds.y + fieldBounds.h + 8
@@ -146,7 +185,7 @@ public extension LunaModalOverlay {
 
         let choiceTop = choices.map(\.bounds.y).min() ?? (panel.y + panel.h - 12)
         let bottom = min(panel.y + panel.h - 12, choiceTop - 8)
-        return LunaRectI(x: x, y: y, w: max(0, panel.w - 36), h: max(0, bottom - y))
+        return LunaRectI(x: x, y: y, w: content.w, h: max(0, bottom - y))
     }
 
     static func ellipsized(_ text: String, maxCharacters: Int) -> String {
@@ -161,7 +200,10 @@ public extension LunaModalOverlay {
     /// width. Used by modal construction/reflow so narrow panels can grow taller
     /// when viewport height allows it.
     static func estimatedWrappedLineCount(for message: String?, width: Int) -> Int {
-        LunaBoundedTextLayout.estimatedWrappedLineCount(for: message, width: width, metrics: .body)
+        guard width >= minimumReadableTextWidth else {
+            return (message?.isEmpty == false) ? 1 : 0
+        }
+        return LunaBoundedTextLayout.estimatedWrappedLineCount(for: message, width: width, metrics: .body)
     }
 
     static func wrapped(_ message: String, maxCharactersPerLine: Int) -> [String] {

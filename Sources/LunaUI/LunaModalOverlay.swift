@@ -450,8 +450,8 @@ public extension LunaModalOverlay {
         switch kind {
         case .prompt:
             layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 520, baseHeight: 160, message: message)
-            fieldBounds = LunaRectI(x: layout.panel.x + 18, y: layout.panel.y + 58, w: max(1, layout.panel.w - 36), h: 28)
-            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
+            fieldBounds = Self.promptFieldBounds(in: layout.panel)
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, preferredWidth: 88)
 
         case .list:
             let visibleCount = min(max(choices.count, 1), 10)
@@ -462,12 +462,12 @@ public extension LunaModalOverlay {
         case .confirm:
             layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 480, baseHeight: 150, message: message)
             fieldBounds = nil
-            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: nil)
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, preferredWidth: nil)
 
         case .notice:
             layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 460, baseHeight: 138, message: message)
             fieldBounds = nil
-            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
+            choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, preferredWidth: 88)
 
         case .completion:
             let visibleCount = min(max(choices.count, 1), 10)
@@ -777,8 +777,15 @@ public struct LunaModalOverlayManager: Sendable {
 private extension LunaModalOverlay {
     static func makePrompt(_ request: LunaPromptRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
         let layout = contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 520, baseHeight: 160, message: request.placeholder)
-        let field = LunaRectI(x: layout.panel.x + 18, y: layout.panel.y + 58, w: layout.panel.w - 36, h: 28)
-        let button = LunaRectI(x: layout.panel.x + layout.panel.w - 112, y: layout.panel.y + layout.panel.h - 38, w: 88, h: 24)
+        let field = promptFieldBounds(in: layout.panel)
+        let choices = makeHorizontalChoices(
+            id: request.id,
+            labels: ["Submit"],
+            command: request.commandOnSubmit,
+            panel: layout.panel,
+            preferredWidth: 88,
+            defaultIndex: 0
+        )
 
         return LunaModalOverlay(
             id: request.id,
@@ -790,19 +797,9 @@ private extension LunaModalOverlay {
             anchor: nil,
             bounds: layout.overlay,
             panelBounds: layout.panel,
-            choices: [
-                LunaModalChoice(
-                    id: request.id.child("submit"),
-                    label: "Submit",
-                    command: request.commandOnSubmit,
-                    dismissesModal: true,
-                    bounds: button,
-                    index: 0,
-                    isDefault: true
-                )
-            ],
+            choices: choices,
             fieldBounds: field,
-            focusedChoiceID: request.id.child("submit")
+            focusedChoiceID: choices.first(where: { $0.isDefault })?.id ?? choices.first?.id
         )
     }
 
@@ -862,8 +859,14 @@ private extension LunaModalOverlay {
 
     static func makeNotice(_ request: LunaNoticeRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
         let layout = contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 460, baseHeight: 138, message: request.message)
-        let ok = LunaRectI(x: layout.panel.x + layout.panel.w - 112, y: layout.panel.y + layout.panel.h - 38, w: 88, h: 24)
-        let okID = request.id.child("ok")
+        let choices = makeHorizontalChoices(
+            id: request.id,
+            labels: ["OK"],
+            command: nil,
+            panel: layout.panel,
+            preferredWidth: 88,
+            defaultIndex: 0
+        )
 
         return LunaModalOverlay(
             id: request.id,
@@ -875,19 +878,9 @@ private extension LunaModalOverlay {
             anchor: nil,
             bounds: layout.overlay,
             panelBounds: layout.panel,
-            choices: [
-                LunaModalChoice(
-                    id: okID,
-                    label: "OK",
-                    command: nil,
-                    dismissesModal: true,
-                    bounds: ok,
-                    index: 0,
-                    isDefault: true
-                )
-            ],
+            choices: choices,
             fieldBounds: nil,
-            focusedChoiceID: okID
+            focusedChoiceID: choices.first(where: { $0.isDefault })?.id ?? choices.first?.id
         )
     }
 
@@ -978,7 +971,7 @@ private extension LunaModalOverlay {
         message: String?
     ) -> (overlay: LunaRectI, panel: LunaRectI) {
         let preliminary = modalLayout(viewportSize: viewportSize, preferredWidth: preferredWidth, preferredHeight: baseHeight)
-        let contentWidth = max(0, preliminary.panel.w - 36)
+        let contentWidth = modalContentBounds(in: preliminary.panel).w
         let wrappedLines = estimatedWrappedLineCount(for: message, width: contentWidth)
 
         // Base heights were authored around one body line. Add vertical room for
@@ -998,8 +991,9 @@ private extension LunaModalOverlay {
     ) -> [LunaModalChoice] {
         let maxVisible = min(labels.count, 10)
         let clampedLabels = Array(labels.prefix(maxVisible))
-        let x = panel.x + 6
-        let w = max(1, panel.w - 12)
+        let content = modalContentBounds(in: panel)
+        let x = content.x
+        let w = max(1, content.w)
         let gap = 2
 
         return clampedLabels.enumerated().map { index, label in
@@ -1021,25 +1015,29 @@ private extension LunaModalOverlay {
         id: LunaNodeID,
         labels: [String],
         command: LunaCommandID?,
-        panel: LunaRectI
+        panel: LunaRectI,
+        preferredWidth: Int? = nil,
+        defaultIndex explicitDefaultIndex: Int? = nil
     ) -> [LunaModalChoice] {
         let clampedLabels = Array(labels.prefix(max(1, min(labels.count, 4))))
-        let gap = 8
-        let buttonW = max(72, min(104, (panel.w - 36 - gap * max(0, clampedLabels.count - 1)) / max(1, clampedLabels.count)))
-        let totalW = buttonW * clampedLabels.count + gap * max(0, clampedLabels.count - 1)
-        let startX = panel.x + panel.w - 18 - totalW
-        let y = panel.y + panel.h - 38
+        let frames = horizontalChoiceFrames(count: clampedLabels.count, panel: panel, preferredWidth: preferredWidth)
 
         return clampedLabels.enumerated().map { index, label in
             let lower = label.lowercased()
             let isCancel = lower.contains("cancel") || lower.contains("no") || lower.contains("don't")
-            let isDefault = !isCancel && index == clampedLabels.indices.last
+            let isDefault: Bool
+            if let explicitDefaultIndex {
+                isDefault = index == explicitDefaultIndex
+            } else {
+                isDefault = !isCancel && index == clampedLabels.indices.last
+            }
+
             return LunaModalChoice(
-                id: id.child("choice").child(index),
+                id: clampedLabels.count == 1 ? id.child(label.lowercased().replacingOccurrences(of: " ", with: "-")) : id.child("choice").child(index),
                 label: label,
                 command: command,
                 dismissesModal: true,
-                bounds: LunaRectI(x: startX + index * (buttonW + gap), y: y, w: buttonW, h: 24),
+                bounds: frames[index],
                 index: index,
                 isEnabled: true,
                 isDefault: isDefault,
@@ -1056,8 +1054,9 @@ private extension LunaModalOverlay {
     ) -> [LunaModalChoice] {
         let maxVisible = min(choices.count, 10)
         let visibleChoices = Array(choices.prefix(maxVisible))
-        let x = panel.x + 6
-        let w = max(1, panel.w - 12)
+        let content = modalContentBounds(in: panel)
+        let x = content.x
+        let w = max(1, content.w)
         let gap = 2
 
         return visibleChoices.enumerated().map { index, old in
@@ -1078,16 +1077,12 @@ private extension LunaModalOverlay {
     static func reflowHorizontalChoices(
         _ choices: [LunaModalChoice],
         panel: LunaRectI,
-        fixedWidth: Int?
+        preferredWidth: Int?
     ) -> [LunaModalChoice] {
         let clampedChoices = Array(choices.prefix(max(1, min(choices.count, 4))))
         guard !clampedChoices.isEmpty else { return [] }
 
-        let gap = 8
-        let buttonW = fixedWidth ?? max(72, min(104, (panel.w - 36 - gap * max(0, clampedChoices.count - 1)) / max(1, clampedChoices.count)))
-        let totalW = buttonW * clampedChoices.count + gap * max(0, clampedChoices.count - 1)
-        let startX = panel.x + panel.w - 18 - totalW
-        let y = panel.y + panel.h - 38
+        let frames = horizontalChoiceFrames(count: clampedChoices.count, panel: panel, preferredWidth: preferredWidth)
 
         return clampedChoices.enumerated().map { index, old in
             LunaModalChoice(
@@ -1095,7 +1090,7 @@ private extension LunaModalOverlay {
                 label: old.label,
                 command: old.command,
                 dismissesModal: old.dismissesModal,
-                bounds: LunaRectI(x: startX + index * (buttonW + gap), y: y, w: buttonW, h: 24),
+                bounds: frames[index],
                 index: index,
                 isEnabled: old.isEnabled,
                 isDefault: old.isDefault,
@@ -1103,6 +1098,67 @@ private extension LunaModalOverlay {
             )
         }
     }
+
+    /// Responsive row/stack layout for modal controls.
+    ///
+    /// Phase 2D.2 made text stay inside assigned bounds. Phase 2D.3 fixes the
+    /// next layer down: controls must choose sane bounds before text is laid out.
+    /// Single-button rows become full-width in emergency-narrow panels. Multiple
+    /// buttons shrink to a usable minimum, then stack vertically when they no
+    /// longer fit horizontally.
+    static func horizontalChoiceFrames(count requestedCount: Int, panel: LunaRectI, preferredWidth: Int?) -> [LunaRectI] {
+        let count = max(0, min(requestedCount, 4))
+        guard count > 0 else { return [] }
+
+        let content = modalContentBounds(in: panel)
+        let availableW = max(1, content.w)
+        let gap = availableW >= 120 ? 8 : 4
+        let buttonH = 24
+        let bottomInset = modalContentInset(forPanelWidth: panel.w)
+        let baselineY = max(panel.y + 1, panel.y + panel.h - bottomInset - buttonH)
+        let preferred = max(44, preferredWidth ?? 88)
+        let minimum = min(44, availableW)
+
+        if count == 1 {
+            let useFullWidth = availableW < preferred + 16
+            let width = max(1, min(availableW, useFullWidth ? availableW : preferred))
+            let x = useFullWidth ? content.x : content.x + max(0, availableW - width)
+            return [LunaRectI(x: x, y: baselineY, w: width, h: buttonH)]
+        }
+
+        let preferredTotal = preferred * count + gap * (count - 1)
+        if preferredTotal <= availableW {
+            let startX = content.x + availableW - preferredTotal
+            return (0..<count).map { index in
+                LunaRectI(x: startX + index * (preferred + gap), y: baselineY, w: preferred, h: buttonH)
+            }
+        }
+
+        let minimumTotal = minimum * count + gap * (count - 1)
+        if minimumTotal <= availableW {
+            let width = max(1, (availableW - gap * (count - 1)) / count)
+            let total = width * count + gap * (count - 1)
+            let startX = content.x + max(0, availableW - total)
+            return (0..<count).map { index in
+                LunaRectI(x: startX + index * (width + gap), y: baselineY, w: width, h: buttonH)
+            }
+        }
+
+        // Emergency-narrow multi-button mode: stack buttons vertically inside the
+        // same content column rather than letting them spill outside the panel.
+        let verticalGap = 4
+        let totalH = buttonH * count + verticalGap * (count - 1)
+        let startY = max(panel.y + 40, panel.y + panel.h - bottomInset - totalH)
+        return (0..<count).map { index in
+            LunaRectI(x: content.x, y: startY + index * (buttonH + verticalGap), w: availableW, h: buttonH)
+        }
+    }
+
+    static func promptFieldBounds(in panel: LunaRectI) -> LunaRectI {
+        let content = modalContentBounds(in: panel)
+        return LunaRectI(x: content.x, y: panel.y + 58, w: max(1, content.w), h: 28)
+    }
+
 
 }
 

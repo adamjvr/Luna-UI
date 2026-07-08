@@ -288,3 +288,92 @@ extension LunaUIPhase2DTests {
         }
     }
 }
+
+extension LunaUIPhase2DTests {
+    func testNoticeButtonStaysInsidePanelInEmergencyNarrowViewport() {
+        let overlay = LunaModalOverlay(
+            request: .notice(
+                LunaNoticeRequest(
+                    id: "layout.responsive.ok",
+                    title: "Narrow OK",
+                    message: "This notice is deliberately long enough to stress the emergency narrow modal layout."
+                )
+            ),
+            viewportSize: LunaSizeI(width: 78, height: 520)
+        )
+
+        let ok = overlay.choices[0]
+        XCTAssertGreaterThanOrEqual(ok.bounds.x, overlay.panelBounds.x)
+        XCTAssertLessThanOrEqual(ok.bounds.x + ok.bounds.w, overlay.panelBounds.x + overlay.panelBounds.w)
+        XCTAssertGreaterThanOrEqual(ok.bounds.y, overlay.panelBounds.y)
+        XCTAssertLessThanOrEqual(ok.bounds.y + ok.bounds.h, overlay.panelBounds.y + overlay.panelBounds.h)
+
+        let label = overlay.visualLabel(for: ok)
+        XCTAssertLessThanOrEqual(label.bounds.x + label.bounds.w, ok.bounds.x + ok.bounds.w)
+        XCTAssertEqual(overlay.hitTest(LunaPointI(x: ok.bounds.x + max(0, ok.bounds.w / 2), y: ok.bounds.y + max(0, ok.bounds.h / 2))), ok.id)
+        XCTAssertEqual(overlay.buildAccessibilityChildren().first { $0.id == ok.id }?.bounds, ok.bounds.asAccessibilityRect)
+    }
+
+    func testSingleButtonUsesFullContentWidthWhenPanelIsTooNarrowForPreferredButton() {
+        let overlay = LunaModalOverlay(
+            request: .notice(LunaNoticeRequest(id: "layout.responsive.full-width", title: "Narrow", message: "Body")),
+            viewportSize: LunaSizeI(width: 120, height: 320)
+        )
+
+        let content = LunaModalOverlay.modalContentBounds(in: overlay.panelBounds)
+        let ok = overlay.choices[0]
+
+        if content.w < 104 {
+            XCTAssertEqual(ok.bounds.x, content.x)
+            XCTAssertEqual(ok.bounds.w, content.w)
+        }
+        XCTAssertLessThanOrEqual(ok.bounds.x + ok.bounds.w, content.x + content.w)
+    }
+
+    func testMultiButtonConfirmStacksVerticallyWhenTooNarrowForHorizontalMinimums() {
+        let overlay = LunaModalOverlay(
+            request: .confirm(
+                LunaConfirmRequest(
+                    id: "layout.responsive.stack",
+                    title: "Stack",
+                    message: "Very narrow multi-button modal",
+                    buttons: ["Cancel", "Don't Save", "Save"],
+                    commandOnChoice: "luna.stack.choice"
+                )
+            ),
+            viewportSize: LunaSizeI(width: 96, height: 420)
+        )
+
+        let content = LunaModalOverlay.modalContentBounds(in: overlay.panelBounds)
+        XCTAssertEqual(overlay.choices.count, 3)
+
+        for choice in overlay.choices {
+            XCTAssertEqual(choice.bounds.x, content.x)
+            XCTAssertEqual(choice.bounds.w, content.w)
+            XCTAssertGreaterThanOrEqual(choice.bounds.x, overlay.panelBounds.x)
+            XCTAssertLessThanOrEqual(choice.bounds.x + choice.bounds.w, overlay.panelBounds.x + overlay.panelBounds.w)
+        }
+
+        let yPositions = overlay.choices.map(\.bounds.y)
+        XCTAssertEqual(yPositions, yPositions.sorted(), "Stacked choices should run top-to-bottom without horizontal spill")
+    }
+
+    func testEmergencyNarrowMessageDoesNotWrapIntoSingleCharacterColumn() {
+        let overlay = LunaModalOverlay(
+            request: .notice(
+                LunaNoticeRequest(
+                    id: "layout.responsive.no-column",
+                    title: "Message",
+                    message: "Emergency narrow body text should ellipsize rather than wrap into a useless one character column."
+                )
+            ),
+            viewportSize: LunaSizeI(width: 72, height: 520)
+        )
+
+        let text = overlay.textLayout()
+        XCTAssertLessThanOrEqual(text.messageLines.count, 1)
+        if let line = text.messageLines.first {
+            XCTAssertTrue(line.isClipped)
+        }
+    }
+}
