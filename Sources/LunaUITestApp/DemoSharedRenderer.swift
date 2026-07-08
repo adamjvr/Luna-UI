@@ -83,7 +83,7 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Click Phase 1B panel to open Phase 2 overlay; click OK to dismiss"
+    private var lastInteractionStatus: String = "Click Phase 1B panel to open overlay; press 1/2/3 to switch themes"
 
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
@@ -109,6 +109,18 @@ public struct LunaCPUDemoScene {
     public mutating func handleWindowResize(_ size: LunaSizeI) {
         modalManager.reflow(viewportSize: size)
         lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
+    }
+
+    /// Switch the active theme and refresh all stateful visual styles.
+    ///
+    /// Phase 2E uses this in the demo so theme replacement is not theoretical:
+    /// the same widget/modal code can be rendered with Luna demo blue, Moth
+    /// default dark, or a high-contrast proof palette.
+    public mutating func setTheme(_ newTheme: LunaTheme, framebufferSize: LunaSizeI) {
+        theme = newTheme
+        modalManager.style = LunaMothDefaultDarkControlStyle(theme: newTheme)
+        modalManager.reflow(viewportSize: framebufferSize)
+        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=Moth dark, 3=high contrast."
     }
 
     /// Render one frame into the provided framebuffer.
@@ -214,22 +226,37 @@ public struct LunaCPUDemoScene {
     }
 
     @discardableResult
-    public mutating func handleKeyboardEvent(_ event: LunaKeyboardEvent) -> Bool {
-        guard modalManager.hasActiveModal else { return false }
-        var context = LunaUIContext()
-        let result = modalManager.handleKeyboardEvent(event, context: &context)
+    public mutating func handleKeyboardEvent(_ event: LunaKeyboardEvent, framebufferSize: LunaSizeI) -> Bool {
+        if modalManager.hasActiveModal {
+            var context = LunaUIContext()
+            let result = modalManager.handleKeyboardEvent(event, context: &context)
 
-        if let label = result.choiceLabel {
-            lastInteractionStatus = result.didDismiss
-                ? "Phase 2B keyboard choice: \(label) dismissed overlay"
-                : "Phase 2B keyboard choice: \(label)"
-        } else if result.didDismiss {
-            lastInteractionStatus = "Phase 2B keyboard dismissed modal"
-        } else if result.didChangeVisualState {
-            lastInteractionStatus = "Phase 2B keyboard focus moved"
+            if let label = result.choiceLabel {
+                lastInteractionStatus = result.didDismiss
+                    ? "Phase 2B keyboard choice: \(label) dismissed overlay"
+                    : "Phase 2B keyboard choice: \(label)"
+            } else if result.didDismiss {
+                lastInteractionStatus = "Phase 2B keyboard dismissed modal"
+            } else if result.didChangeVisualState {
+                lastInteractionStatus = "Phase 2B keyboard focus moved"
+            }
+
+            if result.didConsumeEvent { return true }
         }
 
-        return result.didConsumeEvent
+        switch event.key {
+        case .number(1):
+            setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
+            return true
+        case .number(2):
+            setTheme(.mothDefaultDark, framebufferSize: framebufferSize)
+            return true
+        case .number(3):
+            setTheme(.highContrastProof, framebufferSize: framebufferSize)
+            return true
+        default:
+            return false
+        }
     }
 
 
@@ -328,7 +355,7 @@ private func drawBackgroundChecker(into fb: inout LunaFramebuffer, theme: LunaTh
                 let cy = (y >> 4) & 1
                 let on = (cx ^ cy) != 0
 
-                let color = on ? theme.ui.editorBackground : theme.ui.windowBackground
+                let color = on ? theme.ui.editor.background : theme.ui.windowBackground
 
                 let p = row.advanced(by: x * 4)
                 p[0] = color.b         // B
@@ -462,10 +489,10 @@ private func drawActiveModalOverlay(
         y: text.title.bounds.y,
         text: text.title.text,
         scale: LunaModalOverlay.titleScale,
-        b: 245,
-        g: 245,
-        r: 245,
-        a: 255
+        b: overlay.style.text.b,
+        g: overlay.style.text.g,
+        r: overlay.style.text.r,
+        a: overlay.style.text.a
     )
 
     for line in text.messageLines {
@@ -475,10 +502,10 @@ private func drawActiveModalOverlay(
             y: line.bounds.y,
             text: line.text,
             scale: LunaModalOverlay.bodyScale,
-            b: 225,
-            g: 225,
-            r: 225,
-            a: 255
+            b: overlay.style.mutedText.b,
+            g: overlay.style.mutedText.g,
+            r: overlay.style.mutedText.r,
+            a: overlay.style.mutedText.a
         )
     }
 
@@ -489,10 +516,10 @@ private func drawActiveModalOverlay(
             y: fieldText.bounds.y,
             text: fieldText.text,
             scale: LunaModalOverlay.bodyScale,
-            b: 210,
-            g: 210,
-            r: 210,
-            a: 255
+            b: overlay.style.text.b,
+            g: overlay.style.text.g,
+            r: overlay.style.text.r,
+            a: overlay.style.text.a
         )
     }
 
@@ -540,8 +567,8 @@ private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, fram
     let titleY = barY + 8
     let infoY  = barY + 8 + 2 * (7 * 2 + 4)
 
-    drawText5x7Color(into: &fb, x: textX, y: titleY, text: title, scale: 2, color: theme.ui.editorForeground)
-    drawText5x7Color(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, color: theme.ui.statusText)
+    drawText5x7Color(into: &fb, x: textX, y: titleY, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
+    drawText5x7Color(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, color: theme.ui.statusBar.foreground)
 }
 
 

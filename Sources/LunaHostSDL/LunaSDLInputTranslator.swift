@@ -110,6 +110,12 @@ public struct LunaSDLInputTranslator {
             return .tab
         case SDLK_SPACE.rawValue:
             return .space
+        case SDLK_1.rawValue:
+            return .number(1)
+        case SDLK_2.rawValue:
+            return .number(2)
+        case SDLK_3.rawValue:
+            return .number(3)
         default:
             return nil
         }

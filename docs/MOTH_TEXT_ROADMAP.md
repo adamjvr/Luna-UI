@@ -429,4 +429,4 @@ Luna Phase 3A — Static Accessible Text View
 Luna Phase 3B — Editable Text Input
 ```
 
-Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware text surface.
+Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware text surface. Luna now also has locked Sublime/Moth visual tokens, so Moth color work should map onto those token groups instead of hardcoding colors into editor widgets.

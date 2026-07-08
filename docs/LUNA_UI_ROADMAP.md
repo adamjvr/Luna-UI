@@ -542,25 +542,20 @@ Definition of done:
 
 ### Phase 2E — Visual Style Token Lockdown
 
-**Status:** planned; can be implemented with or immediately after 2D.
+**Status:** complete.
 
 Goal: formalize the Sublime/Moth visual language from the screenshot references.
 
 Scope:
 
-- `MothDefaultDarkTheme` tokens;
-- menu colors;
-- overlay colors;
-- button colors;
-- quick-panel row colors;
-- status bar colors;
-- tab colors;
-- sidebar colors;
-- editor/gutter/minimap colors;
-- focus/accent colors;
-- disabled colors;
-- selection colors;
-- missing-token/debug fallback policy.
+- `LunaTheme.mothDefaultDark` and component-specific Moth/Sublime token groups;
+- editor, gutter, minimap, scrollbar, caret, selection, and current-line tokens;
+- chrome, menu-bar, active-menu underline, tab-strip, and separator tokens;
+- dropdown/menu row, shortcut, disabled, checked, submenu-arrow, and separator tokens;
+- panel/overlay, prompt/text-field, quick-panel/list-row, and modal-control tokens;
+- tab, sidebar, status-bar, diagnostic, focus/accent, disabled, and selection tokens;
+- demo-only Luna blue theme and high-contrast proof theme to verify overrides;
+- render-ready style snapshots in LunaUI for editor, chrome, menus, panels, fields, tabs, sidebar, status bar, and controls.
 
 Visual reference:
 
@@ -580,23 +575,26 @@ minimal submenu arrows
 
 Demo requirement:
 
-- demo can switch between at least two themes:
-  - Luna demo theme;
-  - Moth default dark theme;
-- custom test theme visibly overrides important colors.
+- demo can switch themes at runtime:
+  - `1` = Luna demo blue;
+  - `2` = Moth default dark;
+  - `3` = high-contrast proof;
+- semantic widget, modal overlay, modal text, button states, HUD/status text, moving block, and background all pull from the active theme.
 
 Tests required:
 
 - theme tokens resolve;
-- control state colors resolve;
-- custom theme overrides defaults;
+- component visual styles derive from theme tokens;
+- custom theme overrides menu/editor/text-field/status colors;
+- semantic widget colors derive from custom control tokens;
+- modal control style derives from panel/text-field/control tokens;
 - no core widget requires hardcoded colors except explicit debug/missing-token fallback.
 
 ---
 
 ## Phase 3 — Accessible Text View
 
-Phase 3 should not begin until Phase 2D/2D.1/2D.2/2D.3 are complete. Phase 2D, 2D.1, 2D.2, and 2D.3 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
+Phase 3 should not begin until Phase 2D/2D.1/2D.2/2D.3 and Phase 2E are complete. Those gates are now complete; Phase 3A can build the first static, resize-safe, theme-driven, accessibility-aware Luna text-view primitive.
 
 ### Phase 3A — Static Accessible Text View
 
@@ -860,7 +858,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 2E — Visual Style Token Lockdown
+Phase 3A — Static Accessible Text View
 ```
 
-Phase 2D, 2D.1, 2D.2, and 2D.3 are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.
+Phase 2E is complete. The next implementation target is a static Luna text view that uses the locked theme tokens and preserves the resize/accessibility invariants established in Phase 2D.

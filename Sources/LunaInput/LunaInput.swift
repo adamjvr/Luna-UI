@@ -52,6 +52,7 @@ public enum LunaKeyboardKey: Hashable, Sendable {
     case escape
     case tab
     case space
+    case number(Int)
     case other(String)
 }
 

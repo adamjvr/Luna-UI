@@ -696,6 +696,13 @@ public struct LunaModalOverlayManager: Sendable {
                 didChangeVisualState: previousFocus != overlay.focusedChoiceID
             )
 
+        case .number:
+            return LunaModalKeyboardInteractionResult(
+                event: event,
+                activeModalID: overlay.id,
+                didConsumeEvent: false
+            )
+
         case .other:
             return LunaModalKeyboardInteractionResult(
                 event: event,

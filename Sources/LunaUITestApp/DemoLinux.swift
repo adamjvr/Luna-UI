@@ -20,6 +20,7 @@ import SDL2
 import LunaCore
 import LunaInput
 import LunaRender
+import LunaTheme
 import LunaHostSDL
 import LunaUI
 
@@ -86,7 +87,10 @@ func runLinuxDemo() {
                 }
 
             case .keyboard(let keyboardEvent):
-                _ = demo.handleKeyboardEvent(keyboardEvent)
+                _ = demo.handleKeyboardEvent(
+                    keyboardEvent,
+                    framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+                )
             }
         }
 

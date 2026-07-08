@@ -91,12 +91,12 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
     public init(uiColors: LunaUIThemeColors) {
         let controls = uiColors.controlColors
         self.init(
-            overlayBackdrop: uiColors.overlayBackdrop.asRenderColor,
-            panelBackground: uiColors.panelBackground.asRenderColor,
-            panelBorder: uiColors.panelBorder.asRenderColor,
-            titleBackground: uiColors.panelTitleBackground.asRenderColor,
-            fieldBackground: uiColors.fieldBackground.asRenderColor,
-            fieldBorder: uiColors.fieldBorder.asRenderColor,
+            overlayBackdrop: uiColors.panel.overlayBackdrop.asRenderColor,
+            panelBackground: uiColors.panel.background.asRenderColor,
+            panelBorder: uiColors.panel.border.asRenderColor,
+            titleBackground: uiColors.panel.titleBackground.asRenderColor,
+            fieldBackground: uiColors.textField.background.asRenderColor,
+            fieldBorder: uiColors.textField.border.asRenderColor,
             controlNormal: controls.normalBackground.asRenderColor,
             controlHovered: controls.hoveredBackground.asRenderColor,
             controlPressed: controls.pressedBackground.asRenderColor,
