@@ -413,31 +413,59 @@ private func drawActiveModalOverlay(
     LunaCPURenderer().render(displayList: displayList, into: &fb)
 
     // Text is drawn using the demo debug font until display-list text lands.
-    let panel = overlay.panelBounds
-    let textX = panel.x + 18
-    let titleY = panel.y + 11
-    drawText5x7BGRA(into: &fb, x: textX, y: titleY, text: overlay.title, scale: 2, b: 245, g: 245, r: 245, a: 255)
+    // Phase 2D.1: title/body/field/choice labels now come from the modal text
+    // layout helper so they respect the reflowed panel bounds instead of
+    // spilling outside the dialog when the window is resized small.
+    let text = overlay.textLayout()
+    drawText5x7BGRA(
+        into: &fb,
+        x: text.title.bounds.x,
+        y: text.title.bounds.y,
+        text: text.title.text,
+        scale: LunaModalOverlay.titleScale,
+        b: 245,
+        g: 245,
+        r: 245,
+        a: 255
+    )
 
-    if let message = overlay.message, !message.isEmpty {
-        let clipped = String(message.prefix(72))
-        drawText5x7BGRA(into: &fb, x: textX, y: panel.y + 52, text: clipped, scale: 1, b: 225, g: 225, r: 225, a: 255)
+    for line in text.messageLines {
+        drawText5x7BGRA(
+            into: &fb,
+            x: line.bounds.x,
+            y: line.bounds.y,
+            text: line.text,
+            scale: LunaModalOverlay.bodyScale,
+            b: 225,
+            g: 225,
+            r: 225,
+            a: 255
+        )
     }
 
-    if let field = overlay.fieldBounds {
-        let text = overlay.initialText?.isEmpty == false ? overlay.initialText! : (overlay.placeholder ?? "")
-        drawText5x7BGRA(into: &fb, x: field.x + 8, y: field.y + 9, text: String(text.prefix(48)), scale: 1, b: 210, g: 210, r: 210, a: 255)
+    if let fieldText = text.fieldText {
+        drawText5x7BGRA(
+            into: &fb,
+            x: fieldText.bounds.x,
+            y: fieldText.bounds.y,
+            text: fieldText.text,
+            scale: LunaModalOverlay.bodyScale,
+            b: 210,
+            g: 210,
+            r: 210,
+            a: 255
+        )
     }
 
     for choice in overlay.choices {
-        let label = String(choice.label.prefix(40))
-        let scale = 1
+        let label = overlay.visualLabel(for: choice)
         let fg = overlay.foregroundColor(for: choice)
         drawText5x7BGRA(
             into: &fb,
-            x: choice.bounds.x + 8,
-            y: choice.bounds.y + max(7, (choice.bounds.h - 7 * scale) / 2),
-            text: label,
-            scale: scale,
+            x: label.bounds.x,
+            y: label.bounds.y,
+            text: label.text,
+            scale: LunaModalOverlay.bodyScale,
             b: fg.b,
             g: fg.g,
             r: fg.r,

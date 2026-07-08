@@ -180,18 +180,16 @@ public struct LunaModalOverlay: LunaWidget, Sendable {
 
     public func buildAccessibilityChildren() -> [LunaAccessibilityNode] {
         var nodes: [LunaAccessibilityNode] = []
+        let text = textLayout()
 
+        // Accessibility exposes the full semantic title/message even when the
+        // visual demo font has to ellipsize or clip the drawn text.
         nodes.append(
             LunaAccessibilityNode(
                 id: id.child("title"),
                 role: .textRun,
                 label: title,
-                bounds: LunaAccessibilityRect(
-                    x: panelBounds.x + 16,
-                    y: panelBounds.y + 8,
-                    width: max(0, panelBounds.w - 32),
-                    height: 24
-                )
+                bounds: text.title.bounds.asAccessibilityRect
             )
         )
 
@@ -201,12 +199,7 @@ public struct LunaModalOverlay: LunaWidget, Sendable {
                     id: id.child("message"),
                     role: .textRun,
                     label: message,
-                    bounds: LunaAccessibilityRect(
-                        x: panelBounds.x + 18,
-                        y: panelBounds.y + 48,
-                        width: max(0, panelBounds.w - 36),
-                        height: 32
-                    )
+                    bounds: text.messageRegion.asAccessibilityRect
                 )
             )
         }
@@ -456,7 +449,7 @@ public extension LunaModalOverlay {
         let layout: (overlay: LunaRectI, panel: LunaRectI)
         switch kind {
         case .prompt:
-            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 520, preferredHeight: 160)
+            layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 520, baseHeight: 160, message: message)
             fieldBounds = LunaRectI(x: layout.panel.x + 18, y: layout.panel.y + 58, w: max(1, layout.panel.w - 36), h: 28)
             choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
 
@@ -467,12 +460,12 @@ public extension LunaModalOverlay {
             choices = Self.reflowVerticalChoices(choices, startY: layout.panel.y + 38, panel: layout.panel, rowHeight: 22)
 
         case .confirm:
-            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 480, preferredHeight: 150)
+            layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 480, baseHeight: 150, message: message)
             fieldBounds = nil
             choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: nil)
 
         case .notice:
-            layout = Self.modalLayout(viewportSize: viewportSize, preferredWidth: 460, preferredHeight: 138)
+            layout = Self.contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 460, baseHeight: 138, message: message)
             fieldBounds = nil
             choices = Self.reflowHorizontalChoices(choices, panel: layout.panel, fixedWidth: 88)
 
@@ -783,7 +776,7 @@ public struct LunaModalOverlayManager: Sendable {
 
 private extension LunaModalOverlay {
     static func makePrompt(_ request: LunaPromptRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
-        let layout = modalLayout(viewportSize: viewportSize, preferredWidth: 520, preferredHeight: 160)
+        let layout = contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 520, baseHeight: 160, message: request.placeholder)
         let field = LunaRectI(x: layout.panel.x + 18, y: layout.panel.y + 58, w: layout.panel.w - 36, h: 28)
         let button = LunaRectI(x: layout.panel.x + layout.panel.w - 112, y: layout.panel.y + layout.panel.h - 38, w: 88, h: 24)
 
@@ -843,7 +836,7 @@ private extension LunaModalOverlay {
 
     static func makeConfirm(_ request: LunaConfirmRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
         let labels = request.buttons.isEmpty ? ["OK", "Cancel"] : request.buttons
-        let layout = modalLayout(viewportSize: viewportSize, preferredWidth: 480, preferredHeight: 150)
+        let layout = contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 480, baseHeight: 150, message: request.message)
         let choices = makeHorizontalChoices(
             id: request.id,
             labels: labels,
@@ -868,7 +861,7 @@ private extension LunaModalOverlay {
     }
 
     static func makeNotice(_ request: LunaNoticeRequest, viewportSize: LunaSizeI) -> LunaModalOverlay {
-        let layout = modalLayout(viewportSize: viewportSize, preferredWidth: 460, preferredHeight: 138)
+        let layout = contentAwareModalLayout(viewportSize: viewportSize, preferredWidth: 460, baseHeight: 138, message: request.message)
         let ok = LunaRectI(x: layout.panel.x + layout.panel.w - 112, y: layout.panel.y + layout.panel.h - 38, w: 88, h: 24)
         let okID = request.id.child("ok")
 
@@ -973,6 +966,26 @@ private extension LunaModalOverlay {
             LunaRectI(x: 0, y: 0, w: viewportW, h: viewportH),
             LunaRectI(x: panelX, y: panelY, w: panelW, h: panelH)
         )
+    }
+
+    /// Build a modal panel whose height can grow when its message wraps at a
+    /// narrow viewport. This keeps title/body/button regions from overlapping
+    /// before the real text engine and scrolling panels exist.
+    static func contentAwareModalLayout(
+        viewportSize: LunaSizeI,
+        preferredWidth: Int,
+        baseHeight: Int,
+        message: String?
+    ) -> (overlay: LunaRectI, panel: LunaRectI) {
+        let preliminary = modalLayout(viewportSize: viewportSize, preferredWidth: preferredWidth, preferredHeight: baseHeight)
+        let contentWidth = max(0, preliminary.panel.w - 36)
+        let wrappedLines = estimatedWrappedLineCount(for: message, width: contentWidth)
+
+        // Base heights were authored around one body line. Add vertical room for
+        // additional wrapped lines while still clamping to the viewport.
+        let extraLines = max(0, wrappedLines - 1)
+        let preferredHeight = baseHeight + extraLines * debugFontLineHeight(scale: bodyScale)
+        return modalLayout(viewportSize: viewportSize, preferredWidth: preferredWidth, preferredHeight: preferredHeight)
     }
 
     static func makeVerticalChoices(

@@ -410,6 +410,49 @@ Definition of done:
 
 - the demo becomes a resize/reflow testbed, not fixed-position proof art.
 
+### Phase 2D.1 — Modal Text Reflow and Clipping
+
+**Status:** complete.
+
+Goal: correct the first content-level resize bug found after Phase 2D: the modal panel reflowed, but title/body text still behaved like it had infinite width.
+
+Scope:
+
+- modal title text bounds derive from reflowed panel bounds;
+- long modal titles ellipsize instead of spilling outside the dialog;
+- modal body text wraps to the current content width;
+- body text clips to the available message region instead of covering buttons;
+- prompt/choice labels ellipsize inside their assigned control bounds;
+- accessibility nodes continue exposing the full semantic title/body even when the visual debug font ellipsizes or clips;
+- content-aware modal height can grow when narrow wrapping needs extra vertical room and the viewport allows it.
+
+Critical law:
+
+```text
+panel reflow is not enough;
+content must respect the reflowed panel regions too
+```
+
+Demo requirement:
+
+- resize the modal narrow;
+- title does not spill outside the panel;
+- body wraps into multiple lines;
+- body does not overlap the OK/choice row;
+- OK remains clickable after resize.
+
+Tests required:
+
+- narrow modal title ellipsizes within title bounds;
+- body text wraps within panel content width;
+- body text does not overlap choice bounds;
+- accessibility message bounds follow the reflowed message region;
+- content-aware modal layout grows taller when wrapping requires extra lines and viewport space exists.
+
+Definition of done:
+
+- modal box geometry, hit testing, accessibility bounds, and visible text content all respond correctly to resize.
+
 ### Phase 2E — Visual Style Token Lockdown
 
 **Status:** planned; can be implemented with or immediately after 2D.
@@ -466,7 +509,7 @@ Tests required:
 
 ## Phase 3 — Accessible Text View
 
-Phase 3 should not begin until Phase 2D is complete. Phase 2D is complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
+Phase 3 should not begin until Phase 2D/2D.1 are complete. Phase 2D and 2D.1 are complete; Phase 2E may still refine the visual tokens before Phase 3A begins.
 
 ### Phase 3A — Static Accessible Text View
 
@@ -733,4 +776,4 @@ The next implementation target is:
 Phase 2E — Visual Style Token Lockdown
 ```
 
-Phase 2D is complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.
+Phase 2D and the 2D.1 modal text/content correction are complete. Phase 2E should lock the reusable Sublime/Moth visual token set before text view/editor chrome work starts depending on those tokens.

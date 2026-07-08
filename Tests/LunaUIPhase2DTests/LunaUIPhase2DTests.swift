@@ -117,3 +117,84 @@ final class LunaUIPhase2DTests: XCTestCase {
         XCTAssertEqual(newDown.hitNodeID, newChoice.id)
     }
 }
+
+extension LunaUIPhase2DTests {
+    func testModalTitleEllipsizesInsideNarrowPanel() {
+        let overlay = LunaModalOverlay(
+            request: .notice(
+                LunaNoticeRequest(
+                    id: "layout.title.wrap",
+                    title: "This is a deliberately long modal title that must not spill outside the panel",
+                    message: "Short body"
+                )
+            ),
+            viewportSize: LunaSizeI(width: 300, height: 260)
+        )
+
+        let text = overlay.textLayout()
+        XCTAssertLessThanOrEqual(text.title.bounds.x, overlay.panelBounds.x + overlay.panelBounds.w)
+        XCTAssertLessThanOrEqual(text.title.bounds.x + text.title.bounds.w, overlay.panelBounds.x + overlay.panelBounds.w)
+        XCTAssertTrue(text.title.text.hasSuffix("..."), "Expected narrow modal title to be ellipsized")
+        XCTAssertEqual(text.title.fullText, overlay.title, "Accessibility/semantic text keeps the full title")
+    }
+
+    func testModalMessageWrapsInsidePanelAndAvoidsChoiceBounds() {
+        let message = "Hover OK and then resize this modal very small. The body message should wrap to multiple visual lines without covering the OK button."
+        let overlay = LunaModalOverlay(
+            request: .notice(
+                LunaNoticeRequest(
+                    id: "layout.message.wrap",
+                    title: "Wrapped Body",
+                    message: message
+                )
+            ),
+            viewportSize: LunaSizeI(width: 320, height: 420)
+        )
+
+        let text = overlay.textLayout()
+        XCTAssertGreaterThan(text.messageLines.count, 1, "Expected body text to wrap at narrow modal width")
+
+        let buttonTop = overlay.choices.map(\.bounds.y).min()!
+        for line in text.messageLines {
+            XCTAssertGreaterThanOrEqual(line.bounds.x, overlay.panelBounds.x)
+            XCTAssertLessThanOrEqual(line.bounds.x + line.bounds.w, overlay.panelBounds.x + overlay.panelBounds.w)
+            XCTAssertLessThan(line.bounds.y + line.bounds.h, buttonTop, "Message line should not overlap button row")
+            XCTAssertLessThanOrEqual(line.text.count, LunaModalOverlay.characterCapacity(width: line.bounds.w, scale: LunaModalOverlay.bodyScale))
+        }
+    }
+
+    func testModalAccessibilityMessageBoundsFollowWrappedMessageRegion() {
+        let overlay = LunaModalOverlay(
+            request: .notice(
+                LunaNoticeRequest(
+                    id: "layout.message.a11y",
+                    title: "A11y",
+                    message: "This is a long enough message to use the modal message region instead of the old fixed thirty two pixel text box."
+                )
+            ),
+            viewportSize: LunaSizeI(width: 330, height: 420)
+        )
+
+        let text = overlay.textLayout()
+        let children = overlay.buildAccessibilityChildren()
+        let messageNode = children.first { $0.id == overlay.id.child("message") }
+
+        XCTAssertEqual(messageNode?.bounds, text.messageRegion.asAccessibilityRect)
+        XCTAssertEqual(messageNode?.label, overlay.message)
+    }
+
+    func testContentAwareModalGrowsTallerWhenNarrowTextWraps() {
+        let message = "This long notice message should require more vertical room once the modal panel becomes narrow enough to wrap the content into several lines."
+        let wide = LunaModalOverlay(
+            request: .notice(LunaNoticeRequest(id: "layout.wide", title: "Notice", message: message)),
+            viewportSize: LunaSizeI(width: 900, height: 500)
+        )
+        let narrow = LunaModalOverlay(
+            request: .notice(LunaNoticeRequest(id: "layout.narrow", title: "Notice", message: message)),
+            viewportSize: LunaSizeI(width: 320, height: 500)
+        )
+
+        XCTAssertGreaterThanOrEqual(narrow.textLayout().messageLines.count, wide.textLayout().messageLines.count)
+        XCTAssertGreaterThan(narrow.panelBounds.h, wide.panelBounds.h)
+    }
+}
