@@ -66,8 +66,19 @@ public final class LunaSDLPresenter {
             texture = nil
         }
 
-        // SDL pixel format constant is a typed enum in Swift bindings -> use .rawValue
-        let fmt: UInt32 = UInt32(SDL_PIXELFORMAT_BGRA8888.rawValue)
+        // LunaFramebuffer stores bytes in explicit BGRA order:
+        //   byte 0 = blue, byte 1 = green, byte 2 = red, byte 3 = alpha.
+        //
+        // SDL's packed 8888 format names describe the 32-bit integer bit order,
+        // not the byte order you see in memory on little-endian CPUs. For the
+        // Luna byte stream [B, G, R, A], the matching SDL texture format is
+        // SDL_PIXELFORMAT_ARGB8888 because little-endian memory stores that
+        // packed integer as BGRA bytes.
+        //
+        // Using SDL_PIXELFORMAT_BGRA8888 here makes SDL read the final alpha
+        // byte as blue on little-endian Linux, which turns opaque near-black
+        // colors such as #070709FF into bright blue.
+        let fmt: UInt32 = UInt32(SDL_PIXELFORMAT_ARGB8888.rawValue)
 
         guard let tex = SDL_CreateTexture(
             renderer,

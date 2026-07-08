@@ -110,4 +110,21 @@ final class LunaUIPhase2ETests: XCTestCase {
         XCTAssertEqual(style.fieldBorder, LunaRender.LunaRGBA8(r: 96, g: 97, b: 98, a: 255))
     }
 
+    func testFramebufferStoresLogicalRGBAAsBGRABytesForHostUpload() {
+        var fb = LunaFramebuffer(width: 1, height: 1)
+
+        // Logical theme/render color: R=0x07, G=0x07, B=0x09, A=0xFF.
+        // The framebuffer's explicit storage contract is BGRA bytes, so the
+        // host upload path must see [B, G, R, A] = [0x09, 0x07, 0x07, 0xFF].
+        // If a host interprets byte 3 as blue instead of alpha, this exact
+        // near-black color appears as bright blue on screen.
+        fb.clear(LunaRender.LunaRGBA8(r: 0x07, g: 0x07, b: 0x09, a: 0xFF))
+
+        let bytes = fb.withUnsafePixelBytes { ptr, _ -> [UInt8] in
+            Array(UnsafeBufferPointer(start: ptr, count: 4))
+        }
+
+        XCTAssertEqual(bytes, [0x09, 0x07, 0x07, 0xFF])
+    }
+
 }

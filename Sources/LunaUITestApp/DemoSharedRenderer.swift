@@ -91,12 +91,13 @@ public struct LunaCPUDemoScene {
 
     /// Create a new demo scene.
     public init(
-        theme: LunaTheme = .lunaDefaultDark,
+        theme: LunaTheme = MothDemoTheme.theme,
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
+        let resolvedTheme = MothDemoTheme.canonicalTheme(for: theme)
         self.startTime = startTimeNanoseconds
-        self.theme = theme
-        self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: theme))
+        self.theme = resolvedTheme
+        self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: resolvedTheme))
     }
 
 
@@ -117,10 +118,11 @@ public struct LunaCPUDemoScene {
     /// the same widget/modal code can be rendered with Luna demo blue,
     /// default dark, or a high-contrast proof palette.
     public mutating func setTheme(_ newTheme: LunaTheme, framebufferSize: LunaSizeI) {
-        theme = newTheme
-        modalManager.style = LunaControlVisualStyle(theme: newTheme)
+        let resolvedTheme = MothDemoTheme.canonicalTheme(for: newTheme)
+        theme = resolvedTheme
+        modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
         modalManager.reflow(viewportSize: framebufferSize)
-        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=default dark, 3=high contrast."
+        lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Press 1=Luna demo, 2=Moth demo, 3=high contrast."
     }
 
     /// Render one frame into the provided framebuffer.
@@ -135,16 +137,20 @@ public struct LunaCPUDemoScene {
         let dtNs = now &- startTime
         let t = Double(dtNs) / 1_000_000_000.0
 
-        // Draw.
-        drawBackgroundChecker(into: &fb, theme: theme)
-        drawMovingBlock(into: &fb, timeSeconds: t, theme: theme)
+        // Draw from a canonicalized copy of the active theme. This makes key 2
+        // impossible to confuse with the Luna demo-blue palette: if the theme is
+        // named as the Moth demo, all visible pixels resolve through the demo-only
+        // Moth palette before any drawing happens.
+        let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
+        drawBackground(into: &fb, theme: renderTheme)
+        drawMovingBlock(into: &fb, timeSeconds: t, theme: renderTheme)
         drawSemanticWidgetProof(
             into: &fb,
             activationCount: semanticActivationCount,
             status: lastInteractionStatus,
-            theme: theme
+            theme: renderTheme
         )
-        drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex, theme: theme)
+        drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex, theme: renderTheme)
         drawActiveModalOverlay(into: &fb, manager: modalManager)
     }
 
@@ -249,7 +255,7 @@ public struct LunaCPUDemoScene {
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
             return true
         case .number(2):
-            setTheme(.lunaDefaultDark, framebufferSize: framebufferSize)
+            setTheme(MothDemoTheme.theme, framebufferSize: framebufferSize)
             return true
         case .number(3):
             setTheme(.highContrastProof, framebufferSize: framebufferSize)
@@ -301,7 +307,7 @@ public struct LunaCPUDemoScene {
     public static func semanticWidget(
         for framebufferSize: LunaSizeI,
         isFocused: Bool,
-        theme: LunaTheme = .lunaDefaultDark
+        theme: LunaTheme = MothDemoTheme.theme
     ) -> LunaSemanticActionWidget {
         let layout = Self.layout(for: framebufferSize)
 
@@ -328,9 +334,13 @@ public struct LunaCPUDemoScene {
 
 // MARK: - Demo drawing primitives (BGRA8)
 
-/// Fill the entire framebuffer with a subtle checker so “black window” bugs
-/// are immediately obvious.
-private func drawBackgroundChecker(into fb: inout LunaFramebuffer, theme: LunaTheme) {
+/// Fill the entire framebuffer from the active theme's root background token.
+///
+/// Earlier demo revisions used a checker pattern here. That made the theme demo
+/// less truthful because the root canvas was not a direct view of
+/// `theme.ui.windowBackground`. Key 1 should be blue because its root token is
+/// blue; key 2 should be black because the Moth demo root token is #070709.
+private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
     // Capture these *outside* the pixel closure to avoid overlapping-access traps.
     let w = fb.width
     let h = fb.height
@@ -346,16 +356,12 @@ private func drawBackgroundChecker(into fb: inout LunaFramebuffer, theme: LunaTh
         let n = min(byteCount, expected)
         if n <= 0 { return }
 
+        let color = theme.ui.windowBackground
+
         // We will write row-by-row.
         for y in 0..<h {
             let row = base.advanced(by: y * bpr)
             for x in 0..<w {
-                // 16px checker pattern.
-                let cx = (x >> 4) & 1
-                let cy = (y >> 4) & 1
-                let on = (cx ^ cy) != 0
-                let color = on ? theme.ui.editor.background : theme.ui.windowBackground
-
                 let p = row.advanced(by: x * 4)
                 p[0] = color.b         // B
                 p[1] = color.g         // G
@@ -420,28 +426,22 @@ private func drawSemanticWidgetProof(
         title: title,
         subtitle: "Click routing proof"
     )
-    drawText5x7BGRA(
+    drawText5x7Color(
         into: &fb,
         x: widgetText.title.bounds.x,
         y: widgetText.title.bounds.y,
         text: widgetText.title.text,
         scale: 2,
-        b: 255,
-        g: 255,
-        r: 255,
-        a: 255
+        color: theme.ui.controlColors.foreground
     )
     if let subtitle = widgetText.subtitle {
-        drawText5x7BGRA(
+        drawText5x7Color(
             into: &fb,
             x: subtitle.bounds.x,
             y: subtitle.bounds.y,
             text: subtitle.text,
             scale: 1,
-            b: 230,
-            g: 230,
-            r: 230,
-            a: 255
+            color: theme.ui.controlColors.mutedForeground
         )
     }
 
