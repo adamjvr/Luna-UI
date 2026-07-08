@@ -91,13 +91,13 @@ final class LunaUIPhase1Tests: XCTestCase {
     }
 
     func testSemanticActionWidgetUsesCustomHexThemeColors() {
-        var ui = LunaUIThemeColors.mothDefaultDark
+        var ui = LunaUIThemeColors.lunaDefaultDark
         ui.controlColors.normalBackground = .hex("#112233")
         ui.controlColors.accent = .hex("#445566")
         ui.controlColors.focusedBorder = .hex("#778899")
 
         let theme = LunaTheme(
-            name: "Custom Moth Test",
+            name: "Custom Theme Test",
             background: .hex("#010203"),
             foreground: .hex("#AABBCC"),
             caret: .hex("#DDEEFF"),

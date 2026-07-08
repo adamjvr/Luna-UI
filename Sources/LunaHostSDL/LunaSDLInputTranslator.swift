@@ -1,6 +1,6 @@
 // LunaSDLInputTranslator.swift
 //
-// Phase 2C: SDL input stays inside LunaHostSDL. Demo apps and future Moth code
+// Phase 2C: SDL input stays inside LunaHostSDL. Demo apps and future editor code
 // consume LunaHostInputEvent / LunaPointerEvent / LunaKeyboardEvent instead of
 // decoding SDL keycodes, mouse buttons, or window event constants directly.
 

@@ -42,7 +42,7 @@ final class LunaUIPhase2DTests: XCTestCase {
             bounds: result.frame(for: widgetID)!,
             title: "Layout Widget",
             primaryCommand: "luna.layout.widget",
-            theme: .mothDefaultDark
+            theme: .lunaDefaultDark
         )
 
         XCTAssertEqual(widget.bounds, bounds)
@@ -51,7 +51,7 @@ final class LunaUIPhase2DTests: XCTestCase {
     }
 
     func testModalReflowUpdatesDrawHitTestAndAccessibilityBounds() {
-        var manager = LunaModalOverlayManager(style: LunaMothDefaultDarkControlStyle(theme: .mothDefaultDark))
+        var manager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: .lunaDefaultDark))
         _ = manager.open(
             .notice(
                 LunaNoticeRequest(
@@ -92,7 +92,7 @@ final class LunaUIPhase2DTests: XCTestCase {
     }
 
     func testModalManagerPointerRoutingUsesReflowedChoiceBounds() {
-        var manager = LunaModalOverlayManager(style: LunaMothDefaultDarkControlStyle(theme: .mothDefaultDark))
+        var manager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: .lunaDefaultDark))
         _ = manager.open(
             .notice(LunaNoticeRequest(id: "layout.pointer", title: "Pointer", message: "Reflowed hit test")),
             viewportSize: LunaSizeI(width: 520, height: 360)
@@ -241,7 +241,7 @@ extension LunaUIPhase2DTests {
             title: "A very long semantic widget title",
             subtitle: "A very long semantic widget subtitle",
             primaryCommand: "luna.semantic.text",
-            theme: .mothDefaultDark
+            theme: .lunaDefaultDark
         )
 
         let text = widget.textLayout()

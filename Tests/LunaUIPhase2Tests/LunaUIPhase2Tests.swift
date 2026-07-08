@@ -431,13 +431,13 @@ final class LunaUIPhase2CThemeTests: XCTestCase {
     }
 
     func testControlStyleCanBeBuiltFromThemeHexTokens() {
-        var ui = LunaUIThemeColors.mothDefaultDark
+        var ui = LunaUIThemeColors.lunaDefaultDark
         ui.panelBackground = .hex("#101112")
         ui.controlColors.hoveredBackground = .hex("#ABCDEF")
         ui.controlColors.selectedForeground = .hex("#010203")
 
         let theme = LunaTheme(
-            name: "Moth Custom",
+            name: "Custom Theme",
             background: .hex("#202122"),
             foreground: .hex("#E0E1E2"),
             caret: .hex("#FFFFFF"),
@@ -445,7 +445,7 @@ final class LunaUIPhase2CThemeTests: XCTestCase {
             ui: ui
         )
 
-        let style = LunaMothDefaultDarkControlStyle(theme: theme)
+        let style = LunaControlVisualStyle(theme: theme)
         XCTAssertEqual(style.panelBackground, LunaRender.LunaRGBA8(r: 0x10, g: 0x11, b: 0x12, a: 0xFF))
         XCTAssertEqual(style.background(for: .hovered), LunaRender.LunaRGBA8(r: 0xAB, g: 0xCD, b: 0xEF, a: 0xFF))
         XCTAssertEqual(style.foreground(for: .selected), LunaRender.LunaRGBA8(r: 0x01, g: 0x02, b: 0x03, a: 0xFF))

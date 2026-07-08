@@ -1,7 +1,7 @@
 // LunaInput.swift
 //
 // Platform-neutral input events for Luna. Host layers translate SDL/AppKit/etc.
-// into these values; widgets, overlays, demos, and future Moth code never need
+// into these values; widgets, overlays, demos, and future applications never need
 // to decode platform keycodes or mouse button constants directly.
 
 import Foundation

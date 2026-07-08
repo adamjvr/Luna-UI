@@ -59,8 +59,8 @@ final class LunaArchitectureTests: XCTestCase {
 
     func testCommandRegistryPreservesInsertionOrderAndReplacesDescriptors() {
         var registry = LunaCommandRegistry()
-        let save: LunaCommandID = "moth.file.save"
-        let open: LunaCommandID = "moth.file.open"
+        let save: LunaCommandID = "app.file.save"
+        let open: LunaCommandID = "app.file.open"
 
         registry.register(
             LunaCommandDescriptor(

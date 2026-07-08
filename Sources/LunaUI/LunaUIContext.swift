@@ -1,6 +1,6 @@
 // LunaUIContext.swift
 //
-// The controlled boundary between an application such as Moth Text and the Luna
+// The controlled boundary between an application and the Luna
 // runtime. App logic records intent here; the host/runtime later flushes that
 // intent into visible UI, accessibility updates, and redraws.
 

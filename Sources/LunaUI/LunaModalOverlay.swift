@@ -5,7 +5,7 @@
 // Phase 2 created the modal runtime. Phase 2B adds the interaction-state model
 // that the screenshots of Sublime Text made clear we need before Phase 3:
 // hover, press, focus, default/cancel choices, keyboard activation, and compact
-// Moth/Sublime-shaped control visuals.
+// Theme-driven control visuals.
 
 import Foundation
 import LunaAccessibility
@@ -92,8 +92,8 @@ public struct LunaModalOverlay: LunaWidget, Sendable {
     public var pressedChoiceID: LunaNodeID?
     public var focusedChoiceID: LunaNodeID?
 
-    /// Default Sublime/Moth-shaped visual palette for modal controls.
-    public var style: LunaMothDefaultDarkControlStyle
+    /// Theme-driven visual palette for modal controls.
+    public var style: LunaControlVisualStyle
 
     public init(request: LunaModalRequest, viewportSize: LunaSizeI) {
         switch request {
@@ -492,11 +492,11 @@ public extension LunaModalOverlay {
 /// modal requests into concrete overlay state.
 public struct LunaModalOverlayManager: Sendable {
     public private(set) var active: LunaModalOverlay?
-    public var style: LunaMothDefaultDarkControlStyle
+    public var style: LunaControlVisualStyle
 
     public init(
         active: LunaModalOverlay? = nil,
-        style: LunaMothDefaultDarkControlStyle = .default
+        style: LunaControlVisualStyle = .default
     ) {
         self.active = active
         self.style = style
@@ -934,7 +934,7 @@ private extension LunaModalOverlay {
         hoveredChoiceID: LunaNodeID? = nil,
         pressedChoiceID: LunaNodeID? = nil,
         focusedChoiceID: LunaNodeID? = nil,
-        style: LunaMothDefaultDarkControlStyle = .default
+        style: LunaControlVisualStyle = .default
     ) {
         self.id = id
         self.kind = kind

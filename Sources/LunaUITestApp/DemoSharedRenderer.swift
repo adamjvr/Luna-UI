@@ -71,7 +71,7 @@ public struct LunaCPUDemoScene {
     private let startTime: UInt64
 
     /// Active theme. Demo colors are theme-provided so the demo exercises the
-    /// same customization path Moth Text will use instead of hardcoding Luna's
+    /// same customization path applications use instead of hardcoding Luna's
     /// appearance.
     public var theme: LunaTheme
 
@@ -91,12 +91,12 @@ public struct LunaCPUDemoScene {
 
     /// Create a new demo scene.
     public init(
-        theme: LunaTheme = .mothUserPalette,
+        theme: LunaTheme = .lunaDefaultDark,
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         self.startTime = startTimeNanoseconds
         self.theme = theme
-        self.modalManager = LunaModalOverlayManager(style: LunaMothDefaultDarkControlStyle(theme: theme))
+        self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: theme))
     }
 
 
@@ -114,13 +114,13 @@ public struct LunaCPUDemoScene {
     /// Switch the active theme and refresh all stateful visual styles.
     ///
     /// Phase 2E uses this in the demo so theme replacement is not theoretical:
-    /// the same widget/modal code can be rendered with Luna demo blue, Moth
+    /// the same widget/modal code can be rendered with Luna demo blue,
     /// default dark, or a high-contrast proof palette.
     public mutating func setTheme(_ newTheme: LunaTheme, framebufferSize: LunaSizeI) {
         theme = newTheme
-        modalManager.style = LunaMothDefaultDarkControlStyle(theme: newTheme)
+        modalManager.style = LunaControlVisualStyle(theme: newTheme)
         modalManager.reflow(viewportSize: framebufferSize)
-        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=Moth palette, 3=high contrast."
+        lastInteractionStatus = "Theme: \(newTheme.name). Press 1=Luna demo, 2=default dark, 3=high contrast."
     }
 
     /// Render one frame into the provided framebuffer.
@@ -249,7 +249,7 @@ public struct LunaCPUDemoScene {
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
             return true
         case .number(2):
-            setTheme(.mothUserPalette, framebufferSize: framebufferSize)
+            setTheme(.lunaDefaultDark, framebufferSize: framebufferSize)
             return true
         case .number(3):
             setTheme(.highContrastProof, framebufferSize: framebufferSize)
@@ -301,7 +301,7 @@ public struct LunaCPUDemoScene {
     public static func semanticWidget(
         for framebufferSize: LunaSizeI,
         isFocused: Bool,
-        theme: LunaTheme = .mothUserPalette
+        theme: LunaTheme = .lunaDefaultDark
     ) -> LunaSemanticActionWidget {
         let layout = Self.layout(for: framebufferSize)
 
@@ -354,7 +354,6 @@ private func drawBackgroundChecker(into fb: inout LunaFramebuffer, theme: LunaTh
                 let cx = (x >> 4) & 1
                 let cy = (y >> 4) & 1
                 let on = (cx ^ cy) != 0
-
                 let color = on ? theme.ui.editor.background : theme.ui.windowBackground
 
                 let p = row.advanced(by: x * 4)

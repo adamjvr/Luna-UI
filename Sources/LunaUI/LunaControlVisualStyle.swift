@@ -3,7 +3,7 @@
 // Phase 2B/2C: shared interaction-state and default control palette.
 //
 // Phase 2B proved hover/press/focus states. Phase 2C moves the palette onto
-// LunaTheme color tokens so Moth Text can supply exact hex-driven colors
+// LunaTheme color tokens so applications can supply exact hex-driven colors
 // without inheriting demo colors.
 
 import Foundation
@@ -21,12 +21,12 @@ public enum LunaControlInteractionState: String, Hashable, Sendable {
     case disabled
 }
 
-/// Sublime/Moth-shaped control colors for Luna widgets and overlays.
+/// Render-ready control colors for Luna widgets and overlays.
 ///
 /// This struct stores render-ready colors because it is consumed directly by
 /// display-list builders. It can be created from `LunaControlColorSet`, whose
 /// values are app/theme supplied and can be defined with hex strings.
-public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
+public struct LunaControlVisualStyle: Hashable, Sendable {
     public var overlayBackdrop: LunaRender.LunaRGBA8
     public var panelBackground: LunaRender.LunaRGBA8
     public var panelBorder: LunaRender.LunaRGBA8
@@ -116,7 +116,7 @@ public struct LunaMothDefaultDarkControlStyle: Hashable, Sendable {
         self.init(uiColors: theme.ui)
     }
 
-    public static let `default` = LunaMothDefaultDarkControlStyle(theme: .mothDefaultDark)
+    public static let `default` = LunaControlVisualStyle(theme: .lunaDefaultDark)
 
     public func background(for state: LunaControlInteractionState) -> LunaRender.LunaRGBA8 {
         switch state {

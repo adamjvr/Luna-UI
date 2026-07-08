@@ -79,7 +79,7 @@ public struct LunaAccessibilityAction: Hashable, Sendable {
 }
 
 /// Text range expressed in UTF-8 byte offsets for future editor-buffer stability.
-/// Moth can map this to rope/piece-table coordinates rather than Swift `String`
+/// Applications can map this to rope/piece-table coordinates rather than Swift `String`
 /// character indices.
 public struct LunaAccessibilityTextRange: Hashable, Sendable {
     public var utf8Offset: Int

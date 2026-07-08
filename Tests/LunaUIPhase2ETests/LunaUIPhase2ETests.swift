@@ -5,8 +5,8 @@ import LunaTheme
 import LunaUI
 
 final class LunaUIPhase2ETests: XCTestCase {
-    func testMothDefaultThemeExposesComponentTokenGroups() {
-        let theme = LunaTheme.mothDefaultDark
+    func testDefaultDarkThemeExposesComponentTokenGroups() {
+        let theme = LunaTheme.lunaDefaultDark
 
         XCTAssertEqual(theme.ui.editor.background.hexRGBA, "#2B333BFF")
         XCTAssertEqual(theme.ui.chrome.menuBarActiveUnderline.hexRGBA, "#76CECBFF")
@@ -17,7 +17,7 @@ final class LunaUIPhase2ETests: XCTestCase {
     }
 
     func testComponentVisualStylesUseThemeTokens() {
-        let theme = LunaTheme.mothDefaultDark
+        let theme = LunaTheme.lunaDefaultDark
         let styles = LunaThemeVisualStyles(theme: theme)
 
         XCTAssertEqual(styles.editor.background, theme.ui.editor.background.asRenderColor)
@@ -31,14 +31,14 @@ final class LunaUIPhase2ETests: XCTestCase {
     }
 
     func testCustomThemeOverridesMenuAndEditorTokens() {
-        var colors = LunaUIThemeColors.mothDefaultDark
+        var colors = LunaUIThemeColors.lunaDefaultDark
         colors.editor.background = .hex("#010203")
         colors.menu.rowHoveredBackground = .hex("#AA5500")
         colors.textField.focusedBorder = .hex("#123456")
         colors.statusBar.accent = .hex("#FEDCBA")
 
         let custom = LunaTheme(
-            name: "Custom Moth Proof",
+            name: "Custom Theme Proof",
             background: colors.editor.background,
             foreground: colors.editor.foreground,
             caret: colors.editor.caret,
@@ -54,7 +54,7 @@ final class LunaUIPhase2ETests: XCTestCase {
     }
 
     func testSemanticWidgetUsesCustomControlThemeColors() {
-        var colors = LunaUIThemeColors.mothDefaultDark
+        var colors = LunaUIThemeColors.lunaDefaultDark
         colors.controlColors.normalBackground = .hex("#112233")
         colors.controlColors.accent = .hex("#445566")
         colors.controlColors.focusedBorder = .hex("#778899")
@@ -84,7 +84,7 @@ final class LunaUIPhase2ETests: XCTestCase {
     }
 
     func testModalControlStyleUsesPanelAndTextFieldTokens() {
-        var colors = LunaUIThemeColors.mothDefaultDark
+        var colors = LunaUIThemeColors.lunaDefaultDark
         colors.panel.background = .hex("#101112")
         colors.panel.border = .hex("#202122")
         colors.panel.titleBackground = .hex("#303132")
@@ -101,40 +101,13 @@ final class LunaUIPhase2ETests: XCTestCase {
             ui: colors
         )
 
-        let style = LunaMothDefaultDarkControlStyle(theme: custom)
+        let style = LunaControlVisualStyle(theme: custom)
         XCTAssertEqual(style.panelBackground, LunaRender.LunaRGBA8(r: 16, g: 17, b: 18, a: 255))
         XCTAssertEqual(style.panelBorder, LunaRender.LunaRGBA8(r: 32, g: 33, b: 34, a: 255))
         XCTAssertEqual(style.titleBackground, LunaRender.LunaRGBA8(r: 48, g: 49, b: 50, a: 255))
         XCTAssertEqual(style.overlayBackdrop, LunaRender.LunaRGBA8(r: 64, g: 65, b: 66, a: 128))
         XCTAssertEqual(style.fieldBackground, LunaRender.LunaRGBA8(r: 80, g: 81, b: 82, a: 255))
         XCTAssertEqual(style.fieldBorder, LunaRender.LunaRGBA8(r: 96, g: 97, b: 98, a: 255))
-    }
-    func testUserMothPaletteMatchesUploadedSwatchesAndDemoTheme() {
-        let theme = LunaTheme.mothUserPalette
-
-        XCTAssertEqual(LunaMothUserPalette.void.hexRGBA, "#070709FF")
-        XCTAssertEqual(LunaMothUserPalette.base.hexRGBA, "#131416FF")
-        XCTAssertEqual(LunaMothUserPalette.raised.hexRGBA, "#242426FF")
-        XCTAssertEqual(LunaMothUserPalette.cobalt.hexRGBA, "#13308FFF")
-        XCTAssertEqual(LunaMothUserPalette.text.hexRGBA, "#888991FF")
-
-        XCTAssertEqual(theme.background.hexRGBA, "#131416FF")
-        XCTAssertEqual(theme.foreground.hexRGBA, "#888991FF")
-        XCTAssertEqual(theme.ui.windowBackground.hexRGBA, "#070709FF")
-        XCTAssertEqual(theme.ui.panel.background.hexRGBA, "#131416FF")
-        XCTAssertEqual(theme.ui.panel.titleBackground.hexRGBA, "#242426FF")
-        XCTAssertEqual(theme.ui.controlColors.hoveredBackground.hexRGBA, "#13308FFF")
-        XCTAssertEqual(theme.ui.statusBar.foreground.hexRGBA, "#888991FF")
-    }
-
-    func testUserMothPaletteFlowsIntoRenderReadyStyles() {
-        let theme = LunaTheme.mothUserPalette
-        let styles = LunaThemeVisualStyles(theme: theme)
-
-        XCTAssertEqual(styles.editor.background, LunaRender.LunaRGBA8(r: 19, g: 20, b: 22, a: 255))
-        XCTAssertEqual(styles.panel.titleBackground, LunaRender.LunaRGBA8(r: 36, g: 36, b: 38, a: 255))
-        XCTAssertEqual(styles.menu.rowHoveredBackground, LunaRender.LunaRGBA8(r: 19, g: 48, b: 143, a: 255))
-        XCTAssertEqual(styles.statusBar.foreground, LunaRender.LunaRGBA8(r: 136, g: 137, b: 145, a: 255))
     }
 
 }

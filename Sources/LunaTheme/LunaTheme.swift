@@ -4,8 +4,8 @@
 // and remain compatible with Sublime-style color schemes / themes.
 //
 // Phase 2E locks the visual style token surface down before Phase 3 text-view
-// work. Luna widgets should not own hardcoded colors; applications such as
-// Moth Text supply theme/color values, including exact hex-driven schemes.
+// work. Luna widgets should not own hardcoded colors; applications supply
+// theme/color values, including exact hex-driven schemes.
 
 import Foundation
 
@@ -107,214 +107,6 @@ public struct LunaColor: Hashable, Sendable {
 public typealias LunaRGBA8 = LunaColor
 
 
-// MARK: - User-supplied Moth palette
-
-/// The first concrete Moth palette supplied for the Moth Text visual direction.
-///
-/// Source swatches sampled from `moth_color_pallet.png`:
-/// - `#070709`
-/// - `#131416`
-/// - `#242426`
-/// - `#13308F`
-/// - `#888991`
-///
-/// This is intentionally separate from `lunaDemoBlue`. It is the palette the
-/// demo uses for key `2`, proving Moth can supply exact hex-driven colors and
-/// not inherit any Luna demo blue by accident.
-public enum LunaMothUserPalette: Sendable {
-    public static let void = LunaColor.hex("#070709")
-    public static let base = LunaColor.hex("#131416")
-    public static let raised = LunaColor.hex("#242426")
-    public static let cobalt = LunaColor.hex("#13308F")
-    public static let text = LunaColor.hex("#888991")
-}
-
-public extension LunaEditorColorSet {
-    static let mothUserPalette = LunaEditorColorSet(
-        background: LunaMothUserPalette.base,
-        foreground: LunaMothUserPalette.text,
-        gutterBackground: LunaMothUserPalette.void,
-        gutterForeground: LunaMothUserPalette.text,
-        currentLineBackground: LunaMothUserPalette.raised,
-        selectionBackground: LunaColor.hex("#13308FAA"),
-        caret: LunaMothUserPalette.text,
-        invisibles: LunaColor.hex("#88899166"),
-        minimapBackground: LunaMothUserPalette.void,
-        minimapViewport: LunaColor.hex("#88899166"),
-        scrollbarTrack: LunaMothUserPalette.void,
-        scrollbarThumb: LunaMothUserPalette.raised
-    )
-}
-
-public extension LunaChromeColorSet {
-    static let mothUserPalette = LunaChromeColorSet(
-        titleBarBackground: LunaMothUserPalette.void,
-        titleBarForeground: LunaMothUserPalette.text,
-        menuBarBackground: LunaMothUserPalette.void,
-        menuBarForeground: LunaMothUserPalette.text,
-        menuBarHoveredBackground: LunaMothUserPalette.raised,
-        menuBarActiveForeground: LunaMothUserPalette.text,
-        menuBarActiveUnderline: LunaMothUserPalette.cobalt,
-        tabStripBackground: LunaMothUserPalette.base,
-        separator: LunaMothUserPalette.raised,
-        windowBorder: LunaMothUserPalette.void
-    )
-}
-
-public extension LunaMenuColorSet {
-    static let mothUserPalette = LunaMenuColorSet(
-        background: LunaMothUserPalette.base,
-        border: LunaMothUserPalette.void,
-        rowForeground: LunaMothUserPalette.text,
-        rowMutedForeground: LunaColor.hex("#888991CC"),
-        rowDisabledForeground: LunaColor.hex("#88899177"),
-        rowHoveredBackground: LunaMothUserPalette.cobalt,
-        rowHoveredForeground: LunaMothUserPalette.text,
-        rowPressedBackground: LunaMothUserPalette.raised,
-        shortcutForeground: LunaColor.hex("#888991CC"),
-        separator: LunaMothUserPalette.raised,
-        checkedMark: LunaMothUserPalette.cobalt,
-        submenuArrow: LunaMothUserPalette.text
-    )
-}
-
-public extension LunaPanelColorSet {
-    static let mothUserPalette = LunaPanelColorSet(
-        background: LunaMothUserPalette.base,
-        border: LunaMothUserPalette.void,
-        titleBackground: LunaMothUserPalette.raised,
-        titleForeground: LunaMothUserPalette.text,
-        bodyForeground: LunaMothUserPalette.text,
-        mutedForeground: LunaColor.hex("#888991CC"),
-        overlayBackdrop: LunaColor.hex("#070709EE"),
-        selectedRowBackground: LunaMothUserPalette.cobalt,
-        selectedRowForeground: LunaMothUserPalette.text,
-        shadow: LunaColor.hex("#07070988")
-    )
-}
-
-public extension LunaTextFieldColorSet {
-    static let mothUserPalette = LunaTextFieldColorSet(
-        background: LunaMothUserPalette.void,
-        border: LunaMothUserPalette.raised,
-        focusedBorder: LunaMothUserPalette.cobalt,
-        foreground: LunaMothUserPalette.text,
-        placeholderForeground: LunaColor.hex("#88899199"),
-        selectionBackground: LunaColor.hex("#13308FAA")
-    )
-}
-
-public extension LunaTabColorSet {
-    static let mothUserPalette = LunaTabColorSet(
-        stripBackground: LunaMothUserPalette.base,
-        activeBackground: LunaMothUserPalette.raised,
-        inactiveBackground: LunaMothUserPalette.base,
-        hoveredBackground: LunaMothUserPalette.raised,
-        activeForeground: LunaMothUserPalette.text,
-        inactiveForeground: LunaColor.hex("#888991CC"),
-        dirtyIndicator: LunaMothUserPalette.cobalt,
-        closeButton: LunaMothUserPalette.text,
-        divider: LunaMothUserPalette.void
-    )
-}
-
-public extension LunaSidebarColorSet {
-    static let mothUserPalette = LunaSidebarColorSet(
-        background: LunaMothUserPalette.void,
-        sectionForeground: LunaMothUserPalette.text,
-        rowForeground: LunaMothUserPalette.text,
-        rowMutedForeground: LunaColor.hex("#888991AA"),
-        rowHoveredBackground: LunaMothUserPalette.raised,
-        rowSelectedBackground: LunaMothUserPalette.cobalt,
-        rowSelectedForeground: LunaMothUserPalette.text,
-        disclosureForeground: LunaMothUserPalette.text,
-        border: LunaMothUserPalette.base
-    )
-}
-
-public extension LunaStatusBarColorSet {
-    static let mothUserPalette = LunaStatusBarColorSet(
-        background: LunaMothUserPalette.void,
-        foreground: LunaMothUserPalette.text,
-        mutedForeground: LunaColor.hex("#888991AA"),
-        accent: LunaMothUserPalette.cobalt,
-        border: LunaMothUserPalette.raised
-    )
-}
-
-public extension LunaDiagnosticColorSet {
-    static let mothUserPalette = LunaDiagnosticColorSet(
-        info: LunaMothUserPalette.cobalt,
-        warning: LunaMothUserPalette.text,
-        error: LunaMothUserPalette.text,
-        success: LunaMothUserPalette.cobalt,
-        missingTokenFallback: LunaColor.hex("#FF00FF")
-    )
-}
-
-public extension LunaControlColorSet {
-    static let mothUserPalette = LunaControlColorSet(
-        normalBackground: LunaMothUserPalette.raised,
-        hoveredBackground: LunaMothUserPalette.cobalt,
-        pressedBackground: LunaMothUserPalette.void,
-        focusedBackground: LunaMothUserPalette.raised,
-        selectedBackground: LunaMothUserPalette.cobalt,
-        disabledBackground: LunaMothUserPalette.base,
-        foreground: LunaMothUserPalette.text,
-        mutedForeground: LunaColor.hex("#888991CC"),
-        disabledForeground: LunaColor.hex("#88899177"),
-        selectedForeground: LunaMothUserPalette.text,
-        border: LunaMothUserPalette.void,
-        focusedBorder: LunaMothUserPalette.cobalt,
-        accent: LunaMothUserPalette.cobalt,
-        accentStrong: LunaMothUserPalette.text
-    )
-}
-
-public extension LunaUIThemeColors {
-    static let mothUserPalette = LunaUIThemeColors(
-        windowBackground: LunaMothUserPalette.void,
-        editorBackground: LunaEditorColorSet.mothUserPalette.background,
-        editorForeground: LunaEditorColorSet.mothUserPalette.foreground,
-        chromeBackground: LunaChromeColorSet.mothUserPalette.titleBarBackground,
-        panelBackground: LunaPanelColorSet.mothUserPalette.background,
-        panelBorder: LunaPanelColorSet.mothUserPalette.border,
-        panelTitleBackground: LunaPanelColorSet.mothUserPalette.titleBackground,
-        fieldBackground: LunaTextFieldColorSet.mothUserPalette.background,
-        fieldBorder: LunaTextFieldColorSet.mothUserPalette.border,
-        overlayBackdrop: LunaPanelColorSet.mothUserPalette.overlayBackdrop,
-        movingBlock: LunaMothUserPalette.cobalt,
-        movingBlockBorder: LunaMothUserPalette.text,
-        hudBackground: LunaMothUserPalette.void,
-        statusText: LunaMothUserPalette.text,
-        controlColors: .mothUserPalette,
-        editor: .mothUserPalette,
-        chrome: .mothUserPalette,
-        menu: .mothUserPalette,
-        panel: .mothUserPalette,
-        textField: .mothUserPalette,
-        tabs: .mothUserPalette,
-        sidebar: .mothUserPalette,
-        statusBar: .mothUserPalette,
-        diagnostics: .mothUserPalette
-    )
-}
-
-public extension LunaTheme {
-    /// User-supplied Moth palette from `moth_color_pallet.png`.
-    ///
-    /// Demo key `2` selects this theme so the running Luna demo proves Moth can
-    /// supply exact palette values through normal Luna theme/style tokens.
-    static let mothUserPalette = LunaTheme(
-        name: "Moth User Palette",
-        background: LunaEditorColorSet.mothUserPalette.background,
-        foreground: LunaEditorColorSet.mothUserPalette.foreground,
-        caret: LunaEditorColorSet.mothUserPalette.caret,
-        selection: LunaEditorColorSet.mothUserPalette.selectionBackground,
-        ui: .mothUserPalette
-    )
-}
-
 // MARK: - Component-specific token groups
 
 public struct LunaEditorColorSet: Hashable, Sendable {
@@ -359,7 +151,7 @@ public struct LunaEditorColorSet: Hashable, Sendable {
         self.scrollbarThumb = scrollbarThumb
     }
 
-    public static let mothDefaultDark = LunaEditorColorSet(
+    public static let lunaDefaultDark = LunaEditorColorSet(
         background: .hex("#2B333B"),
         foreground: .hex("#D8DEE9"),
         gutterBackground: .hex("#263039"),
@@ -411,7 +203,7 @@ public struct LunaChromeColorSet: Hashable, Sendable {
         self.windowBorder = windowBorder
     }
 
-    public static let mothDefaultDark = LunaChromeColorSet(
+    public static let lunaDefaultDark = LunaChromeColorSet(
         titleBarBackground: .hex("#2D2D2D"),
         titleBarForeground: .hex("#E6E6E6"),
         menuBarBackground: .hex("#292929"),
@@ -467,7 +259,7 @@ public struct LunaMenuColorSet: Hashable, Sendable {
         self.submenuArrow = submenuArrow
     }
 
-    public static let mothDefaultDark = LunaMenuColorSet(
+    public static let lunaDefaultDark = LunaMenuColorSet(
         background: .hex("#282828"),
         border: .hex("#1B1B1B"),
         rowForeground: .hex("#D4D4D4"),
@@ -519,7 +311,7 @@ public struct LunaPanelColorSet: Hashable, Sendable {
         self.shadow = shadow
     }
 
-    public static let mothDefaultDark = LunaPanelColorSet(
+    public static let lunaDefaultDark = LunaPanelColorSet(
         background: .hex("#262A30"),
         border: .hex("#14161A"),
         titleBackground: .hex("#2F343B"),
@@ -557,7 +349,7 @@ public struct LunaTextFieldColorSet: Hashable, Sendable {
         self.selectionBackground = selectionBackground
     }
 
-    public static let mothDefaultDark = LunaTextFieldColorSet(
+    public static let lunaDefaultDark = LunaTextFieldColorSet(
         background: .hex("#2D323A"),
         border: .hex("#181A1E"),
         focusedBorder: .hex("#F39C25"),
@@ -600,7 +392,7 @@ public struct LunaTabColorSet: Hashable, Sendable {
         self.divider = divider
     }
 
-    public static let mothDefaultDark = LunaTabColorSet(
+    public static let lunaDefaultDark = LunaTabColorSet(
         stripBackground: .hex("#56616C"),
         activeBackground: .hex("#2B333B"),
         inactiveBackground: .hex("#56616C"),
@@ -646,7 +438,7 @@ public struct LunaSidebarColorSet: Hashable, Sendable {
         self.border = border
     }
 
-    public static let mothDefaultDark = LunaSidebarColorSet(
+    public static let lunaDefaultDark = LunaSidebarColorSet(
         background: .hex("#1D242B"),
         sectionForeground: .hex("#F0F3F6"),
         rowForeground: .hex("#C7D0D9"),
@@ -680,7 +472,7 @@ public struct LunaStatusBarColorSet: Hashable, Sendable {
         self.border = border
     }
 
-    public static let mothDefaultDark = LunaStatusBarColorSet(
+    public static let lunaDefaultDark = LunaStatusBarColorSet(
         background: .hex("#20262D"),
         foreground: .hex("#D2D8DE"),
         mutedForeground: .hex("#9AA4AE"),
@@ -704,7 +496,7 @@ public struct LunaDiagnosticColorSet: Hashable, Sendable {
         self.missingTokenFallback = missingTokenFallback
     }
 
-    public static let mothDefaultDark = LunaDiagnosticColorSet(
+    public static let lunaDefaultDark = LunaDiagnosticColorSet(
         info: .hex("#76CECB"),
         warning: .hex("#F6A94B"),
         error: .hex("#FF5F5F"),
@@ -767,9 +559,9 @@ public struct LunaControlColorSet: Hashable, Sendable {
         self.accentStrong = accentStrong
     }
 
-    /// Default compact dark control palette, shaped by the Sublime screenshots
-    /// supplied during the Luna/Moth design pass.
-    public static let mothDefaultDark = LunaControlColorSet(
+    /// Default compact dark control palette, shaped by compact dark editor chrome.
+    /// It is only a default; applications can replace every token.
+    public static let lunaDefaultDark = LunaControlColorSet(
         normalBackground: .hex("#30353D"),
         hoveredBackground: .hex("#4E5763"),
         pressedBackground: .hex("#21252B"),
@@ -788,7 +580,7 @@ public struct LunaControlColorSet: Hashable, Sendable {
 }
 
 /// High-level UI tokens. Apps can replace this entire struct to give Luna a
-/// project-specific appearance; Moth Text will supply its own values here.
+/// project-specific appearance; applications supply their own values here.
 public struct LunaUIThemeColors: Hashable, Sendable {
     // Legacy broad tokens kept for source compatibility with earlier phases.
     public var windowBackground: LunaColor
@@ -807,7 +599,7 @@ public struct LunaUIThemeColors: Hashable, Sendable {
     public var statusText: LunaColor
     public var controlColors: LunaControlColorSet
 
-    // Phase 2E component-specific Sublime/Moth tokens.
+    // Phase 2E component-specific application UI tokens.
     public var editor: LunaEditorColorSet
     public var chrome: LunaChromeColorSet
     public var menu: LunaMenuColorSet
@@ -834,15 +626,15 @@ public struct LunaUIThemeColors: Hashable, Sendable {
         hudBackground: LunaColor,
         statusText: LunaColor,
         controlColors: LunaControlColorSet,
-        editor: LunaEditorColorSet = .mothDefaultDark,
-        chrome: LunaChromeColorSet = .mothDefaultDark,
-        menu: LunaMenuColorSet = .mothDefaultDark,
-        panel: LunaPanelColorSet = .mothDefaultDark,
-        textField: LunaTextFieldColorSet = .mothDefaultDark,
-        tabs: LunaTabColorSet = .mothDefaultDark,
-        sidebar: LunaSidebarColorSet = .mothDefaultDark,
-        statusBar: LunaStatusBarColorSet = .mothDefaultDark,
-        diagnostics: LunaDiagnosticColorSet = .mothDefaultDark
+        editor: LunaEditorColorSet = .lunaDefaultDark,
+        chrome: LunaChromeColorSet = .lunaDefaultDark,
+        menu: LunaMenuColorSet = .lunaDefaultDark,
+        panel: LunaPanelColorSet = .lunaDefaultDark,
+        textField: LunaTextFieldColorSet = .lunaDefaultDark,
+        tabs: LunaTabColorSet = .lunaDefaultDark,
+        sidebar: LunaSidebarColorSet = .lunaDefaultDark,
+        statusBar: LunaStatusBarColorSet = .lunaDefaultDark,
+        diagnostics: LunaDiagnosticColorSet = .lunaDefaultDark
     ) {
         self.windowBackground = windowBackground
         self.editorBackground = editorBackground
@@ -870,35 +662,35 @@ public struct LunaUIThemeColors: Hashable, Sendable {
         self.diagnostics = diagnostics
     }
 
-    public static let mothDefaultDark = LunaUIThemeColors(
+    public static let lunaDefaultDark = LunaUIThemeColors(
         windowBackground: .hex("#161A1F"),
-        editorBackground: LunaEditorColorSet.mothDefaultDark.background,
-        editorForeground: LunaEditorColorSet.mothDefaultDark.foreground,
-        chromeBackground: LunaChromeColorSet.mothDefaultDark.titleBarBackground,
-        panelBackground: LunaPanelColorSet.mothDefaultDark.background,
-        panelBorder: LunaPanelColorSet.mothDefaultDark.border,
-        panelTitleBackground: LunaPanelColorSet.mothDefaultDark.titleBackground,
-        fieldBackground: LunaTextFieldColorSet.mothDefaultDark.background,
-        fieldBorder: LunaTextFieldColorSet.mothDefaultDark.border,
-        overlayBackdrop: LunaPanelColorSet.mothDefaultDark.overlayBackdrop,
+        editorBackground: LunaEditorColorSet.lunaDefaultDark.background,
+        editorForeground: LunaEditorColorSet.lunaDefaultDark.foreground,
+        chromeBackground: LunaChromeColorSet.lunaDefaultDark.titleBarBackground,
+        panelBackground: LunaPanelColorSet.lunaDefaultDark.background,
+        panelBorder: LunaPanelColorSet.lunaDefaultDark.border,
+        panelTitleBackground: LunaPanelColorSet.lunaDefaultDark.titleBackground,
+        fieldBackground: LunaTextFieldColorSet.lunaDefaultDark.background,
+        fieldBorder: LunaTextFieldColorSet.lunaDefaultDark.border,
+        overlayBackdrop: LunaPanelColorSet.lunaDefaultDark.overlayBackdrop,
         movingBlock: .hex("#B9F5F2"),
         movingBlockBorder: .hex("#0A0A0A"),
-        hudBackground: LunaChromeColorSet.mothDefaultDark.titleBarBackground,
-        statusText: LunaStatusBarColorSet.mothDefaultDark.foreground,
-        controlColors: .mothDefaultDark,
-        editor: .mothDefaultDark,
-        chrome: .mothDefaultDark,
-        menu: .mothDefaultDark,
-        panel: .mothDefaultDark,
-        textField: .mothDefaultDark,
-        tabs: .mothDefaultDark,
-        sidebar: .mothDefaultDark,
-        statusBar: .mothDefaultDark,
-        diagnostics: .mothDefaultDark
+        hudBackground: LunaChromeColorSet.lunaDefaultDark.titleBarBackground,
+        statusText: LunaStatusBarColorSet.lunaDefaultDark.foreground,
+        controlColors: .lunaDefaultDark,
+        editor: .lunaDefaultDark,
+        chrome: .lunaDefaultDark,
+        menu: .lunaDefaultDark,
+        panel: .lunaDefaultDark,
+        textField: .lunaDefaultDark,
+        tabs: .lunaDefaultDark,
+        sidebar: .lunaDefaultDark,
+        statusBar: .lunaDefaultDark,
+        diagnostics: .lunaDefaultDark
     )
 
     /// Loud demo palette used only to prove theme swapping. This is *not* Luna's
-    /// identity and should not be inherited by Moth.
+    /// identity and should not be inherited by applications.
     public static let lunaDemoBlue = LunaUIThemeColors(
         windowBackground: .hex("#1218F2"),
         editorBackground: .hex("#1B25FF"),
@@ -933,7 +725,7 @@ public struct LunaUIThemeColors: Hashable, Sendable {
     )
 
     /// High-contrast token set used to prove every visible control pulls from
-    /// replaceable theme variables. Not intended as final Moth styling.
+    /// replaceable theme variables. Not intended as final application styling.
     public static let highContrastProof = LunaUIThemeColors(
         windowBackground: .hex("#050505"),
         editorBackground: .hex("#090909"),
@@ -971,7 +763,7 @@ public struct LunaUIThemeColors: Hashable, Sendable {
 // MARK: - Theme object
 
 /// Luna's theme object. It keeps the legacy editor colors while adding a
-/// semantic UI token set for widgets, overlays, menus, and future Moth chrome.
+/// semantic UI token set for widgets, overlays, menus, and future application chrome.
 public struct LunaTheme: Hashable, Sendable {
 
     /// Human-readable name (e.g., "Mariana", "Monokai", etc.)
@@ -998,7 +790,7 @@ public struct LunaTheme: Hashable, Sendable {
         foreground: LunaColor,
         caret: LunaColor,
         selection: LunaColor,
-        ui: LunaUIThemeColors = .mothDefaultDark
+        ui: LunaUIThemeColors = .lunaDefaultDark
     ) {
         self.name = name
         self.background = background
@@ -1015,22 +807,22 @@ public struct LunaTheme: Hashable, Sendable {
         foreground: .hex("#E6E6EB"),
         caret: .hex("#FFFFFF"),
         selection: .hex("#5078A0B4"),
-        ui: .mothDefaultDark
+        ui: .lunaDefaultDark
     )
 
-    /// Default Moth/Sublime-shaped dark UI theme. This is a default, not a
-    /// hardcoded engine identity; Moth can replace every token.
-    public static let mothDefaultDark = LunaTheme(
-        name: "Moth Default Dark",
-        background: LunaEditorColorSet.mothDefaultDark.background,
-        foreground: LunaEditorColorSet.mothDefaultDark.foreground,
-        caret: LunaEditorColorSet.mothDefaultDark.caret,
-        selection: LunaEditorColorSet.mothDefaultDark.selectionBackground,
-        ui: .mothDefaultDark
+    /// Default compact dark UI theme. This is a default, not a
+    /// hardcoded engine identity; applications can replace every token.
+    public static let lunaDefaultDark = LunaTheme(
+        name: "Luna Default Dark",
+        background: LunaEditorColorSet.lunaDefaultDark.background,
+        foreground: LunaEditorColorSet.lunaDefaultDark.foreground,
+        caret: LunaEditorColorSet.lunaDefaultDark.caret,
+        selection: LunaEditorColorSet.lunaDefaultDark.selectionBackground,
+        ui: .lunaDefaultDark
     )
 
     /// Loud CPU-demo blue theme. Kept as an explicit demo/test theme to prove
-    /// that the engine is themeable, not because Luna or Moth should look this way.
+    /// that the engine is themeable, not because Luna should look this way.
     public static let lunaDemoBlue = LunaTheme(
         name: "Luna CPU Demo Blue",
         background: .hex("#1218F2"),

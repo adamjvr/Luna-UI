@@ -2,7 +2,7 @@
 //
 // Command metadata shared by menus, keymaps, command palettes, tests, and
 // accessibility actions. Luna owns the command vocabulary shape; apps such as
-// Moth Text own the actual handlers/policy.
+// Applications own the actual handlers/policy.
 
 import Foundation
 import LunaCore

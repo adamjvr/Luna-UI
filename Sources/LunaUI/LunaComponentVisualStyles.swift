@@ -1,6 +1,6 @@
 // LunaComponentVisualStyles.swift
 //
-// Phase 2E: render-ready style snapshots for Luna's Sublime/Moth-shaped UI
+// Phase 2E: render-ready style snapshots for Luna's themeable UI
 // surfaces. These do not implement menus/tabs/sidebars yet; they lock the
 // token boundary so future widgets consume theme variables instead of inventing
 // hardcoded colors one component at a time.
@@ -220,7 +220,7 @@ public struct LunaThemeVisualStyles: Hashable, Sendable {
     public var tabs: LunaTabVisualStyle
     public var sidebar: LunaSidebarVisualStyle
     public var statusBar: LunaStatusBarVisualStyle
-    public var controls: LunaMothDefaultDarkControlStyle
+    public var controls: LunaControlVisualStyle
 
     public init(theme: LunaTheme) {
         self.chrome = LunaChromeVisualStyle(theme: theme)
@@ -231,6 +231,6 @@ public struct LunaThemeVisualStyles: Hashable, Sendable {
         self.tabs = LunaTabVisualStyle(theme: theme)
         self.sidebar = LunaSidebarVisualStyle(theme: theme)
         self.statusBar = LunaStatusBarVisualStyle(theme: theme)
-        self.controls = LunaMothDefaultDarkControlStyle(theme: theme)
+        self.controls = LunaControlVisualStyle(theme: theme)
     }
 }
