@@ -786,23 +786,33 @@ Tests completed:
 
 ### Phase 3D — Editable Text Input Foundation
 
+**Status:** complete.
+
 Goal: start controlled text mutation on top of the Phase 3A/3B/3C text-view foundation without pulling command palette, file I/O, or Moth app policy into Luna.
 
-Scope:
+Scope completed:
 
-- editable plain-text document wrapper or mutation adapter;
+- `LunaEditableTextDocument`;
+- `LunaEditableTextState`;
+- `LunaTextEditResult`;
 - insertion at caret;
-- backspace/delete around caret;
 - newline insertion;
-- caret update after mutation;
+- backspace/delete around caret;
 - selection replacement;
-- viewport ensure-visible after mutation;
-- accessibility caret/selection range updates after mutation.
+- caret update after mutation;
+- left/right caret movement across line boundaries;
+- viewport ensure-visible after mutation in the demo;
+- platform-neutral committed text-input event type;
+- SDL text-input event translation in the host layer;
+- editable accessibility metadata on text-area nodes;
+- LunaUITestApp editable text proof.
 
 Explicit non-goals for Phase 3D:
 
 - no syntax highlighting;
 - no undo stack yet;
+- no clipboard;
+- no IME composition model beyond committed text events;
 - no file save/load;
 - no command palette;
 - no Moth application shell.
@@ -993,7 +1003,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 3D — Editable Text Input Foundation
+Phase 4A — Command Palette / Quick Panel
 ```
 
-Phase 3A, 3B, and 3C are complete. The next implementation target is a small editable text-input foundation layered on top of the existing static document, caret/selection geometry, and scroll/viewport model.
+Phase 3A, 3B, 3C, and 3D are complete. The next implementation target is the first Sublime-style command palette / quick panel surface layered on top of the modal, bounded text, theme, keyboard, and text-input foundation.

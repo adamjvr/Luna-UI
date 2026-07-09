@@ -54,10 +54,14 @@ public enum LunaKeyboardKey: Hashable, Sendable {
     case space
     case arrowUp
     case arrowDown
+    case arrowLeft
+    case arrowRight
     case pageUp
     case pageDown
     case home
     case end
+    case backspace
+    case delete
     case number(Int)
     case other(String)
 }
@@ -99,6 +103,22 @@ public struct LunaKeyboardEvent: Hashable, Sendable {
     }
 }
 
+// MARK: - Text input
+
+/// Platform-neutral committed text input.
+///
+/// Key events represent physical/special keys. Text input represents the text
+/// the host text system actually committed after keyboard layout, dead keys,
+/// and future IME/composition handling. Phase 3D consumes this for editable text
+/// insertion instead of trying to infer printable characters from keycodes.
+public struct LunaTextInputEvent: Hashable, Sendable {
+    public var text: String
+
+    public init(text: String) {
+        self.text = text
+    }
+}
+
 // MARK: - Host-level events
 
 public enum LunaHostInputEvent: Hashable, Sendable {
@@ -106,4 +126,5 @@ public enum LunaHostInputEvent: Hashable, Sendable {
     case windowResized(LunaSizeI)
     case pointer(LunaPointerEvent)
     case keyboard(LunaKeyboardEvent)
+    case textInput(LunaTextInputEvent)
 }

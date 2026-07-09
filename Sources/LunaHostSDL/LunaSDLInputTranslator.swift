@@ -77,10 +77,15 @@ public struct LunaSDLInputTranslator {
             return .keyboard(
                 LunaKeyboardEvent(
                     key: key,
-                    modifiers: .none,
+                    modifiers: translateModifiers(event.key.keysym.mod),
                     isRepeat: event.key.repeat != 0
                 )
             )
+
+        case SDL_TEXTINPUT:
+            let text = translateTextInput(event.text)
+            guard !text.isEmpty else { return nil }
+            return .textInput(LunaTextInputEvent(text: text))
 
         default:
             return nil
@@ -93,6 +98,41 @@ public struct LunaSDLInputTranslator {
         case 2: return .middle
         case 3: return .secondary
         default: return .other(Int(button))
+        }
+    }
+
+    /// Translate SDL modifier bits into Luna's platform-neutral modifier set.
+    ///
+    /// Swift/SDL bindings are inconsistent across versions here: `SDL_GetModState()`
+    /// and the `KMOD_*` constants may appear as the typed `SDL_Keymod`, while
+    /// `SDL_Keysym.mod` is imported on Linux as the raw `Uint16` field used by
+    /// SDL's C struct. Keep that mismatch inside LunaHostSDL by accepting the raw
+    /// bits from events and normalizing them before app/demo code ever sees them.
+    public func translateModifiers(_ rawModifiers: UInt16) -> LunaKeyboardModifiers {
+        translateModifierBits(UInt32(rawModifiers))
+    }
+
+    public func translateModifiers(_ rawModifiers: SDL_Keymod) -> LunaKeyboardModifiers {
+        translateModifierBits(UInt32(rawModifiers.rawValue))
+    }
+
+    private func translateModifierBits(_ mods: UInt32) -> LunaKeyboardModifiers {
+        let shiftMask = UInt32(KMOD_LSHIFT.rawValue) | UInt32(KMOD_RSHIFT.rawValue)
+        let controlMask = UInt32(KMOD_LCTRL.rawValue) | UInt32(KMOD_RCTRL.rawValue)
+        let optionMask = UInt32(KMOD_LALT.rawValue) | UInt32(KMOD_RALT.rawValue)
+        let commandMask = UInt32(KMOD_LGUI.rawValue) | UInt32(KMOD_RGUI.rawValue)
+        return LunaKeyboardModifiers(
+            shift: (mods & shiftMask) != 0,
+            control: (mods & controlMask) != 0,
+            option: (mods & optionMask) != 0,
+            command: (mods & commandMask) != 0
+        )
+    }
+
+    public func translateTextInput(_ textEvent: SDL_TextInputEvent) -> String {
+        withUnsafeBytes(of: textEvent.text) { rawBuffer in
+            let bytes = rawBuffer.prefix { $0 != 0 }
+            return String(decoding: bytes, as: UTF8.self)
         }
     }
 
@@ -114,6 +154,10 @@ public struct LunaSDLInputTranslator {
             return .arrowUp
         case SDLK_DOWN.rawValue:
             return .arrowDown
+        case SDLK_LEFT.rawValue:
+            return .arrowLeft
+        case SDLK_RIGHT.rawValue:
+            return .arrowRight
         case SDLK_PAGEUP.rawValue:
             return .pageUp
         case SDLK_PAGEDOWN.rawValue:
@@ -122,6 +166,10 @@ public struct LunaSDLInputTranslator {
             return .home
         case SDLK_END.rawValue:
             return .end
+        case SDLK_BACKSPACE.rawValue:
+            return .backspace
+        case SDLK_DELETE.rawValue:
+            return .delete
         case SDLK_1.rawValue:
             return .number(1)
         case SDLK_2.rawValue:

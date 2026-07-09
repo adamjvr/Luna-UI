@@ -102,6 +102,14 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
     public var bounds: LunaAccessibilityRect
     public var isEnabled: Bool
     public var isFocused: Bool
+
+    /// Whether this text-bearing node accepts user text edits.
+    ///
+    /// Phase 3D uses this for the editable text-view foundation while keeping
+    /// the tree platform-neutral; host bridges can map it to native accessibility
+    /// editability flags later.
+    public var isEditable: Bool
+
     public var children: [LunaNodeID]
     public var actions: [LunaAccessibilityAction]
     public var textRange: LunaAccessibilityTextRange?
@@ -133,6 +141,7 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         bounds: LunaAccessibilityRect = .zero,
         isEnabled: Bool = true,
         isFocused: Bool = false,
+        isEditable: Bool = false,
         children: [LunaNodeID] = [],
         actions: [LunaAccessibilityAction] = [],
         textRange: LunaAccessibilityTextRange? = nil,
@@ -147,6 +156,7 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         self.bounds = bounds
         self.isEnabled = isEnabled
         self.isFocused = isFocused
+        self.isEditable = isEditable
         self.children = children
         self.actions = actions
         self.textRange = textRange

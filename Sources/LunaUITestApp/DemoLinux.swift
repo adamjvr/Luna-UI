@@ -54,6 +54,9 @@ func runLinuxDemo() {
     }
     defer { SDL_DestroyWindow(window) }
 
+    SDL_StartTextInput()
+    defer { SDL_StopTextInput() }
+
     var fb = LunaFramebuffer(width: Int(winW), height: Int(winH))
     let presenter = LunaSDLPresenter(window: window)
     var inputTranslator = LunaSDLInputTranslator()
@@ -89,6 +92,12 @@ func runLinuxDemo() {
             case .keyboard(let keyboardEvent):
                 _ = demo.handleKeyboardEvent(
                     keyboardEvent,
+                    framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+                )
+
+            case .textInput(let textInputEvent):
+                _ = demo.handleTextInput(
+                    textInputEvent,
                     framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                 )
             }

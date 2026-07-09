@@ -94,27 +94,31 @@ public struct LunaCPUDemoScene {
     /// click routes through: modal first, semantic widget second.
     private var modalManager = LunaModalOverlayManager()
 
-    /// Phase 3A static editor-surface proof. The demo keeps this read-only so
-    /// the first text-view step proves layout/render/accessibility boundaries
-    /// before we add caret movement, selection mutation, or editing.
-    private var staticTextDocument = LunaStaticTextDocument(text: LunaCPUDemoScene.demoText)
-
-    /// Phase 3B non-editable caret proof. This is UI state only; it does not
-    /// mutate the static document.
-    private var staticTextCaret = LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 2, utf8Column: 12))
-
-    /// Phase 3B static selection proof. The demo shows the highlight geometry
-    /// before editable selection mutation lands.
-    private var staticTextSelection = LunaStaticTextSelection(
-        range: LunaTextRange(
-            anchor: LunaTextLocation(lineIndex: 1, utf8Column: 8),
-            focus: LunaTextLocation(lineIndex: 3, utf8Column: 18)
-        )
+    /// Phase 3D editable editor-surface proof. Rendering still goes through the
+    /// LunaStaticTextView line snapshot, while mutation is owned by this small
+    /// editable document/state wrapper.
+    private var editableTextState = LunaEditableTextState(
+        text: LunaCPUDemoScene.demoText,
+        caret: LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 1, utf8Column: 0))
     )
 
     /// Phase 3C scroll state. This remains a logical line viewport offset;
-    /// editable text input and pixel-fractional scrolling come later.
+    /// pixel-fractional scrolling comes later.
     private var staticTextScroll = LunaStaticTextScrollState(scrollTopLine: 0)
+
+    private var staticTextDocument: LunaStaticTextDocument {
+        editableTextState.document.staticDocument
+    }
+
+    private var staticTextCaret: LunaStaticTextCaret {
+        get { editableTextState.caret }
+        set { editableTextState.caret = newValue }
+    }
+
+    private var staticTextSelection: LunaStaticTextSelection? {
+        get { editableTextState.selection }
+        set { editableTextState.selection = newValue }
+    }
 
     /// Create a new demo scene.
     public init(
@@ -236,9 +240,9 @@ public struct LunaCPUDemoScene {
             }
         }
 
-        // Phase 3B text surface routing: clicking the static text view computes
-        // a stable line/UTF-8-column caret location without mutating document
-        // text. This proves editor hit geometry before editable input exists.
+        // Phase 3D text surface routing: clicking the text view computes a
+        // stable line/UTF-8-column caret location and clears any static
+        // selection. Text mutation still happens only from text-input events.
         if event.phase == .down, event.button == .primary {
             let textView = Self.staticTextView(
                 for: framebufferSize,
@@ -249,8 +253,8 @@ public struct LunaCPUDemoScene {
                 theme: theme
             )
             if let hit = textView.textHitTest(event.location) {
-                staticTextCaret = LunaStaticTextCaret(location: hit.location)
-                lastInteractionStatus = "Phase 3B caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); Phase 3C top=\(staticTextScroll.scrollTopLine + 1)"
+                editableTextState.setCaret(hit.location)
+                lastInteractionStatus = "Phase 3D caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); type text, Enter, Backspace, Delete"
                 return LunaPointerActivationResult(
                     event: event,
                     hitNodeID: hit.nodeID,
@@ -301,6 +305,15 @@ public struct LunaCPUDemoScene {
     }
 
     @discardableResult
+    public mutating func handleTextInput(_ event: LunaTextInputEvent, framebufferSize: LunaSizeI) -> Bool {
+        guard !event.text.isEmpty else { return false }
+        let result = editableTextState.insertText(event.text)
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+        lastInteractionStatus = "Phase 3D inserted \(event.text.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
+        return true
+    }
+
+    @discardableResult
     public mutating func handleKeyboardEvent(_ event: LunaKeyboardEvent, framebufferSize: LunaSizeI) -> Bool {
         if modalManager.hasActiveModal {
             var context = LunaUIContext()
@@ -328,6 +341,35 @@ public struct LunaCPUDemoScene {
             return true
         case .number(3):
             setTheme(.highContrastProof, framebufferSize: framebufferSize)
+            return true
+        case .enter:
+            let result = editableTextState.insertNewline()
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 3D newline: caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
+            return true
+        case .backspace:
+            let result = editableTextState.deleteBackward()
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = result.didChange
+                ? "Phase 3D backspace: caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
+                : "Phase 3D backspace: start of document"
+            return true
+        case .delete:
+            let result = editableTextState.deleteForward()
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = result.didChange
+                ? "Phase 3D delete: caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
+                : "Phase 3D delete: end of document"
+            return true
+        case .arrowLeft:
+            editableTextState.moveCaretBackward()
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 3D caret left: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
+            return true
+        case .arrowRight:
+            editableTextState.moveCaretForward()
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 3D caret right: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
             return true
         case .arrowUp:
             scrollStaticTextView(byLineDelta: -1, framebufferSize: framebufferSize)
@@ -396,6 +438,23 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Phase 3C scroll \(reason): top line \(staticTextScroll.scrollTopLine + 1) / \(staticTextDocument.lineCount)"
     }
 
+    private mutating func ensureEditableCaretVisible(framebufferSize: LunaSizeI) {
+        let view = Self.staticTextView(
+            for: framebufferSize,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
+            .ensuringVisible(
+                staticTextCaret.location,
+                document: staticTextDocument,
+                maxVisibleLineCount: view.layout().maxVisibleLineCount
+            )
+    }
+
 
 
     /// Compute the current demo layout for a framebuffer size.
@@ -460,6 +519,7 @@ public struct LunaCPUDemoScene {
             theme: theme,
             metrics: .demo,
             isFocused: caret != nil,
+            isEditable: true,
             caret: caret,
             selection: selection
         )
@@ -468,39 +528,41 @@ public struct LunaCPUDemoScene {
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
     public static let demoText = """
-    // Phase 3A: Static Accessible Text View
+    // Phase 3D: Editable Text Input Foundation
+    // Click in this editor surface and type. Enter, Backspace, Delete, Left,
+    // and Right now mutate or move caret state through Luna's neutral input path.
     struct LunaProof {
         let background = "theme.ui.editor.background"
         let gutter = "theme.ui.editor.gutterBackground"
         let text = "theme.ui.editor.foreground"
     }
 
-    // Phase 3B adds caret geometry and static selection.
-    // Phase 3C adds logical-line scrolling and viewport metrics.
-    // Use Up/Down/PageUp/PageDown/Home/End to scroll this proof surface.
+    // Phase 3A added the static accessible text surface.
+    // Phase 3B added caret geometry and static selection.
+    // Phase 3C added logical-line scrolling and viewport metrics.
+    // Phase 3D adds a tiny editable model before ropes, undo, IME, or clipboard.
 
-    let phase3c_scrollOffset = "logical top line"
-    let phase3c_visibleRange = "first visible line ..< last visible line"
-    let phase3c_contentHeight = "document.lineCount * lineHeight"
-    let phase3c_accessibility = "visible text range follows viewport"
-    let phase3c_scrollbar = "theme-driven lane and thumb placeholder"
+    let phase3d_editing = "insert text, newline, backspace, delete"
+    let phase3d_input = "host text-input events, not guessed printable keycodes"
+    let phase3d_storage = "temporary String-backed model; rope/piece-table later"
+    let phase3d_accessibility = "text area reports editable=true"
 
     // More lines so the viewport actually overflows in normal windows.
     line_01: Luna text viewport proof
     line_02: black/graphite Moth demo still comes from app-supplied theme
     line_03: caret stays document-coordinate stable while viewport moves
     line_04: hit testing maps screen points into scrolled text coordinates
-    line_05: selection rectangles only draw for visible touched lines
+    line_05: selection replacement collapses to the inserted caret
     line_06: accessibility reports visible ranges in UTF-8 byte offsets
     line_07: scroll thumb position is derived from line offset
     line_08: scroll lane uses editor scrollbar theme tokens
-    line_09: no editable mutation yet
-    line_10: no pixel-fractional scroll yet
-    line_11: no soft wrap yet
-    line_12: no minimap rendering yet
-    line_13: all of that comes later on top of this viewport model
-    line_14: Phase 3C is the last read-only viewport foundation step
-    line_15: next phase can safely move toward editable input
+    line_09: editable mutation is intentionally minimal right now
+    line_10: no undo stack yet
+    line_11: no clipboard yet
+    line_12: no IME composition yet
+    line_13: no soft wrap yet
+    line_14: no minimap rendering yet
+    line_15: all of that comes later on top of this foundation
     """
 
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render

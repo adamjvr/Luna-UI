@@ -1,11 +1,11 @@
 // LunaStaticTextView.swift
 //
-// Phase 3A/3B/3C: static, accessible text-view primitive.
+// Phase 3A/3B/3C/3D: accessible text-view primitive.
 //
-// This is the first editor-shaped Luna widget. It is deliberately read-only:
-// Phase 3A proves text-surface layout, theme-driven paint geometry, line/gutter
-// semantics, hit testing, and accessibility ranges before editable input,
-// real editable input, real glyph runs, or production scrollbars are added.
+// This is the first editor-shaped Luna widget. Phase 3A-3C built the read-only
+// display, caret, selection, and viewport contract. Phase 3D keeps rendering
+// through this same surface while a separate editable document/state layer begins
+// mutating text.
 
 import Foundation
 import LunaAccessibility
@@ -213,11 +213,12 @@ public struct LunaStaticTextLine: Hashable, Sendable {
     }
 }
 
-/// Read-only document model for Phase 3A.
+/// Immutable line snapshot consumed by Luna text views.
 ///
-/// The model intentionally stores only plain lines and stable byte ranges. Real
-/// editor storage, mutation, syntax scopes, folds, bidi, shaping, and soft wrap
-/// belong in later phases; this gives Luna a correct semantic text surface now.
+/// Phase 3D adds `LunaEditableTextDocument` for mutation, but rendering, hit
+/// testing, selection geometry, and accessibility still consume this stable
+/// line snapshot. Real editor storage, syntax scopes, folds, bidi, shaping, and
+/// soft wrap belong in later phases.
 public struct LunaStaticTextDocument: Hashable, Sendable {
     public var text: String
     public var lines: [LunaStaticTextLine]
@@ -461,13 +462,15 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     }
 }
 
-/// Read-only editor-shaped widget for Phase 3A.
+/// Editor-shaped widget for Phase 3A-3D.
 ///
 /// This widget owns the correct Luna contract now:
 /// drawing bounds, hit-test bounds, and accessibility bounds come from the same
 /// computed layout; text has stable line node IDs and byte ranges; colors come
 /// from `LunaTheme`; and visual line text is clipped/ellipsized inside the text
-/// viewport instead of pretending it has infinite width.
+/// viewport instead of pretending it has infinite width. Phase 3D can mark the
+/// same text surface editable for accessibility while mutation remains owned by
+/// `LunaEditableTextDocument` / `LunaEditableTextState`.
 public struct LunaStaticTextView: LunaWidget, Sendable {
     public var id: LunaNodeID
     public var bounds: LunaRectI
@@ -478,7 +481,10 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     public var metrics: LunaStaticTextViewMetrics
     public var isFocused: Bool
 
-    /// Optional non-editable caret state introduced in Phase 3B.
+    /// Whether the backing text model currently accepts edits.
+    public var isEditable: Bool
+
+    /// Optional caret state introduced in Phase 3B.
     public var caret: LunaStaticTextCaret?
 
     /// Optional static selection state introduced in Phase 3B.
@@ -493,6 +499,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         theme: LunaTheme = .lunaDefaultDark,
         metrics: LunaStaticTextViewMetrics = .demo,
         isFocused: Bool = false,
+        isEditable: Bool = false,
         caret: LunaStaticTextCaret? = nil,
         selection: LunaStaticTextSelection? = nil
     ) {
@@ -504,6 +511,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         self.theme = theme
         self.metrics = metrics
         self.isFocused = isFocused
+        self.isEditable = isEditable
         self.caret = caret.map { LunaStaticTextCaret(location: document.clampedLocation($0.location)) }
         if let selection, !selection.isCollapsed {
             self.selection = LunaStaticTextSelection(range: document.clampedRange(selection.range))
@@ -860,6 +868,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             bounds: bounds.asAccessibilityRect,
             isEnabled: true,
             isFocused: isFocused,
+            isEditable: isEditable,
             children: layout.visibleLines.map(\.nodeID),
             actions: [.focus],
             textRange: LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: document.text.utf8.count),
