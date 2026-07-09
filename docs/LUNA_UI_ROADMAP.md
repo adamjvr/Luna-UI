@@ -713,33 +713,40 @@ static text layout -> draw bounds -> hit-test bounds -> accessibility ranges
 
 ### Phase 3B — Caret Geometry and Static Selection Model
 
-**Status:** next.
+**Status:** complete.
 
 Goal: add non-editable caret and selection geometry on top of the Phase 3A text surface before mutation/input policy exists.
 
-Scope:
+Scope completed:
 
-- caret position model;
-- caret rectangle calculation from line/column;
-- current line derived from caret;
-- static selection range model;
-- selection rectangles across one or more visible lines;
+- `LunaTextLocation`;
+- `LunaTextRange`;
+- `LunaStaticTextCaret`;
+- `LunaStaticTextSelection`;
+- `LunaStaticTextSelectionRect`;
+- `LunaStaticTextHitResult`;
+- caret rectangle calculation from line/UTF-8 column;
+- current line derived from caret when a caret exists;
+- static selection range model with normalized document order;
+- clipped selection rectangles across one or more visible lines;
 - click-to-text-position hit calculation without mutating document text;
-- accessibility focused line/range proof.
+- accessibility caret range, selected range, and focused visible line proof.
 
-Demo requirement:
+Demo requirement completed:
 
 - demo shows a caret and static selection highlight inside the Phase 3A text view;
-- clicking a visible line reports the computed text position without editing the document.
+- clicking a visible line moves the caret UI state and reports the computed text position without editing the document.
 
-Tests required:
+Tests completed:
 
+- text locations clamp and map to absolute UTF-8 offsets;
 - caret rect is correct for line/column;
 - current line follows caret position;
 - selection rects clip to visible line bounds;
 - multi-line selections produce one rect per visible touched line;
 - hit testing can map points to line/column positions;
-- accessibility exposes focused line/range state.
+- display list uses theme selection/caret tokens;
+- accessibility exposes caret range, selected range, and focused line state.
 
 ### Phase 3C — Text View Scroll and Viewport
 

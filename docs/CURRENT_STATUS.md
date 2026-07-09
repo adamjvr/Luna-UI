@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 3A static text-view work.
+This document is the working checkpoint after Phase 3B caret and static selection work.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 3A**.
+Luna UI is through **Phase 3B**.
 
 The engine now has:
 
@@ -23,7 +23,8 @@ The engine now has:
 - product-neutral visual theme tokens and render-ready style snapshots;
 - demo theme switching for Luna demo blue, demo-only Moth Obsidian, and high-contrast proof;
 - a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
-- a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children.
+- a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children;
+- non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata.
 
 ---
 
@@ -109,6 +110,7 @@ The blue highlight should stay mostly out of sight until text selection, focused
 - Phase 2E.1 — Product-neutral theme API cleanup: complete.
 - Phase 2E.2 — Renderer color contract and demo palette proof: complete.
 - Phase 3A — Static Accessible Text View: complete.
+- Phase 3B — Caret Geometry and Static Selection Model: complete.
 
 ---
 
@@ -116,9 +118,6 @@ The blue highlight should stay mostly out of sight until text selection, focused
 
 Luna does not yet have:
 
-- editable text input;
-- caret geometry inside a text surface;
-- selection rendering;
 - editable text input;
 - scrolling text viewport;
 - command palette / quick panel;
@@ -132,7 +131,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 3B — Caret Geometry and Static Selection Model
+Phase 3C — Text View Scroll and Viewport
 ```
 
-Phase 3B should add non-editable caret and selection geometry on top of the Phase 3A static text surface. It should still avoid full editing/input policy until the text-view can prove visual, hit-test, and accessibility geometry for caret/selection states.
+Phase 3C should add scroll offset, visible range control, content height, and hit testing with scroll offset on top of the Phase 3B caret/selection geometry. It should still avoid full editable input until the viewport model is correct.

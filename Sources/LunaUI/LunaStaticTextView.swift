@@ -13,6 +13,108 @@ import LunaCore
 import LunaRender
 import LunaTheme
 
+/// Stable text coordinate used by Luna editor surfaces.
+///
+/// Phase 3B intentionally stores the column as a UTF-8 byte offset within the
+/// logical line instead of a Swift `String.Index`. That keeps this value usable
+/// when the backing document becomes a rope or piece table. The current debug
+/// renderer is monospaced/ASCII-first, but the semantic coordinate is already
+/// byte-stable for future editor storage.
+public struct LunaTextLocation: Hashable, Sendable, Comparable {
+    public var lineIndex: Int
+    public var utf8Column: Int
+
+    public init(lineIndex: Int, utf8Column: Int) {
+        self.lineIndex = max(0, lineIndex)
+        self.utf8Column = max(0, utf8Column)
+    }
+
+    public static func < (lhs: LunaTextLocation, rhs: LunaTextLocation) -> Bool {
+        if lhs.lineIndex != rhs.lineIndex { return lhs.lineIndex < rhs.lineIndex }
+        return lhs.utf8Column < rhs.utf8Column
+    }
+}
+
+/// Half-open text range between two Luna text locations.
+///
+/// `anchor` and `focus` preserve selection direction for future shift-click and
+/// keyboard extension behavior. `normalized` is used for geometry and
+/// accessibility so rectangles are emitted in document order regardless of drag
+/// direction.
+public struct LunaTextRange: Hashable, Sendable {
+    public var anchor: LunaTextLocation
+    public var focus: LunaTextLocation
+
+    public init(anchor: LunaTextLocation, focus: LunaTextLocation) {
+        self.anchor = anchor
+        self.focus = focus
+    }
+
+    public var isCollapsed: Bool { anchor == focus }
+
+    public var normalized: LunaTextRange {
+        anchor <= focus ? self : LunaTextRange(anchor: focus, focus: anchor)
+    }
+}
+
+/// Non-editable caret state for static/read-only text surfaces.
+public struct LunaStaticTextCaret: Hashable, Sendable {
+    public var location: LunaTextLocation
+
+    public init(location: LunaTextLocation) {
+        self.location = location
+    }
+}
+
+/// Static selection state for read-only Phase 3B text geometry.
+public struct LunaStaticTextSelection: Hashable, Sendable {
+    public var range: LunaTextRange
+
+    public init(range: LunaTextRange) {
+        self.range = range
+    }
+
+    public var isCollapsed: Bool { range.isCollapsed }
+}
+
+/// Visual rectangle for the portion of a selection that touches one visible line.
+public struct LunaStaticTextSelectionRect: Hashable, Sendable {
+    public var lineIndex: Int
+    public var startUTF8Column: Int
+    public var endUTF8Column: Int
+    public var bounds: LunaRectI
+
+    public init(lineIndex: Int, startUTF8Column: Int, endUTF8Column: Int, bounds: LunaRectI) {
+        self.lineIndex = max(0, lineIndex)
+        self.startUTF8Column = max(0, startUTF8Column)
+        self.endUTF8Column = max(0, endUTF8Column)
+        self.bounds = bounds
+    }
+}
+
+/// Text-coordinate hit result from a point inside a static text view.
+public struct LunaStaticTextHitResult: Hashable, Sendable {
+    public var nodeID: LunaNodeID
+    public var location: LunaTextLocation
+    public var line: LunaStaticTextLine
+    public var rowBounds: LunaRectI
+    public var isInsideTextViewport: Bool
+
+    public init(
+        nodeID: LunaNodeID,
+        location: LunaTextLocation,
+        line: LunaStaticTextLine,
+        rowBounds: LunaRectI,
+        isInsideTextViewport: Bool
+    ) {
+        self.nodeID = nodeID
+        self.location = location
+        self.line = line
+        self.rowBounds = rowBounds
+        self.isInsideTextViewport = isInsideTextViewport
+    }
+}
+
 /// One logical line in a static Luna text document.
 ///
 /// Offsets are stored in UTF-8 bytes so this shape can later map cleanly onto
@@ -56,6 +158,58 @@ public struct LunaStaticTextDocument: Hashable, Sendable {
     public subscript(line index: Int) -> LunaStaticTextLine? {
         guard lines.indices.contains(index) else { return nil }
         return lines[index]
+    }
+
+    /// Clamp an arbitrary editor coordinate to this document's valid line and
+    /// UTF-8 column range.
+    public func clampedLocation(_ location: LunaTextLocation) -> LunaTextLocation {
+        let lineIndex = min(max(0, location.lineIndex), max(0, lineCount - 1))
+        let lineLength = self[line: lineIndex]?.utf8Length ?? 0
+        return LunaTextLocation(lineIndex: lineIndex, utf8Column: min(max(0, location.utf8Column), lineLength))
+    }
+
+    /// Convert a line-relative text coordinate to an absolute UTF-8 byte offset.
+    public func absoluteUTF8Offset(for location: LunaTextLocation) -> Int {
+        let clamped = clampedLocation(location)
+        guard let line = self[line: clamped.lineIndex] else { return 0 }
+        return line.utf8Offset + clamped.utf8Column
+    }
+
+    /// Convert an absolute UTF-8 byte offset into the closest line-relative text
+    /// coordinate. Newline bytes belong to the preceding line end.
+    public func location(forAbsoluteUTF8Offset offset: Int) -> LunaTextLocation {
+        let clampedOffset = min(max(0, offset), text.utf8.count)
+
+        for line in lines {
+            let lineStart = line.utf8Offset
+            let lineEnd = line.utf8Offset + line.utf8Length
+            if clampedOffset <= lineEnd {
+                return LunaTextLocation(lineIndex: line.index, utf8Column: max(0, clampedOffset - lineStart))
+            }
+        }
+
+        let last = lines.last ?? LunaStaticTextLine(index: 0, text: "", utf8Offset: 0, utf8Length: 0)
+        return LunaTextLocation(lineIndex: last.index, utf8Column: last.utf8Length)
+    }
+
+    /// Normalize and clamp a range against this document.
+    public func clampedRange(_ range: LunaTextRange) -> LunaTextRange {
+        let normalized = range.normalized
+        let start = clampedLocation(normalized.anchor)
+        let end = clampedLocation(normalized.focus)
+        return LunaTextRange(anchor: start, focus: end).normalized
+    }
+
+    public func accessibilityRange(for range: LunaTextRange) -> LunaAccessibilityTextRange {
+        let clamped = clampedRange(range)
+        let start = absoluteUTF8Offset(for: clamped.anchor)
+        let end = absoluteUTF8Offset(for: clamped.focus)
+        return LunaAccessibilityTextRange(utf8Offset: start, utf8Length: max(0, end - start))
+    }
+
+    public func accessibilityCaretRange(for caret: LunaStaticTextCaret) -> LunaAccessibilityTextRange {
+        let offset = absoluteUTF8Offset(for: caret.location)
+        return LunaAccessibilityTextRange(utf8Offset: offset, utf8Length: 0)
     }
 
     private static func makeLines(from text: String) -> [LunaStaticTextLine] {
@@ -169,13 +323,23 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     public var firstVisibleLineIndex: Int
     public var maxVisibleLineCount: Int
 
+    /// Phase 3B caret geometry. Nil when the caret line is scrolled outside the
+    /// current static viewport or no caret was supplied.
+    public var caretRect: LunaRectI?
+
+    /// Phase 3B static selection geometry. Each rectangle is already clipped to
+    /// the visible text viewport for its line.
+    public var selectionRects: [LunaStaticTextSelectionRect]
+
     public init(
         bounds: LunaRectI,
         gutterBounds: LunaRectI,
         textViewportBounds: LunaRectI,
         visibleLines: [LunaStaticTextVisibleLine],
         firstVisibleLineIndex: Int,
-        maxVisibleLineCount: Int
+        maxVisibleLineCount: Int,
+        caretRect: LunaRectI? = nil,
+        selectionRects: [LunaStaticTextSelectionRect] = []
     ) {
         self.bounds = bounds
         self.gutterBounds = gutterBounds
@@ -183,6 +347,8 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         self.visibleLines = visibleLines
         self.firstVisibleLineIndex = max(0, firstVisibleLineIndex)
         self.maxVisibleLineCount = max(0, maxVisibleLineCount)
+        self.caretRect = caretRect
+        self.selectionRects = selectionRects
     }
 }
 
@@ -203,6 +369,12 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     public var metrics: LunaStaticTextViewMetrics
     public var isFocused: Bool
 
+    /// Optional non-editable caret state introduced in Phase 3B.
+    public var caret: LunaStaticTextCaret?
+
+    /// Optional static selection state introduced in Phase 3B.
+    public var selection: LunaStaticTextSelection?
+
     public init(
         id: LunaNodeID,
         bounds: LunaRectI,
@@ -211,7 +383,9 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         currentLineIndex: Int? = nil,
         theme: LunaTheme = .lunaDefaultDark,
         metrics: LunaStaticTextViewMetrics = .demo,
-        isFocused: Bool = false
+        isFocused: Bool = false,
+        caret: LunaStaticTextCaret? = nil,
+        selection: LunaStaticTextSelection? = nil
     ) {
         self.id = id
         self.bounds = bounds
@@ -221,6 +395,12 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         self.theme = theme
         self.metrics = metrics
         self.isFocused = isFocused
+        self.caret = caret.map { LunaStaticTextCaret(location: document.clampedLocation($0.location)) }
+        if let selection, !selection.isCollapsed {
+            self.selection = LunaStaticTextSelection(range: document.clampedRange(selection.range))
+        } else {
+            self.selection = nil
+        }
     }
 
     public var lineNodeIDPrefix: LunaNodeID { id.child("line") }
@@ -269,6 +449,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         let numberWidth = max(0, gutterW - metrics.gutterPadding * 2)
         var visible: [LunaStaticTextVisibleLine] = []
         visible.reserveCapacity(count)
+        let effectiveCurrentLineIndex = caret?.location.lineIndex ?? currentLineIndex
 
         for visualIndex in 0..<count {
             let lineIndex = firstLine + visualIndex
@@ -303,10 +484,13 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                     textBounds: textBounds,
                     rowBounds: rowBounds,
                     visualText: visualText,
-                    isCurrentLine: currentLineIndex == lineIndex
+                    isCurrentLine: effectiveCurrentLineIndex == lineIndex
                 )
             )
         }
+
+        let computedSelectionRects = self.selection.map { self.selectionRects(for: $0, visibleLines: visible) } ?? []
+        let computedCaretRect = self.caret.flatMap { self.caretRect(for: $0, visibleLines: visible) }
 
         return LunaStaticTextViewLayout(
             bounds: bounds,
@@ -314,8 +498,90 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             textViewportBounds: textViewportBounds,
             visibleLines: visible,
             firstVisibleLineIndex: firstLine,
-            maxVisibleLineCount: maxVisible
+            maxVisibleLineCount: maxVisible,
+            caretRect: computedCaretRect,
+            selectionRects: computedSelectionRects
         )
+    }
+
+    /// Calculate the caret insertion rectangle for a visible line.
+    public func caretRect(for caret: LunaStaticTextCaret, visibleLines: [LunaStaticTextVisibleLine]? = nil) -> LunaRectI? {
+        let location = document.clampedLocation(caret.location)
+        let lines = visibleLines ?? layout().visibleLines
+        guard let visible = lines.first(where: { $0.line.index == location.lineIndex }) else { return nil }
+        let x = clampedTextX(forUTF8Column: location.utf8Column, in: visible)
+        return LunaRectI(x: x, y: visible.rowBounds.y, w: max(1, metrics.glyphMetrics.scale), h: visible.rowBounds.h)
+    }
+
+    /// Calculate clipped visible selection rectangles for the supplied selection.
+    public func selectionRects(for selection: LunaStaticTextSelection, visibleLines: [LunaStaticTextVisibleLine]? = nil) -> [LunaStaticTextSelectionRect] {
+        let range = document.clampedRange(selection.range)
+        guard !range.isCollapsed else { return [] }
+
+        let lines = visibleLines ?? layout().visibleLines
+        var rects: [LunaStaticTextSelectionRect] = []
+
+        for visible in lines {
+            let lineIndex = visible.line.index
+            guard lineIndex >= range.anchor.lineIndex, lineIndex <= range.focus.lineIndex else { continue }
+
+            let startColumn = lineIndex == range.anchor.lineIndex ? range.anchor.utf8Column : 0
+            let endColumn = lineIndex == range.focus.lineIndex ? range.focus.utf8Column : visible.line.utf8Length
+            guard endColumn > startColumn else { continue }
+
+            let x0 = clampedTextX(forUTF8Column: startColumn, in: visible)
+            let x1 = clampedTextX(forUTF8Column: endColumn, in: visible)
+            let clippedX0 = max(visible.textBounds.x, min(visible.textBounds.x + visible.textBounds.w, x0))
+            let clippedX1 = max(visible.textBounds.x, min(visible.textBounds.x + visible.textBounds.w, x1))
+            guard clippedX1 > clippedX0 else { continue }
+
+            rects.append(
+                LunaStaticTextSelectionRect(
+                    lineIndex: lineIndex,
+                    startUTF8Column: startColumn,
+                    endUTF8Column: endColumn,
+                    bounds: LunaRectI(x: clippedX0, y: visible.rowBounds.y, w: clippedX1 - clippedX0, h: visible.rowBounds.h)
+                )
+            )
+        }
+
+        return rects
+    }
+
+    /// Map a point inside the text-view bounds to a line-relative UTF-8 column.
+    ///
+    /// This is not editing yet. It is the geometric proof that pointer positions
+    /// can become stable text coordinates without mutating the document.
+    public func textHitTest(_ point: LunaPointI) -> LunaStaticTextHitResult? {
+        guard bounds.contains(x: point.x, y: point.y) else { return nil }
+        let layout = layout()
+        guard let visible = layout.visibleLines.first(where: { $0.rowBounds.contains(x: point.x, y: point.y) }) else {
+            return nil
+        }
+
+        let column: Int
+        if point.x <= visible.textBounds.x {
+            column = 0
+        } else {
+            let relativeX = max(0, point.x - visible.textBounds.x)
+            let nearestInsertionColumn = (relativeX + metrics.glyphMetrics.advance / 2) / metrics.glyphMetrics.advance
+            column = min(max(0, nearestInsertionColumn), visible.line.utf8Length)
+        }
+
+        let location = LunaTextLocation(lineIndex: visible.line.index, utf8Column: column)
+        return LunaStaticTextHitResult(
+            nodeID: visible.nodeID,
+            location: location,
+            line: visible.line,
+            rowBounds: visible.rowBounds,
+            isInsideTextViewport: visible.textBounds.contains(x: point.x, y: point.y)
+        )
+    }
+
+    private func clampedTextX(forUTF8Column column: Int, in visible: LunaStaticTextVisibleLine) -> Int {
+        let clampedColumn = min(max(0, column), visible.line.utf8Length)
+        let unclipped = visible.textBounds.x + clampedColumn * metrics.glyphMetrics.advance
+        return max(visible.textBounds.x, min(visible.textBounds.x + visible.textBounds.w, unclipped))
     }
 
     public func buildDisplayList(into displayList: inout LunaDisplayList) {
@@ -331,6 +597,14 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
 
         for line in layout.visibleLines where line.isCurrentLine {
             displayList.append(.rect(line.rowBounds, style.currentLineBackground))
+        }
+
+        for selectionRect in layout.selectionRects {
+            displayList.append(.rect(selectionRect.bounds, style.selectionBackground))
+        }
+
+        if let caretRect = layout.caretRect {
+            displayList.append(.rect(caretRect, style.caret))
         }
 
         if layout.gutterBounds.w > 0 {
@@ -364,12 +638,15 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             isFocused: isFocused,
             children: layout.visibleLines.map(\.nodeID),
             actions: [.focus],
-            textRange: LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: document.text.utf8.count)
+            textRange: LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: document.text.utf8.count),
+            caretTextRange: caret.map { document.accessibilityCaretRange(for: $0) },
+            selectedTextRange: selection.map { document.accessibilityRange(for: $0.range) }
         )
     }
 
     public func buildAccessibilityChildren() -> [LunaAccessibilityNode] {
-        layout().visibleLines.map { visible in
+        let focusedLineIndex = caret?.location.lineIndex
+        return layout().visibleLines.map { visible in
             LunaAccessibilityNode(
                 id: visible.nodeID,
                 role: .textRun,
@@ -377,7 +654,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                 value: String(visible.line.lineNumber),
                 bounds: visible.rowBounds.asAccessibilityRect,
                 isEnabled: true,
-                isFocused: false,
+                isFocused: focusedLineIndex == visible.line.index,
                 children: [],
                 actions: [],
                 textRange: visible.line.textRange

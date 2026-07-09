@@ -106,6 +106,19 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
     public var actions: [LunaAccessibilityAction]
     public var textRange: LunaAccessibilityTextRange?
 
+    /// Optional focused insertion point for text-bearing nodes.
+    ///
+    /// The range is zero-length for a caret/insertion point. Platform bridges can
+    /// map this to native accessibility caret APIs later without requiring LunaUI
+    /// widgets to expose host-specific types.
+    public var caretTextRange: LunaAccessibilityTextRange?
+
+    /// Optional selected text range for text-bearing nodes.
+    ///
+    /// Phase 3B keeps this deliberately small: the text view reports a single
+    /// normalized UTF-8 range even if the visual selection spans multiple lines.
+    public var selectedTextRange: LunaAccessibilityTextRange?
+
     public init(
         id: LunaNodeID,
         role: LunaAccessibilityRole,
@@ -116,7 +129,9 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         isFocused: Bool = false,
         children: [LunaNodeID] = [],
         actions: [LunaAccessibilityAction] = [],
-        textRange: LunaAccessibilityTextRange? = nil
+        textRange: LunaAccessibilityTextRange? = nil,
+        caretTextRange: LunaAccessibilityTextRange? = nil,
+        selectedTextRange: LunaAccessibilityTextRange? = nil
     ) {
         self.id = id
         self.role = role
@@ -128,6 +143,8 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         self.children = children
         self.actions = actions
         self.textRange = textRange
+        self.caretTextRange = caretTextRange
+        self.selectedTextRange = selectedTextRange
     }
 }
 

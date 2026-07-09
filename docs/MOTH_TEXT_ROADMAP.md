@@ -438,7 +438,7 @@ Before serious Moth implementation, Luna should finish at least:
 Luna Phase 2D — Layout, Resize, and Accessibility Reflow
 Luna Phase 2D.2 — Universal Bounded Text and Control Reflow
 Luna Phase 3A — Static Accessible Text View
-Luna Phase 3B — Editable Text Input
+Luna Phase 3B — Caret Geometry and Static Selection Model
 ```
 
 Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware text surface. Luna now also has locked Sublime/Moth visual tokens, so Moth color work should map onto those token groups instead of hardcoding colors into editor widgets.

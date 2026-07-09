@@ -99,6 +99,19 @@ public struct LunaCPUDemoScene {
     /// before we add caret movement, selection mutation, or editing.
     private var staticTextDocument = LunaStaticTextDocument(text: LunaCPUDemoScene.demoText)
 
+    /// Phase 3B non-editable caret proof. This is UI state only; it does not
+    /// mutate the static document.
+    private var staticTextCaret = LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 2, utf8Column: 12))
+
+    /// Phase 3B static selection proof. The demo shows the highlight geometry
+    /// before editable selection mutation lands.
+    private var staticTextSelection = LunaStaticTextSelection(
+        range: LunaTextRange(
+            anchor: LunaTextLocation(lineIndex: 1, utf8Column: 8),
+            focus: LunaTextLocation(lineIndex: 3, utf8Column: 18)
+        )
+    )
+
     /// Create a new demo scene.
     public init(
         theme: LunaTheme = MothDemoTheme.theme,
@@ -156,6 +169,8 @@ public struct LunaCPUDemoScene {
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
             theme: renderTheme
         )
         drawMovingBlock(into: &fb, timeSeconds: t, theme: renderTheme)
@@ -202,6 +217,29 @@ public struct LunaCPUDemoScene {
                     hitNodeID: modalResult.hitNodeID,
                     requestedCommand: modalResult.requestedCommand,
                     announcementTexts: context.announcements.map(\.text)
+                )
+            }
+        }
+
+        // Phase 3B text surface routing: clicking the static text view computes
+        // a stable line/UTF-8-column caret location without mutating document
+        // text. This proves editor hit geometry before editable input exists.
+        if event.phase == .down, event.button == .primary {
+            let textView = Self.staticTextView(
+                for: framebufferSize,
+                document: staticTextDocument,
+                caret: staticTextCaret,
+                selection: staticTextSelection,
+                theme: theme
+            )
+            if let hit = textView.textHitTest(event.location) {
+                staticTextCaret = LunaStaticTextCaret(location: hit.location)
+                lastInteractionStatus = "Phase 3B caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: hit.nodeID,
+                    requestedCommand: nil,
+                    announcementTexts: ["Caret moved to line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"]
                 )
             }
         }
@@ -325,10 +363,12 @@ public struct LunaCPUDemoScene {
         return LunaCPUDemoSceneLayout(viewport: viewport, frames: result)
     }
 
-    /// Build the Phase 3A static text-view proof for a framebuffer size.
+    /// Build the Phase 3A/3B static text-view proof for a framebuffer size.
     public static func staticTextView(
         for framebufferSize: LunaSizeI,
         document: LunaStaticTextDocument,
+        caret: LunaStaticTextCaret? = nil,
+        selection: LunaStaticTextSelection? = nil,
         theme: LunaTheme = MothDemoTheme.theme
     ) -> LunaStaticTextView {
         let layout = Self.layout(for: framebufferSize)
@@ -340,7 +380,9 @@ public struct LunaCPUDemoScene {
             currentLineIndex: 3,
             theme: theme,
             metrics: .demo,
-            isFocused: false
+            isFocused: caret != nil,
+            caret: caret,
+            selection: selection
         )
     }
 
@@ -354,8 +396,8 @@ public struct LunaCPUDemoScene {
         let text = "theme.ui.editor.foreground"
     }
 
-    // Next phases add caret geometry, selection, scrolling,
-    // editable input, and real glyph runs.
+    // Phase 3B adds caret geometry and static selection.
+    // Next phases add scrolling, editable input, and real glyph runs.
     """
 
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
@@ -437,11 +479,15 @@ private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
 private func drawStaticTextViewProof(
     into fb: inout LunaFramebuffer,
     document: LunaStaticTextDocument,
+    caret: LunaStaticTextCaret?,
+    selection: LunaStaticTextSelection?,
     theme: LunaTheme
 ) {
     let view = LunaCPUDemoScene.staticTextView(
         for: LunaSizeI(width: fb.width, height: fb.height),
         document: document,
+        caret: caret,
+        selection: selection,
         theme: theme
     )
     guard !view.bounds.isEmpty else { return }
@@ -467,6 +513,20 @@ private func drawStaticTextViewProof(
             text: line.visualText.text,
             scale: 1,
             color: theme.ui.editor.foreground
+        )
+    }
+
+    // Draw the caret again over debug-font pixels. The widget display list also
+    // contains the caret rect so pure Luna tests can validate geometry without
+    // touching this demo-only font path.
+    if let caretRect = layout.caretRect {
+        fillRectColor(
+            into: &fb,
+            x: caretRect.x,
+            y: caretRect.y,
+            w: caretRect.w,
+            h: caretRect.h,
+            color: theme.ui.editor.caret
         )
     }
 }
