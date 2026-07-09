@@ -267,6 +267,7 @@ The current checkpoint has:
 - Phase 4A command palette / quick panel foundation implemented with generic Luna quick-panel items, deterministic filtering, query state, selected rows, keyboard navigation, Enter activation, Escape dismissal, pointer row activation, accessibility dialog/list nodes, and a demo command palette opened with Ctrl+P;
 - Phase 4A.1 LunaUITestApp demo layout cleanup completed with a readable header, main editor area, side proof panel, bottom status bar, and constrained moving animation so debug/iteration info no longer stacks over the editor;
 - Phase 4B generic find / replace panel foundation implemented with reusable find query/options/results, literal/regex scanning, whole-word/case toggles, replace-current/replace-all operations, text-view match highlights, keyboard/pointer interaction, theme-driven panel visuals, accessibility nodes, and a demo panel opened with Ctrl+F;
+- Phase 4B.1 interactive text selection completion implemented with click-drag selection, Shift-click extension, Shift+Left/Right extension, plain-arrow selection collapse, selection replacement/delete behavior, and pointer modifier propagation through LunaInput;
 - demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
@@ -277,7 +278,7 @@ The next implementation target is:
 Phase 4C — Menu Bar and Dropdown Menus
 ```
 
-Phase 4B is complete. The next step is to add a product-neutral menu bar/dropdown foundation that Moth can later populate with Sublime-compatible menu structure and behavior.
+Phase 4B.1 is complete. The next step is to add a product-neutral menu bar/dropdown foundation that Moth can later populate with Sublime-compatible menu structure and behavior.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

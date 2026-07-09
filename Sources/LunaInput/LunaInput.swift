@@ -32,16 +32,26 @@ public struct LunaPointerEvent: Hashable, Sendable {
     public var button: LunaPointerButton
     public var clickCount: Int
 
+    /// Keyboard modifiers active at the time of the pointer event.
+    ///
+    /// Luna keeps this on the platform-neutral pointer event so widgets and apps
+    /// can implement standard editor gestures such as Shift-click selection
+    /// extension without decoding host-specific modifier masks above LunaHostSDL
+    /// / LunaHostMetal.
+    public var modifiers: LunaKeyboardModifiers
+
     public init(
         phase: LunaPointerPhase,
         location: LunaPointI,
         button: LunaPointerButton = .primary,
-        clickCount: Int = 1
+        clickCount: Int = 1,
+        modifiers: LunaKeyboardModifiers = .none
     ) {
         self.phase = phase
         self.location = location
         self.button = button
         self.clickCount = max(0, clickCount)
+        self.modifiers = modifiers
     }
 }
 

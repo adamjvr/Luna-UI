@@ -243,6 +243,46 @@ public struct LunaEditableTextState: Hashable, Sendable {
         if clearSelection { selection = nil }
     }
 
+    /// Set or clear the current user selection while keeping the caret at the
+    /// focus end of the range.
+    ///
+    /// This is the product-neutral selection primitive used by pointer drag,
+    /// Shift-click, Shift+Arrow, find-result sync, and future app commands. The
+    /// range keeps anchor/focus direction for extension behavior, while the text
+    /// view normalizes it when calculating rectangles.
+    public mutating func setSelection(_ range: LunaTextRange?) {
+        guard let range else {
+            selection = nil
+            return
+        }
+
+        let anchor = document.clampedLocation(range.anchor)
+        let focus = document.clampedLocation(range.focus)
+        caret = LunaStaticTextCaret(location: focus)
+        if anchor == focus {
+            selection = nil
+        } else {
+            selection = LunaStaticTextSelection(range: LunaTextRange(anchor: anchor, focus: focus))
+        }
+    }
+
+    /// Begin a user selection gesture. A simple click calls this and then usually
+    /// leaves the range collapsed; drag and Shift-click extend from the same
+    /// anchor through `extendSelection(to:)`.
+    public mutating func beginSelection(at location: LunaTextLocation, clearSelection: Bool = true) {
+        let clamped = document.clampedLocation(location)
+        caret = LunaStaticTextCaret(location: clamped)
+        if clearSelection { selection = nil }
+    }
+
+    /// Extend the current selection to a new focus location. If there is no
+    /// active range yet, the current caret becomes the anchor.
+    public mutating func extendSelection(to focusLocation: LunaTextLocation) {
+        let focus = document.clampedLocation(focusLocation)
+        let anchor = selection?.range.anchor ?? caret.location
+        setSelection(LunaTextRange(anchor: anchor, focus: focus))
+    }
+
     @discardableResult
     public mutating func insertText(_ text: String) -> LunaTextEditResult {
         let result = document.insertText(text, caret: caret, replacing: selection)
@@ -281,11 +321,31 @@ public struct LunaEditableTextState: Hashable, Sendable {
         return result
     }
 
-    public mutating func moveCaretBackward() {
+    public mutating func moveCaretBackward(extendingSelection: Bool = false) {
+        if extendingSelection {
+            extendSelection(to: document.locationBefore(caret.location))
+            return
+        }
+
+        if let selection, !selection.isCollapsed {
+            setCaret(selection.range.normalized.anchor)
+            return
+        }
+
         setCaret(document.locationBefore(caret.location))
     }
 
-    public mutating func moveCaretForward() {
+    public mutating func moveCaretForward(extendingSelection: Bool = false) {
+        if extendingSelection {
+            extendSelection(to: document.locationAfter(caret.location))
+            return
+        }
+
+        if let selection, !selection.isCollapsed {
+            setCaret(selection.range.normalized.focus)
+            return
+        }
+
         setCaret(document.locationAfter(caret.location))
     }
 

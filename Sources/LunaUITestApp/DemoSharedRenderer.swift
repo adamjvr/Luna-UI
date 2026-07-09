@@ -123,6 +123,11 @@ public struct LunaCPUDemoScene {
     /// LunaUI owns the reusable panel/search primitives.
     private var findPanelState: LunaFindPanelState? = nil
 
+    /// Phase 4B.1 user-selection drag anchor. This lives in the demo app because
+    /// it is transient interaction state, not document content. The reusable
+    /// Luna text model owns the final caret/selection range.
+    private var activeTextSelectionAnchor: LunaTextLocation? = nil
+
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
     }
@@ -370,10 +375,11 @@ public struct LunaCPUDemoScene {
             }
         }
 
-        // Phase 3D text surface routing: clicking the text view computes a
-        // stable line/UTF-8-column caret location and clears any static
-        // selection. Text mutation still happens only from text-input events.
-        if event.phase == .down, event.button == .primary {
+        // Phase 4B.1 text surface routing: ordinary clicks move the caret,
+        // Shift-click extends the current selection, and click-drag creates a
+        // real editor-style user selection range. Text mutation still happens
+        // only from committed text/key events.
+        if event.button == .primary {
             let textView = Self.staticTextView(
                 for: framebufferSize,
                 document: staticTextDocument,
@@ -382,15 +388,61 @@ public struct LunaCPUDemoScene {
                 selection: staticTextSelection,
                 theme: theme
             )
-            if let hit = textView.textHitTest(event.location) {
-                editableTextState.setCaret(hit.location)
-                lastInteractionStatus = "Phase 3D caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); type text, Enter, Backspace, Delete"
-                return LunaPointerActivationResult(
-                    event: event,
-                    hitNodeID: hit.nodeID,
-                    requestedCommand: nil,
-                    announcementTexts: ["Caret moved to line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"]
-                )
+
+            switch event.phase {
+            case .down:
+                if let hit = textView.textHitTest(event.location) {
+                    if event.modifiers.shift {
+                        editableTextState.extendSelection(to: hit.location)
+                        activeTextSelectionAnchor = editableTextState.selection?.range.anchor ?? staticTextCaret.location
+                        lastInteractionStatus = "Phase 4B.1 Shift-click selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
+                    } else {
+                        editableTextState.beginSelection(at: hit.location)
+                        activeTextSelectionAnchor = hit.location
+                        lastInteractionStatus = "Phase 4B.1 caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); drag to select text"
+                    }
+                    ensureEditableCaretVisible(framebufferSize: framebufferSize)
+                    return LunaPointerActivationResult(
+                        event: event,
+                        hitNodeID: hit.nodeID,
+                        requestedCommand: nil,
+                        announcementTexts: ["Text caret/selection updated at line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"]
+                    )
+                }
+                activeTextSelectionAnchor = nil
+
+            case .moved:
+                if let anchor = activeTextSelectionAnchor, let hit = textView.textHitTest(event.location) {
+                    editableTextState.setSelection(LunaTextRange(anchor: anchor, focus: hit.location))
+                    ensureEditableCaretVisible(framebufferSize: framebufferSize)
+                    let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
+                    lastInteractionStatus = "Phase 4B.1 dragging selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column), bytes=\(selected)"
+                    return LunaPointerActivationResult(
+                        event: event,
+                        hitNodeID: hit.nodeID,
+                        requestedCommand: nil,
+                        announcementTexts: ["Text selection extended"]
+                    )
+                }
+
+            case .up:
+                if let anchor = activeTextSelectionAnchor {
+                    activeTextSelectionAnchor = nil
+                    if let hit = textView.textHitTest(event.location) {
+                        editableTextState.setSelection(LunaTextRange(anchor: anchor, focus: hit.location))
+                        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+                        let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
+                        lastInteractionStatus = selected > 0
+                            ? "Phase 4B.1 selection complete: bytes=\(selected), caret line \(staticTextCaret.location.lineIndex + 1), col \(staticTextCaret.location.utf8Column)"
+                            : "Phase 4B.1 caret placed: line \(staticTextCaret.location.lineIndex + 1), col \(staticTextCaret.location.utf8Column)"
+                        return LunaPointerActivationResult(
+                            event: event,
+                            hitNodeID: hit.nodeID,
+                            requestedCommand: nil,
+                            announcementTexts: [selected > 0 ? "Text selected" : "Caret placed"]
+                        )
+                    }
+                }
             }
         }
 
@@ -452,6 +504,7 @@ public struct LunaCPUDemoScene {
             return result.didConsumeEvent
         }
 
+        activeTextSelectionAnchor = nil
         let result = editableTextState.insertText(event.text)
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         lastInteractionStatus = "Phase 3D inserted \(event.text.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
@@ -515,6 +568,8 @@ public struct LunaCPUDemoScene {
             if result.didConsumeEvent { return true }
         }
 
+        activeTextSelectionAnchor = nil
+
         if isCommandPaletteShortcut(event) {
             openQuickPanel()
             lastInteractionStatus = "Phase 4A command palette opened; type to filter, Enter runs, Esc closes"
@@ -542,6 +597,7 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 3D newline: caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
             return true
         case .backspace:
+            activeTextSelectionAnchor = nil
             let result = editableTextState.deleteBackward()
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
             lastInteractionStatus = result.didChange
@@ -549,6 +605,7 @@ public struct LunaCPUDemoScene {
                 : "Phase 3D backspace: start of document"
             return true
         case .delete:
+            activeTextSelectionAnchor = nil
             let result = editableTextState.deleteForward()
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
             lastInteractionStatus = result.didChange
@@ -556,14 +613,18 @@ public struct LunaCPUDemoScene {
                 : "Phase 3D delete: end of document"
             return true
         case .arrowLeft:
-            editableTextState.moveCaretBackward()
+            editableTextState.moveCaretBackward(extendingSelection: event.modifiers.shift)
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
-            lastInteractionStatus = "Phase 3D caret left: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
+            lastInteractionStatus = event.modifiers.shift
+                ? "Phase 4B.1 Shift+Left selection: caret line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
+                : "Phase 4B.1 caret left: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
             return true
         case .arrowRight:
-            editableTextState.moveCaretForward()
+            editableTextState.moveCaretForward(extendingSelection: event.modifiers.shift)
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
-            lastInteractionStatus = "Phase 3D caret right: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
+            lastInteractionStatus = event.modifiers.shift
+                ? "Phase 4B.1 Shift+Right selection: caret line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
+                : "Phase 4B.1 caret right: line \(editableTextState.caret.location.lineIndex + 1), col \(editableTextState.caret.location.utf8Column)"
             return true
         case .arrowUp:
             scrollStaticTextView(byLineDelta: -1, framebufferSize: framebufferSize)

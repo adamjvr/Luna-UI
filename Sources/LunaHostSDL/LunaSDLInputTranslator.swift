@@ -48,7 +48,8 @@ public struct LunaSDLInputTranslator {
                     phase: .moved,
                     location: LunaPointI(x: Int(event.motion.x), y: Int(event.motion.y)),
                     button: .primary,
-                    clickCount: 0
+                    clickCount: 0,
+                    modifiers: translateCurrentModifiers()
                 )
             )
 
@@ -58,7 +59,8 @@ public struct LunaSDLInputTranslator {
                     phase: .down,
                     location: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
                     button: translateMouseButton(event.button.button),
-                    clickCount: Int(event.button.clicks)
+                    clickCount: Int(event.button.clicks),
+                    modifiers: translateCurrentModifiers()
                 )
             )
 
@@ -68,7 +70,8 @@ public struct LunaSDLInputTranslator {
                     phase: .up,
                     location: LunaPointI(x: Int(event.button.x), y: Int(event.button.y)),
                     button: translateMouseButton(event.button.button),
-                    clickCount: Int(event.button.clicks)
+                    clickCount: Int(event.button.clicks),
+                    modifiers: translateCurrentModifiers()
                 )
             )
 
@@ -114,6 +117,10 @@ public struct LunaSDLInputTranslator {
 
     public func translateModifiers(_ rawModifiers: SDL_Keymod) -> LunaKeyboardModifiers {
         translateModifierBits(UInt32(rawModifiers.rawValue))
+    }
+
+    public func translateCurrentModifiers() -> LunaKeyboardModifiers {
+        translateModifiers(SDL_GetModState())
     }
 
     private func translateModifierBits(_ mods: UInt32) -> LunaKeyboardModifiers {

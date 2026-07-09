@@ -882,6 +882,31 @@ Implemented:
 
 Visual target: Sublime find and find/replace references, implemented as reusable Luna primitives.
 
+
+### Phase 4B.1 — Interactive Text Selection Completion
+
+**Status:** complete.
+
+This is a backfill/correctness phase discovered during the Phase 4B audit. Phase 3B supplied the text coordinate, caret, and selection-rectangle model, but the demo/editor interaction layer still behaved like a caret-only surface. Phase 4B.1 finishes the expected editor behavior before Luna moves on to menus.
+
+Implemented:
+
+- `LunaPointerEvent` carries platform-neutral keyboard modifiers for Shift-click style gestures;
+- SDL pointer events populate those modifiers inside `LunaHostSDL` so SDL modifier details stay below LunaInput;
+- editable text state can begin, set, extend, collapse, and clear directional selections;
+- Shift+Left and Shift+Right extend selections from the current caret/anchor;
+- plain Left/Right collapse existing selections to their normalized start/end;
+- click-drag in `LunaUITestApp` creates real user text selections;
+- Shift-click extends from the current caret/selection anchor;
+- typing, Backspace, and Delete replace/delete the active user selection through the existing editable document contract;
+- user selection remains visually separate from current-line highlight and find-result highlights.
+
+Hard distinction preserved:
+
+```text
+current line highlight != user text selection != find result highlight
+```
+
 ### Phase 4C — Menu Bar and Dropdown Menus
 
 Scope:
