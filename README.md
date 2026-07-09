@@ -265,6 +265,7 @@ The current checkpoint has:
 - Phase 3C text-view scrolling and viewport metrics implemented with logical line scroll state, visible line ranges, content height, scrollbar placeholder geometry, scrolled hit testing, and accessibility visible text ranges;
 - Phase 3D editable text-input foundation implemented with a small mutable document/state layer, committed text-input events, insertion/newline/backspace/delete, selection replacement, caret movement, and editable accessibility metadata;
 - Phase 4A command palette / quick panel foundation implemented with generic Luna quick-panel items, deterministic filtering, query state, selected rows, keyboard navigation, Enter activation, Escape dismissal, pointer row activation, accessibility dialog/list nodes, and a demo command palette opened with Ctrl+P;
+- Phase 4A.1 LunaUITestApp demo layout cleanup completed with a readable header, main editor area, side proof panel, bottom status bar, and constrained moving animation so debug/iteration info no longer stacks over the editor;
 - demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
@@ -275,7 +276,7 @@ The next implementation target is:
 Phase 4B — Find / Replace Panel
 ```
 
-Phase 4A is complete. The next step is to add a Sublime-style find / replace panel on top of the existing quick-panel, modal, text, input, and theme foundations.
+Phase 4A.1 is complete. The next step is to add a Sublime-style find / replace panel on top of the existing quick-panel, modal, text, input, theme, and cleaned-up demo layout foundations.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

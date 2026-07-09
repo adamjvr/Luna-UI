@@ -841,6 +841,27 @@ Implemented:
 
 Visual target: Sublime command palette and Goto Anything references.
 
+### Phase 4A.1 — LunaUITestApp Demo Layout Cleanup
+
+**Status:** complete.
+
+This is intentionally a demo/test-app composition pass, not a Luna public API expansion. As the demo accumulated proofs from Phases 1–4A, the editor surface, moving block, semantic widget, HUD text, status text, modal overlay, and quick panel started visually competing.
+
+Implemented cleanup:
+
+- stable header strip for demo title, current theme, frame/time, and key help;
+- main editor surface kept clear of normal HUD/status/debug text;
+- right-side proof panel for the semantic widget and moving animation on wide windows;
+- bottom status bar for interaction status, caret line/column, scroll position, and edit revision;
+- moving animation constrained to the proof panel instead of crossing the editor;
+- responsive fallback for narrow windows.
+
+Hard rule preserved:
+
+```text
+LunaUITestApp can be a product-specific visual playground, but Luna library APIs stay product-neutral.
+```
+
 ### Phase 4B — Find / Replace Panel
 
 Scope:

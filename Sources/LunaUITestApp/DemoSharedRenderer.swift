@@ -38,6 +38,7 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
     public static let hudID: LunaNodeID = "demo.hud"
     public static let statusID: LunaNodeID = "demo.status"
+    public static let proofPanelID: LunaNodeID = "demo.proof-panel"
     public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
 
     public var viewport: LunaViewport
@@ -61,7 +62,11 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     }
 
     public var statusBounds: LunaRectI {
-        frames.frame(for: Self.statusID) ?? LunaRectI(x: 18, y: max(120, viewport.size.height - 34), w: max(1, viewport.size.width - 36), h: 28)
+        frames.frame(for: Self.statusID) ?? LunaRectI(x: 0, y: max(0, viewport.size.height - 34), w: viewport.size.width, h: 34)
+    }
+
+    public var proofPanelBounds: LunaRectI {
+        frames.frame(for: Self.proofPanelID) ?? LunaRectI(x: 0, y: 0, w: 0, h: 0)
     }
 }
 
@@ -90,7 +95,7 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Click Phase 1B panel to open overlay; press 1/2/3 to switch themes"
+    private var lastInteractionStatus: String = "Ready. Click editor to type, Ctrl+P opens palette, Phase 1 panel opens notice."
 
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
@@ -189,7 +194,9 @@ public struct LunaCPUDemoScene {
         // named as the Moth demo, all visible pixels resolve through the demo-only
         // Moth palette before any drawing happens.
         let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
+        let renderLayout = Self.layout(for: LunaSizeI(width: fb.width, height: fb.height))
         drawBackground(into: &fb, theme: renderTheme)
+        drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
@@ -198,14 +205,34 @@ public struct LunaCPUDemoScene {
             selection: staticTextSelection,
             theme: renderTheme
         )
-        drawMovingBlock(into: &fb, timeSeconds: t, theme: renderTheme)
+        drawMovingBlock(
+            into: &fb,
+            timeSeconds: t,
+            bounds: renderLayout.proofPanelBounds,
+            theme: renderTheme
+        )
         drawSemanticWidgetProof(
             into: &fb,
             activationCount: semanticActivationCount,
-            status: lastInteractionStatus,
             theme: renderTheme
         )
-        drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex, theme: renderTheme)
+        drawHUD(
+            into: &fb,
+            layout: renderLayout,
+            timeSeconds: t,
+            frameIndex: frameIndex,
+            theme: renderTheme
+        )
+        drawStatusBar(
+            into: &fb,
+            layout: renderLayout,
+            status: lastInteractionStatus,
+            caret: staticTextCaret,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            lineCount: staticTextDocument.lineCount,
+            editRevision: editableTextState.editRevision,
+            theme: renderTheme
+        )
         drawActiveQuickPanelOverlay(
             into: &fb,
             quickPanel: activeQuickPanel(framebufferSize: LunaSizeI(width: fb.width, height: fb.height), theme: renderTheme),
@@ -588,39 +615,75 @@ public struct LunaCPUDemoScene {
     /// validated without relying on screenshots.
     public static func layout(for framebufferSize: LunaSizeI) -> LunaCPUDemoSceneLayout {
         let viewport = LunaViewport(size: framebufferSize)
-        let context = LunaLayoutContext(viewport: viewport)
         var result = LunaLayoutResult()
 
-        let hudHeight = max(28, min(44, viewport.size.height / 12))
-        result.set(id: LunaCPUDemoSceneLayout.hudID, bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: hudHeight))
+        let margin = 18
+        let gap = 14
+        let headerHeight = max(54, min(68, viewport.size.height / 8))
+        let statusHeight = max(30, min(38, viewport.size.height / 14))
+        let contentTop = headerHeight + gap
+        let contentBottom = max(contentTop + 1, viewport.size.height - statusHeight - gap)
+        let contentHeight = max(1, contentBottom - contentTop)
 
-        let panelW = min(300, max(180, viewport.size.width / 3))
-        let semanticFrame = LunaAnchoredLayoutSpec(
-            id: LunaCPUDemoSceneLayout.semanticWidgetID,
-            anchor: .topRight,
-            sizeRule: LunaLayoutSizeRule(
-                preferred: LunaSizeI(width: panelW, height: 56),
-                minimum: LunaSizeI(width: 180, height: 56),
-                maximum: LunaSizeI(width: 300, height: 56)
-            ),
-            margin: LunaInsetsI(top: 54, right: 18, bottom: 18, left: 18)
-        ).frame(in: context)
-        result.set(semanticFrame)
-
-        let textTop = hudHeight + 14
-        let reservedRight = viewport.size.width >= 560 ? panelW + 54 : 18
-        let textW = max(1, viewport.size.width - 18 - reservedRight)
-        let textH = max(1, viewport.size.height - textTop - 56)
         result.set(
-            id: LunaCPUDemoSceneLayout.textViewID,
-            bounds: LunaRectI(x: 18, y: textTop, w: textW, h: textH)
+            id: LunaCPUDemoSceneLayout.hudID,
+            bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: headerHeight)
         )
 
-        let statusY = min(max(semanticFrame.bounds.y + semanticFrame.bounds.h + 12, 120), max(120, viewport.size.height - 28))
         result.set(
             id: LunaCPUDemoSceneLayout.statusID,
-            bounds: LunaRectI(x: 18, y: statusY, w: max(1, viewport.size.width - 36), h: 28)
+            bounds: LunaRectI(x: 0, y: max(0, viewport.size.height - statusHeight), w: viewport.size.width, h: statusHeight)
         )
+
+        let usesSidePanel = viewport.size.width >= 760 && contentHeight >= 180
+        if usesSidePanel {
+            let panelW = min(320, max(260, viewport.size.width / 3))
+            let panelX = max(margin, viewport.size.width - margin - panelW)
+            let panel = LunaRectI(x: panelX, y: contentTop, w: panelW, h: contentHeight)
+            result.set(id: LunaCPUDemoSceneLayout.proofPanelID, bounds: panel)
+
+            result.set(
+                id: LunaCPUDemoSceneLayout.semanticWidgetID,
+                bounds: LunaRectI(
+                    x: panel.x + 12,
+                    y: panel.y + 34,
+                    w: max(1, panel.w - 24),
+                    h: 72
+                )
+            )
+
+            let textRight = max(margin + 1, panel.x - gap)
+            result.set(
+                id: LunaCPUDemoSceneLayout.textViewID,
+                bounds: LunaRectI(
+                    x: margin,
+                    y: contentTop,
+                    w: max(1, textRight - margin),
+                    h: contentHeight
+                )
+            )
+        } else {
+            let semanticHeight = viewport.size.height >= 360 ? 64 : 52
+            let semantic = LunaRectI(
+                x: margin,
+                y: contentTop,
+                w: max(1, viewport.size.width - margin * 2),
+                h: semanticHeight
+            )
+            result.set(id: LunaCPUDemoSceneLayout.semanticWidgetID, bounds: semantic)
+            result.set(id: LunaCPUDemoSceneLayout.proofPanelID, bounds: LunaRectI(x: 0, y: 0, w: 0, h: 0))
+
+            let textY = semantic.y + semantic.h + gap
+            result.set(
+                id: LunaCPUDemoSceneLayout.textViewID,
+                bounds: LunaRectI(
+                    x: margin,
+                    y: textY,
+                    w: max(1, viewport.size.width - margin * 2),
+                    h: max(1, contentBottom - textY)
+                )
+            )
+        }
 
         return LunaCPUDemoSceneLayout(viewport: viewport, frames: result)
     }
@@ -852,24 +915,38 @@ private func drawStaticTextViewProof(
     }
 }
 
-/// Draw a moving rectangle whose motion is driven by time.
-private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Double, theme: LunaTheme) {
-    let w = fb.width
-    let h = fb.height
-    if w <= 0 || h <= 0 { return }
+/// Draw a moving rectangle whose motion is driven by time inside the demo proof panel.
+///
+/// Earlier demo revisions let this proof block roam across the whole framebuffer,
+/// which made it cover the editor/status text. Keep the animation contained in
+/// the side proof panel so the demo can keep proving animation without trashing
+/// readability.
+private func drawMovingBlock(
+    into fb: inout LunaFramebuffer,
+    timeSeconds t: Double,
+    bounds: LunaRectI,
+    theme: LunaTheme
+) {
+    guard !bounds.isEmpty else { return }
 
-    // Block size scales a bit with window size.
-    let blockW = max(32, w / 6)
-    let blockH = max(32, h / 6)
+    let inner = LunaRectI(
+        x: bounds.x + 18,
+        y: bounds.y + 126,
+        w: max(1, bounds.w - 36),
+        h: max(1, bounds.h - 154)
+    )
+    guard inner.w > 12, inner.h > 12 else { return }
 
-    // Simple Lissajous-ish motion.
-    let ampX = Double(max(1, w - blockW))
-    let ampY = Double(max(1, h - blockH))
+    let blockW = max(24, min(72, inner.w / 3))
+    let blockH = max(24, min(72, inner.h / 3))
+    let ampX = Double(max(1, inner.w - blockW))
+    let ampY = Double(max(1, inner.h - blockH))
     let px = (sin(t * 1.2) * 0.5 + 0.5) * ampX
     let py = (cos(t * 0.9) * 0.5 + 0.5) * ampY
-    let x0 = Int(px.rounded(.toNearestOrAwayFromZero))
-    let y0 = Int(py.rounded(.toNearestOrAwayFromZero))
+    let x0 = inner.x + Int(px.rounded(.toNearestOrAwayFromZero))
+    let y0 = inner.y + Int(py.rounded(.toNearestOrAwayFromZero))
 
+    strokeRectColor(into: &fb, x: inner.x, y: inner.y, w: inner.w, h: inner.h, thickness: 1, color: theme.ui.panelBorder)
     fillRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, color: theme.ui.movingBlock)
     strokeRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, thickness: 2, color: theme.ui.movingBlockBorder)
 }
@@ -884,7 +961,6 @@ private func drawMovingBlock(into fb: inout LunaFramebuffer, timeSeconds t: Doub
 private func drawSemanticWidgetProof(
     into fb: inout LunaFramebuffer,
     activationCount: Int,
-    status: String,
     theme: LunaTheme
 ) {
     let widget = LunaCPUDemoScene.semanticWidget(
@@ -925,24 +1001,6 @@ private func drawSemanticWidgetProof(
         )
     }
 
-    let layout = LunaCPUDemoScene.layout(for: LunaSizeI(width: fb.width, height: fb.height))
-    let statusBounds = layout.statusBounds
-    let statusLayout = LunaBoundedTextLayout.layout(
-        status,
-        in: statusBounds,
-        metrics: LunaDebugTextMetrics(scale: 2),
-        overflow: .ellipsizeTail
-    )
-    if let statusLine = statusLayout.firstLine {
-        drawText5x7Color(
-            into: &fb,
-            x: statusLine.bounds.x,
-            y: statusLine.bounds.y,
-            text: statusLine.text,
-            scale: 2,
-            color: theme.ui.statusText
-        )
-    }
 }
 
 
@@ -1088,35 +1146,99 @@ private func drawActiveModalOverlay(
     }
 }
 
-/// Heads-up display: title + time + frame.
-private func drawHUD(into fb: inout LunaFramebuffer, timeSeconds t: Double, frameIndex: UInt64, theme: LunaTheme) {
-    // Draw a translucent-ish bar (we still write opaque alpha; translucency is
-    // achieved by using a dark color over the checker).
-    let barH = max(28, min(44, fb.height / 12))
+/// Draw non-content demo chrome: header, optional side proof panel, and status bar backgrounds.
+private func drawDemoChrome(into fb: inout LunaFramebuffer, layout: LunaCPUDemoSceneLayout, theme: LunaTheme) {
+    fillRectColor(into: &fb, x: layout.hudBounds.x, y: layout.hudBounds.y, w: layout.hudBounds.w, h: layout.hudBounds.h, color: theme.ui.hudBackground)
+    strokeRectColor(into: &fb, x: 0, y: layout.hudBounds.y + layout.hudBounds.h - 1, w: fb.width, h: 1, thickness: 1, color: theme.ui.panelBorder)
 
-    // LunaFramebuffer is row-major and presented by SDL/CoreGraphics with the
-    // conventional framebuffer coordinate system: (0, 0) is the TOP-left pixel
-    // and y increases downward.
-    //
-    // Older versions of this demo accidentally treated the framebuffer as
-    // bottom-left-origin, which pushed the HUD to the bottom of the window and
-    // flipped the 5x7 text vertically. Keep the demo aligned with the actual
-    // byte layout so renderer bugs are visible instead of masked by coordinate
-    // conversion hacks.
-    let barY = 0
-    fillRectColor(into: &fb, x: 0, y: barY, w: fb.width, h: barH, color: theme.ui.hudBackground)
+    if !layout.proofPanelBounds.isEmpty {
+        fillRectColor(
+            into: &fb,
+            x: layout.proofPanelBounds.x,
+            y: layout.proofPanelBounds.y,
+            w: layout.proofPanelBounds.w,
+            h: layout.proofPanelBounds.h,
+            color: theme.ui.panelBackground
+        )
+        strokeRectColor(
+            into: &fb,
+            x: layout.proofPanelBounds.x,
+            y: layout.proofPanelBounds.y,
+            w: layout.proofPanelBounds.w,
+            h: layout.proofPanelBounds.h,
+            thickness: 1,
+            color: theme.ui.panelBorder
+        )
+        drawText5x7Color(
+            into: &fb,
+            x: layout.proofPanelBounds.x + 12,
+            y: layout.proofPanelBounds.y + 12,
+            text: "Proof Panel",
+            scale: 1,
+            color: theme.ui.panel.mutedForeground
+        )
+    }
 
-    // Text (5x7 font, scaled).
-    let title = "Luna-UI CPU Demo"
-    let info = String(format: "t=%.2fs  frame=%llu", t, frameIndex)
+    fillRectColor(into: &fb, x: layout.statusBounds.x, y: layout.statusBounds.y, w: layout.statusBounds.w, h: layout.statusBounds.h, color: theme.ui.statusBar.background)
+    strokeRectColor(into: &fb, x: 0, y: layout.statusBounds.y, w: fb.width, h: 1, thickness: 1, color: theme.ui.statusBar.border)
+}
 
-    // Keep text inside the HUD bar.
-    let textX = 10
-    let titleY = barY + 8
-    let infoY  = barY + 8 + 2 * (7 * 2 + 4)
+/// Heads-up display: title, current theme, and compact key help.
+private func drawHUD(
+    into fb: inout LunaFramebuffer,
+    layout: LunaCPUDemoSceneLayout,
+    timeSeconds t: Double,
+    frameIndex: UInt64,
+    theme: LunaTheme
+) {
+    let bounds = layout.hudBounds
+    guard !bounds.isEmpty else { return }
 
-    drawText5x7Color(into: &fb, x: textX, y: titleY, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
-    drawText5x7Color(into: &fb, x: textX, y: infoY,  text: info,  scale: 2, color: theme.ui.statusBar.foreground)
+    let title = "Luna-UI Test App"
+    let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
+    let keys = "Ctrl+P palette   1/2/3 themes   click/type editor   Enter/Backspace/Delete   arrows/Page/Home/End scroll"
+
+    drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
+
+    let infoBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 30, w: max(1, bounds.w - 20), h: 9)
+    if let line = LunaBoundedTextLayout.layout(info, in: infoBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+        drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.statusBar.foreground)
+    }
+
+    let keyBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 43, w: max(1, bounds.w - 20), h: 9)
+    if let line = LunaBoundedTextLayout.layout(keys, in: keyBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+        drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.panel.mutedForeground)
+    }
+}
+
+/// Bottom status bar for interaction/debug text. Keeping this out of the editor
+/// surface makes Phase 3/4 iteration info readable while the text view grows.
+private func drawStatusBar(
+    into fb: inout LunaFramebuffer,
+    layout: LunaCPUDemoSceneLayout,
+    status: String,
+    caret: LunaStaticTextCaret,
+    scrollTopLine: Int,
+    lineCount: Int,
+    editRevision: Int,
+    theme: LunaTheme
+) {
+    let bounds = layout.statusBounds
+    guard !bounds.isEmpty else { return }
+
+    let editorInfo = "Ln \(caret.location.lineIndex + 1), Col \(caret.location.utf8Column)   Top \(scrollTopLine + 1)/\(lineCount)   Rev \(editRevision)"
+    let statusText = "Status: \(status)"
+
+    let leftWidth = max(1, min(bounds.w * 2 / 3, bounds.w - 220))
+    let statusBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 8, w: max(1, leftWidth), h: max(1, bounds.h - 10))
+    let infoBounds = LunaRectI(x: statusBounds.x + statusBounds.w + 12, y: bounds.y + 8, w: max(1, bounds.w - statusBounds.w - 32), h: max(1, bounds.h - 10))
+
+    if let line = LunaBoundedTextLayout.layout(statusText, in: statusBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+        drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.statusText)
+    }
+    if let line = LunaBoundedTextLayout.layout(editorInfo, in: infoBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+        drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.statusBar.mutedForeground)
+    }
 }
 
 
