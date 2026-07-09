@@ -165,6 +165,21 @@ public struct LunaEditorColorSet: Hashable, Sendable {
         scrollbarTrack: .hex("#20262D"),
         scrollbarThumb: .hex("#6B7684")
     )
+
+    public static let highContrastProof = LunaEditorColorSet(
+        background: .hex("#090909"),
+        foreground: .hex("#F8F8F2"),
+        gutterBackground: .hex("#050505"),
+        gutterForeground: .hex("#D0D0D0"),
+        currentLineBackground: .hex("#222200"),
+        selectionBackground: .hex("#FFCC00"),
+        caret: .hex("#FFCC00"),
+        invisibles: .hex("#808080"),
+        minimapBackground: .hex("#050505"),
+        minimapViewport: .hex("#FFCC0066"),
+        scrollbarTrack: .hex("#000000"),
+        scrollbarThumb: .hex("#FFCC00")
+    )
 }
 
 public struct LunaChromeColorSet: Hashable, Sendable {
@@ -356,6 +371,15 @@ public struct LunaTextFieldColorSet: Hashable, Sendable {
         foreground: .hex("#E8ECF0"),
         placeholderForeground: .hex("#8B949E"),
         selectionBackground: .hex("#43505C")
+    )
+
+    public static let highContrastProof = LunaTextFieldColorSet(
+        background: .hex("#000000"),
+        border: .hex("#FFCC00"),
+        focusedBorder: .hex("#FFCC00"),
+        foreground: .hex("#FFFFFF"),
+        placeholderForeground: .hex("#D0D0D0"),
+        selectionBackground: .hex("#FFCC00")
     )
 }
 
@@ -756,7 +780,9 @@ public struct LunaUIThemeColors: Hashable, Sendable {
             focusedBorder: .hex("#FFCC00"),
             accent: .hex("#FFCC00"),
             accentStrong: .hex("#FFFFFF")
-        )
+        ),
+        editor: .highContrastProof,
+        textField: .highContrastProof
     )
 }
 

@@ -59,4 +59,13 @@ final class LunaUIPhase4B2Tests: XCTestCase {
         XCTAssertEqual(numberKey.key, .number(1))
         XCTAssertEqual(committedText.text, "1")
     }
+
+    func testHighContrastTextHighlightsUseMovingBlockYellow() {
+        let theme = LunaTheme.highContrastProof
+
+        XCTAssertEqual(theme.ui.movingBlock, LunaColor.hex("#FFCC00"))
+        XCTAssertEqual(theme.selection, LunaColor.hex("#FFCC00"))
+        XCTAssertEqual(theme.ui.editor.selectionBackground, LunaColor.hex("#FFCC00"))
+        XCTAssertEqual(theme.ui.textField.selectionBackground, LunaColor.hex("#FFCC00"))
+    }
 }

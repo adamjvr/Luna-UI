@@ -101,6 +101,15 @@ Moth Obsidian expected colors:
 | Light gray text | `#888991` |
 | Text highlight/accent | `#003CFF` |
 
+High Contrast expected highlight behavior:
+
+| Role | Color |
+|---|---|
+| Moving proof block | `#FFCC00` |
+| User text selection | `#FFCC00` |
+| Current find match | `#FFCC00` |
+| Text-field selection token | `#FFCC00` |
+
 Moth mode visual test:
 
 ```text
@@ -180,6 +189,27 @@ all previous text is replaced by replacement
 selection clears
 caret lands after replacement
 revision increments
+no stray "a" from Ctrl+A appears before replacement
+```
+
+Shortcut text suppression check:
+
+```text
+Ctrl+A
+Type: replacement
+```
+
+Bad result:
+
+```text
+areplacement
+or the old document plus replacement appended somewhere
+```
+
+Good result:
+
+```text
+replacement
 ```
 
 ---
@@ -307,8 +337,9 @@ button hover/press states work
 12. Replace one match.
 13. Ctrl+P, run Theme: Luna Demo Blue.
 14. Ctrl+P, run Theme: Moth Obsidian Demo.
-15. Ctrl+P, run Show Demo Notice.
-16. Escape closes active overlay first.
-17. Resize window wide/narrow.
-18. Confirm header/editor/proof panel/status remain readable.
+15. Ctrl+P, run Theme: High Contrast Proof; confirm selection/highlight yellow matches the moving block.
+16. Ctrl+P, run Show Demo Notice.
+17. Escape closes active overlay first.
+18. Resize window wide/narrow.
+19. Confirm header/editor/proof panel/status remain readable.
 ```

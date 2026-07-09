@@ -128,6 +128,15 @@ public struct LunaCPUDemoScene {
     /// Luna text model owns the final caret/selection range.
     private var activeTextSelectionAnchor: LunaTextLocation? = nil
 
+    /// Some SDL/input stacks may still emit a committed text event for a control
+    /// shortcut key after Luna has already handled the shortcut as a command.
+    ///
+    /// Example: Ctrl+A should Select All, not replace the document with a stray
+    /// committed "a" before the user's next real typed character. The suppression
+    /// is one-shot and only consumes the exact shortcut character, so normal text
+    /// typed after the command still reaches the editor.
+    private var pendingShortcutTextInputSuppression: String? = nil
+
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
     }
@@ -489,6 +498,15 @@ public struct LunaCPUDemoScene {
     @discardableResult
     public mutating func handleTextInput(_ event: LunaTextInputEvent, framebufferSize: LunaSizeI) -> Bool {
         guard !event.text.isEmpty else { return false }
+
+        if let suppressed = pendingShortcutTextInputSuppression {
+            pendingShortcutTextInputSuppression = nil
+            if event.text.lowercased() == suppressed {
+                lastInteractionStatus = "Shortcut text input suppressed: \(event.text.debugDescription)"
+                return true
+            }
+        }
+
         if var state = quickPanelState {
             let result = state.handleTextInput(event)
             quickPanelState = state
@@ -577,17 +595,20 @@ public struct LunaCPUDemoScene {
         activeTextSelectionAnchor = nil
 
         if isCommandPaletteShortcut(event) {
+            suppressShortcutTextInput("p")
             openQuickPanel()
             lastInteractionStatus = "Phase 4A command palette opened; type to filter, Enter runs, Esc closes"
             return true
         }
 
         if isFindPanelShortcut(event) {
+            suppressShortcutTextInput("f")
             openFindPanel(framebufferSize: framebufferSize)
             return true
         }
 
         if isSelectAllShortcut(event) {
+            suppressShortcutTextInput("a")
             selectAllEditableText(framebufferSize: framebufferSize)
             return true
         }
@@ -676,6 +697,10 @@ public struct LunaCPUDemoScene {
         default:
             return false
         }
+    }
+
+    private mutating func suppressShortcutTextInput(_ text: String) {
+        pendingShortcutTextInputSuppression = text.lowercased()
     }
 
     private mutating func openQuickPanel() {
