@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4B.1 interactive text selection completion.
+This document is the working checkpoint after Phase 4B.2 command routing and text-input focus cleanup.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4B.1**.
+Luna UI is through **Phase 4B.2**.
 
 The engine now has:
 
@@ -30,7 +30,10 @@ The engine now has:
 - a command palette / quick-panel foundation with filtering, keyboard navigation, command activation, theme-driven rows, pointer selection, and accessibility nodes;
 - a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor;
 - a generic find / replace foundation with product-neutral query/options/results, literal and regex scanning, whole-word/case toggles, text-view match highlights, replace-current/replace-all operations, keyboard/pointer interaction, theme-driven panel visuals, and accessibility nodes;
-- completed interactive user text selection with click-drag selection, Shift-click/Shift-arrow extension, selection replacement/delete behavior, and pointer modifier propagation through LunaInput.
+- completed interactive user text selection with click-drag selection, Shift-click/Shift-arrow extension, selection replacement/delete behavior, and pointer modifier propagation through LunaInput;
+- command-palette-only demo theme switching so bare `1`, `2`, and `3` can be typed into the editor as text;
+- Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
+- tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath.
 
 ---
 
@@ -81,9 +84,9 @@ Moth names should not appear in Luna library public APIs. Moth names are accepta
 `LunaUITestApp` currently proves three theme paths:
 
 ```text
-1 = Luna demo blue
-2 = demo-only Moth Obsidian
-3 = high-contrast proof
+Ctrl+P -> Theme: Luna Demo Blue
+Ctrl+P -> Theme: Moth Obsidian Demo
+Ctrl+P -> Theme: High Contrast Proof
 ```
 
 The Moth Obsidian demo palette is:
@@ -123,6 +126,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4A.1 — LunaUITestApp Demo Layout Cleanup: complete.
 - Phase 4B — Generic Find / Replace Panel Foundation: complete.
 - Phase 4B.1 — Interactive Text Selection Completion: complete.
+- Phase 4B.2 — Demo Command Routing and Text Input Focus Cleanup: complete.
 
 ---
 

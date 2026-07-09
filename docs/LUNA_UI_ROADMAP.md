@@ -907,7 +907,27 @@ Hard distinction preserved:
 current line highlight != user text selection != find result highlight
 ```
 
-### Phase 4C — Menu Bar and Dropdown Menus
+### Phase 4B.2 — Demo Command Routing and Text Input Focus Cleanup
+
+Status: complete.
+
+Phase 4B.2 tightened LunaUITestApp input ownership after editable text, command palette, find/replace, and interactive selection all became active at once.
+
+It retired the demo-only bare `1` / `2` / `3` theme hotkeys so numbers can be typed into the editor as normal text. Theme switching now happens through command-palette commands supplied by the demo app.
+
+It also adds Select All behavior through `Ctrl+A` and a command-palette command, using a product-neutral editable text selection primitive rather than test-app-specific range math.
+
+Acceptance rules:
+
+```text
+bare 1/2/3 insert editor text
+Ctrl+P owns palette input
+Ctrl+F owns find-panel input
+Ctrl+A selects the full editor document
+command-palette theme commands remain the only demo theme-switching path
+```
+
+## Phase 4C — Menu Bar and Dropdown Menus
 
 Scope:
 

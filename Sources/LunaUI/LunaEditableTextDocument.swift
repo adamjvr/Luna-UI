@@ -266,6 +266,23 @@ public struct LunaEditableTextState: Hashable, Sendable {
         }
     }
 
+    /// Select the entire document and place the caret at the focus/end edge.
+    ///
+    /// This is the product-neutral primitive behind app commands such as
+    /// Select All. It lives on editable state, not the demo, so future Moth and
+    /// other Luna consumers can use the same text-range behavior without
+    /// reimplementing document endpoint math.
+    public mutating func selectAll() {
+        let lastLineIndex = max(0, document.staticDocument.lineCount - 1)
+        let lastLineLength = document.staticDocument[line: lastLineIndex]?.utf8Length ?? 0
+        setSelection(
+            LunaTextRange(
+                anchor: LunaTextLocation(lineIndex: 0, utf8Column: 0),
+                focus: LunaTextLocation(lineIndex: lastLineIndex, utf8Column: lastLineLength)
+            )
+        )
+    }
+
     /// Begin a user selection gesture. A simple click calls this and then usually
     /// leaves the range collapsed; drag and Shift-click extend from the same
     /// anchor through `extendSelection(to:)`.

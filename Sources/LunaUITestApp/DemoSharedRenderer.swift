@@ -185,7 +185,7 @@ public struct LunaCPUDemoScene {
         theme = resolvedTheme
         modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
         modalManager.reflow(viewportSize: framebufferSize)
-        lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Press 1=Luna demo, 2=Moth demo, 3=high contrast."
+        lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Use Ctrl+P and run a Theme command to switch themes."
     }
 
     /// Render one frame into the provided framebuffer.
@@ -548,7 +548,10 @@ public struct LunaCPUDemoScene {
                     lastInteractionStatus = "Phase 4A palette query: \(state.query.debugDescription), selected: \(selectedTitle)"
                 }
             }
-            if result.didConsumeEvent { return true }
+            // While the command palette is open it owns keyboard input. This
+            // prevents command/control chords and other unhandled key-downs from
+            // leaking into the editor underneath the overlay.
+            return true
         }
 
         if var state = findPanelState {
@@ -565,7 +568,10 @@ public struct LunaCPUDemoScene {
                 let focused = state.focusedField == .query ? "find" : "replace"
                 lastInteractionStatus = "Phase 4B \(focused): \(state.queryText.debugDescription), \(state.results.statusText)"
             }
-            if result.didConsumeEvent { return true }
+            // While the find panel is open it owns keyboard input. The editor
+            // underneath should not receive keys that the find UI chooses not to
+            // handle yet.
+            return true
         }
 
         activeTextSelectionAnchor = nil
@@ -581,16 +587,12 @@ public struct LunaCPUDemoScene {
             return true
         }
 
+        if isSelectAllShortcut(event) {
+            selectAllEditableText(framebufferSize: framebufferSize)
+            return true
+        }
+
         switch event.key {
-        case .number(1):
-            setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
-            return true
-        case .number(2):
-            setTheme(MothDemoTheme.theme, framebufferSize: framebufferSize)
-            return true
-        case .number(3):
-            setTheme(.highContrastProof, framebufferSize: framebufferSize)
-            return true
         case .enter:
             let result = editableTextState.insertNewline()
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
@@ -662,6 +664,15 @@ public struct LunaCPUDemoScene {
         switch event.key {
         case .other(let key):
             return key.lowercased() == "f" && (event.modifiers.control || event.modifiers.command)
+        default:
+            return false
+        }
+    }
+
+    private func isSelectAllShortcut(_ event: LunaKeyboardEvent) -> Bool {
+        switch event.key {
+        case .other(let key):
+            return key.lowercased() == "a" && (event.modifiers.control || event.modifiers.command)
         default:
             return false
         }
@@ -739,6 +750,13 @@ public struct LunaCPUDemoScene {
         }
     }
 
+    private mutating func selectAllEditableText(framebufferSize: LunaSizeI) {
+        editableTextState.selectAll()
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+        let selectedBytes = editableTextState.selection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
+        lastInteractionStatus = "Edit: Select All selected \(selectedBytes) UTF-8 bytes"
+    }
+
     private mutating func performQuickPanelCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
         switch command.rawValue {
         case "luna.demo.theme.blue":
@@ -768,6 +786,8 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 4A inserted sample text; caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column)"
         case "luna.demo.find.open":
             openFindPanel(framebufferSize: framebufferSize)
+        case "luna.demo.edit.selectAll":
+            selectAllEditableText(framebufferSize: framebufferSize)
         default:
             lastInteractionStatus = "Phase 4A ran command: \(command.rawValue)"
         }
@@ -979,12 +999,13 @@ public struct LunaCPUDemoScene {
 
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Tools", "Demo"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: LunaKeyEquivalent("1"), menuPath: ["View", "Theme"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: LunaKeyEquivalent("2"), menuPath: ["View", "Theme"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: LunaKeyEquivalent("3"), menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: nil, menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: nil, menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: nil, menuPath: ["View", "Theme"]),
         LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["Goto"]),
         LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["Goto"]),
         LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
+        LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("Ctrl+A"), menuPath: ["Edit"]),
         LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
     ]
 
@@ -995,7 +1016,7 @@ public struct LunaCPUDemoScene {
     public static let demoText = """
     // Phase 4B: Generic Find / Replace Panel Foundation
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
-    // and Right edit; Ctrl+P opens the quick panel; Ctrl+F opens find/replace.
+    // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace.
     struct LunaProof {
         let background = "theme.ui.editor.background"
         let gutter = "theme.ui.editor.gutterBackground"
@@ -1514,7 +1535,7 @@ private func drawHUD(
 
     let title = "Luna-UI Test App"
     let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
-    let keys = "Ctrl+P palette   Ctrl+F find   1/2/3 themes   click/type editor   Enter/Backspace/Delete   arrows/Page/Home/End scroll"
+    let keys = "Ctrl+P palette/theme   Ctrl+F find   Ctrl+A select all   click/type editor incl. 123   Enter/Backspace/Delete   arrows/Page/Home/End"
 
     drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
 

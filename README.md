@@ -16,6 +16,7 @@ The project direction is split into two roadmap documents:
 
 - [`docs/LUNA_UI_ROADMAP.md`](docs/LUNA_UI_ROADMAP.md) — engine/runtime roadmap for Luna UI.
 - [`docs/MOTH_TEXT_ROADMAP.md`](docs/MOTH_TEXT_ROADMAP.md) — editor-product roadmap for Moth Text.
+- [`docs/LUNA_UI_DEMO_TEST_PROTOCOL.md`](docs/LUNA_UI_DEMO_TEST_PROTOCOL.md) — current LunaUITestApp manual regression protocol.
 
 The short version:
 
