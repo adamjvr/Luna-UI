@@ -99,7 +99,9 @@ Commands are shared infrastructure. Menus, shortcuts, command palettes, accessib
 
 ### Theme-Driven Visuals
 
-Widgets do not own permanent colors. Themes/styles own colors. Luna has hex-driven color primitives so Moth Text can supply exact values for editor backgrounds, chrome, tabs, menus, buttons, overlays, selections, caret, minimap, scrollbars, and status UI.
+Widgets do not own permanent colors. Themes/styles own colors. Luna has hex-driven color primitives and a renderer color contract so any application can supply exact values for editor backgrounds, chrome, tabs, menus, buttons, overlays, selections, caret, minimap, scrollbars, and status UI.
+
+Moth Text is one consumer of that system, not something baked into Luna's public API. Moth-specific palettes may appear in `LunaUITestApp` as demo fixtures, but Luna library targets must remain product-neutral.
 
 ### Cross-Platform Visual Parity
 
@@ -164,7 +166,7 @@ Boundary rule:
 
 ## Visual Direction
 
-Luna is reusable, but the default editor-facing controls are being shaped by the Moth Text goal: a Swift-native Sublime-class editor.
+Luna is reusable, but the default editor-facing controls are shaped by the needs of a Swift-native Sublime-class editor: compact, dark, keyboard-first, and precise.
 
 The default visual language is:
 
@@ -178,7 +180,9 @@ The default visual language is:
 - no mobile-style bubbly controls;
 - no Electron/VS Code/JetBrains default aesthetic.
 
-Menu dropdowns are the main area where Luna/Moth can innovate beyond strict visual mimicry. The behavior should preserve Sublime-like command coverage while allowing better command discovery, descriptions, search, and accessibility.
+Menu dropdowns are the main area where an editor built on Luna can innovate beyond strict visual mimicry. The behavior should preserve Sublime-like command coverage while allowing better command discovery, descriptions, search, and accessibility.
+
+The Luna library should expose neutral theme/style tokens. Product names and exact product palettes belong in applications or demo fixtures, not in reusable Luna API names.
 
 ---
 
@@ -246,15 +250,18 @@ The current checkpoint has:
 - Phase 1A semantic widget proof implemented;
 - Phase 1B live mouse-click routing into the semantic widget implemented;
 - Phase 2A modal/overlay runtime implemented with notice, prompt, list, confirm, and completion overlay shells;
-- Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and Sublime/Moth-style default control visuals;
+- Phase 2B modal interaction polish implemented with hover, pressed, focused/default, cancel, Enter/Escape/Tab keyboard routing, and compact dark control visuals;
 - Phase 2C host-boundary cleanup implemented: SDL input translation now lives in `LunaHostSDL`, the demo consumes platform-neutral Luna input events, and UI colors are hex-configurable theme tokens instead of hardcoded demo colors;
 - Phase 2D layout/resize/accessibility reflow implemented with `LunaLayout`, viewport-driven demo frames, modal reflow, and tests proving draw/hit-test/accessibility bounds stay synchronized after resize;
 - Phase 2D.1 modal text/content reflow implemented so modal titles ellipsize, body text wraps/clips inside panel content bounds, and accessibility exposes full semantic text while using reflowed content regions;
 - Phase 2D.2 universal bounded-text primitive implemented so semantic widgets, modal labels, prompt fields, status lines, and future controls use shared clip/ellipsize/wrap behavior while accessibility keeps full semantic labels;
 - Phase 2D.3 responsive modal control layout implemented so modal buttons/choice rows use adaptive insets, sane preferred/minimum widths, full-width emergency-narrow single-button layout, and vertical stacking when multi-button rows cannot fit;
-- Phase 2E visual style token lockdown implemented with component-specific Sublime/Moth theme tokens for editor, chrome, menus, panels, text fields, tabs, sidebar, status bar, diagnostics, and controls;
-- demo theme switching implemented through `1` = Luna demo blue, `2` = Moth default dark, and `3` = high-contrast proof theme, proving Luna widgets/modals draw from active theme variables;
-- roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, text view phases, Sublime/Moth UI surfaces, editor chrome, renderer correctness, and public API stabilization;
+- Phase 2E visual style token lockdown implemented with product-neutral component theme tokens for editor, chrome, menus, panels, text fields, tabs, sidebar, status bar, diagnostics, and controls;
+- product-neutral theme API cleanup completed so Moth-specific names are not part of Luna's reusable public API;
+- demo-only Moth Obsidian theme added inside `LunaUITestApp`, proving applications can supply exact theme tokens without naming the product in the Luna library;
+- renderer color contract fixed so logical RGBA hex colors flow through Luna's framebuffer and SDL presentation path without alpha/channel-order swaps;
+- demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals draw from active theme variables;
+- roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
@@ -263,7 +270,9 @@ The next implementation target is:
 Phase 3A — Static Accessible Text View
 ```
 
-Phase 2E is complete. The next step is to build the first static, resize-safe, accessibility-aware Luna text-view primitive using the locked visual tokens.
+Phase 2E is complete. The next step is to build the first static, resize-safe, accessibility-aware Luna text-view primitive using the locked visual tokens and renderer color contract.
+
+For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
 

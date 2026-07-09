@@ -2,7 +2,7 @@
 
 Moth Text is the end-user editor product. Its long-term goal is to become a Swift-native, Sublime-class text editor with clean-room Sublime compatibility and additional modern features.
 
-Moth Text is built on Luna UI. Luna owns the reusable custom UI/runtime layer, renderer, text shaping infrastructure, accessibility tree, overlay system, platform hosts, and theme primitives. Moth owns editor product behavior: documents, buffers, commands, projects, settings policy, packages, compatibility importers, and the user-facing editor workflow.
+Moth Text is built on Luna UI. Luna owns the reusable custom UI/runtime layer, renderer, text shaping infrastructure, accessibility tree, overlay system, platform hosts, and theme primitives. Moth owns editor product behavior: documents, buffers, commands, projects, settings policy, packages, compatibility importers, user-facing editor workflow, and product-specific theme choices.
 
 This split is the central design decision.
 
@@ -69,13 +69,25 @@ The default Moth visual language should include:
 - charcoal chrome and overlays;
 - blue-gray editor area if the selected theme wants it;
 - compact rectangular controls;
-- subtle cyan/teal hover and selection accents;
+- restrained highlight/selection accents;
 - thin borders and low-contrast separators;
 - command palette and quick panels shaped like Sublime;
 - bottom find/replace panels shaped like Sublime;
 - menu dropdowns with Sublime functionality plus room for improved discovery/accessibility.
 
-Moth must not be forced to use the Luna demo palette. Moth supplies its own exact Luna theme values, including hex-defined colors for editor, chrome, tabs, sidebar, overlays, menu rows, selections, status bar, minimap, and controls.
+Moth must not be forced to use the Luna demo palette or any Luna built-in theme. Moth supplies its own exact Luna theme values, including hex-defined colors for editor, chrome, tabs, sidebar, overlays, menu rows, selections, status bar, minimap, and controls.
+
+The current Moth visual palette being proven in `LunaUITestApp` is demo-only consumer code, not Luna public API:
+
+```text
+window/background black  #070709
+button/control graphite  #131416
+dark gray layer          #242426
+light gray text          #888991
+text highlight blue      #003CFF
+```
+
+In the future Moth repo, these values should live under Moth theme code or user theme files. Luna should only see them as a normal application-supplied `LunaTheme`.
 
 ---
 
@@ -92,7 +104,7 @@ Scope:
 - Moth depends on Luna;
 - Luna does not depend on Moth;
 - Moth does not import platform host/rendering APIs for normal editor UI;
-- Moth behavior is expressed through commands, documents, projects, settings, and editor models.
+- Moth behavior is expressed through commands, documents, projects, settings, editor models, and product-owned theme choices.
 
 Definition of done:
 

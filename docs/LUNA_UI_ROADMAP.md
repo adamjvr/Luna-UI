@@ -72,9 +72,9 @@ App/demo/editor code talks to Luna through typed Swift APIs.
 
 ## Visual Direction
 
-Luna is reusable, but its default editor-facing visual language is shaped by Moth Text and Sublime Text references.
+Luna is reusable. Its built-in editor-facing defaults are shaped by Sublime-class editor requirements, but the reusable library must not expose product-specific names or palettes.
 
-Default Moth/Sublime-like direction:
+Default editor/Sublime-like direction:
 
 - dark editor-first interface;
 - blue-gray editor/content area;
@@ -89,7 +89,9 @@ Default Moth/Sublime-like direction:
 
 Menu dropdowns may innovate, but the baseline behavior should remain Sublime-compatible where applicable. The menu system should preserve expected Sublime command coverage while allowing better search, descriptions, discoverability, and accessibility.
 
-Color customization is mandatory. Moth Text must be able to supply exact hex-driven theme values for every major UI role, including editor, gutter, selection, caret, menu rows, tabs, sidebar, status bar, overlays, buttons, scrollbars, minimap, warnings, and accents.
+Color customization is mandatory. Applications must be able to supply exact hex-driven theme values for every major UI role, including editor, gutter, selection, caret, menu rows, tabs, sidebar, status bar, overlays, buttons, scrollbars, minimap, warnings, and accents.
+
+Product-specific color schemes belong in applications or demo fixtures. For example, LunaUITestApp may include a demo-only Moth palette, but LunaTheme/LunaUI public API names stay product-neutral.
 
 ---
 
@@ -322,7 +324,7 @@ Tests required:
 
 ### Phase 2C — Host Boundary and Theme Customization Cleanup
 
-**Status:** complete/current checkpoint.
+**Status:** complete.
 
 Goal: correct architectural debt where the demo was manually interpreting SDL, and make visual styling app/theme-driven rather than hardcoded.
 
@@ -337,7 +339,7 @@ Scope:
 - hex parsing for `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`;
 - `LunaControlColorSet`;
 - `LunaUIThemeColors`;
-- `LunaTheme.mothDefaultDark` / `LunaTheme.mothUserPalette`;
+- product-neutral built-in defaults such as `LunaTheme.lunaDefaultDark`;
 - theme-driven widget/control colors.
 
 Architecture rule:
@@ -352,7 +354,7 @@ Color rule:
 ```text
 Widgets do not own hardcoded colors.
 Themes/styles own colors.
-Moth can supply exact custom hex colors.
+Applications can supply exact custom hex colors.
 ```
 
 Demo requirement:
@@ -544,26 +546,27 @@ Definition of done:
 
 **Status:** complete.
 
-Goal: formalize the Sublime/Moth visual language from the screenshot references.
+Goal: formalize Luna's product-neutral visual token surface before building the text view, menus, quick panels, tabs, sidebar, status bar, and editor chrome.
 
 Scope:
 
-- `LunaTheme.mothDefaultDark` / `LunaTheme.mothUserPalette` and component-specific Moth/Sublime token groups;
-- editor, gutter, minimap, scrollbar, caret, selection, and current-line tokens;
+- product-neutral built-in defaults such as `LunaTheme.lunaDefaultDark` and `LunaUIThemeColors.lunaDefaultDark`;
+- component token groups for editor, gutter, minimap, scrollbar, caret, selection, and current line;
 - chrome, menu-bar, active-menu underline, tab-strip, and separator tokens;
 - dropdown/menu row, shortcut, disabled, checked, submenu-arrow, and separator tokens;
 - panel/overlay, prompt/text-field, quick-panel/list-row, and modal-control tokens;
 - tab, sidebar, status-bar, diagnostic, focus/accent, disabled, and selection tokens;
 - demo-only Luna blue theme and high-contrast proof theme to verify overrides;
-- render-ready style snapshots in LunaUI for editor, chrome, menus, panels, fields, tabs, sidebar, status bar, and controls.
+- render-ready style snapshots in LunaUI for editor, chrome, menus, panels, fields, tabs, sidebar, status bar, and controls;
+- no product-specific public API names in Luna library targets.
 
 Visual reference:
 
 ```text
 dark charcoal chrome
-blue-gray editor area
+blue-gray editor area when a theme chooses it
 compact menu rows
-cyan/teal hover/selection accent
+restrained hover/selection accent
 subtle active top-menu underline
 compact tab strip
 thin status bar
@@ -577,7 +580,7 @@ Demo requirement:
 
 - demo can switch themes at runtime:
   - `1` = Luna demo blue;
-  - `2` = Moth default dark;
+  - `2` = demo-only Moth Obsidian theme supplied by `LunaUITestApp`;
   - `3` = high-contrast proof;
 - semantic widget, modal overlay, modal text, button states, HUD/status text, moving block, and background all pull from the active theme.
 
@@ -589,6 +592,81 @@ Tests required:
 - semantic widget colors derive from custom control tokens;
 - modal control style derives from panel/text-field/control tokens;
 - no core widget requires hardcoded colors except explicit debug/missing-token fallback.
+
+Definition of done:
+
+- Luna public theme APIs are product-neutral;
+- app/demo code can supply arbitrary exact hex values;
+- visible demo surfaces prove active theme values drive rendering rather than hardcoded colors.
+
+### Phase 2E.1 — Product-Neutral Theme API Cleanup
+
+**Status:** complete.
+
+Goal: correct the boundary mistake where a Moth palette was temporarily promoted into Luna public API names.
+
+Scope:
+
+- remove Moth-specific public names from `LunaTheme`, `LunaUIThemeColors`, and component color-set extensions;
+- keep built-in Luna defaults product-neutral;
+- keep product/demo palettes outside reusable library targets;
+- make `LunaUITestApp` the only place where demo-only Moth palette names appear.
+
+Architecture rule:
+
+```text
+Luna can render any application theme.
+Moth may supply one of those themes.
+Luna does not name itself after Moth.
+```
+
+Definition of done:
+
+- library targets expose product-neutral API names;
+- test app may still contain `MothDemoTheme` as a consumer-supplied fixture;
+- docs distinguish reusable Luna themes from application-supplied Moth themes.
+
+### Phase 2E.2 — Renderer Color Contract and Demo Palette Proof
+
+**Status:** complete.
+
+Goal: make hex-driven theming visually trustworthy by locking the conversion from logical Luna colors to host framebuffer pixels.
+
+Scope:
+
+- define the practical color path from `LunaColor` logical RGBA to Luna framebuffer bytes to SDL texture upload;
+- guard against byte-order mistakes where alpha can be interpreted as blue;
+- document that hex parsing alone is not enough: the renderer/presenter path must preserve channels;
+- demo-only Moth Obsidian palette in `LunaUITestApp`:
+  - window/background: `#070709`;
+  - button/control graphite: `#131416`;
+  - dark gray layer: `#242426`;
+  - light gray text: `#888991`;
+  - text highlight: `#003CFF`.
+
+Color contract:
+
+```text
+LunaColor.hex("#070709FF") means logical RGBA:
+  R = 07
+  G = 07
+  B = 09
+  A = FF
+
+That must display as near-black, not bright blue.
+```
+
+Demo requirement:
+
+- pressing `1` visibly selects the loud Luna demo-blue proof theme;
+- pressing `2` visibly selects the black/graphite demo-only Moth Obsidian theme;
+- pressing `3` visibly selects the high-contrast proof theme.
+
+Tests required:
+
+- framebuffer byte contract is covered by tests;
+- low-level presentation path uses the SDL texture format matching Luna's byte stream;
+- demo-only Moth palette keeps blue reserved for selection/focus/highlight rather than broad surface fills.
 
 ---
 
@@ -814,9 +892,11 @@ This phase can happen partly in parallel, but it needs its own gates.
 Scope:
 
 - framebuffer coordinate contract;
+- framebuffer color/channel-order contract;
 - CPU renderer as reference;
 - text orientation snapshot tests;
 - display-list snapshot tests;
+- color swatch/channel-order snapshot tests;
 - dirty rect diagnostics;
 - glyph bounds diagnostics;
 - future GPU/Metal parity tests.
@@ -825,6 +905,7 @@ Important bugs to guard against:
 
 - mirrored text;
 - wrong origin;
+- alpha/channel-order mistakes that turn black into blue;
 - stale hit boxes;
 - stale accessibility bounds;
 - selection/caret mismatch.
@@ -861,4 +942,4 @@ The next implementation target is:
 Phase 3A — Static Accessible Text View
 ```
 
-Phase 2E is complete. The next implementation target is a static Luna text view that uses the locked theme tokens and preserves the resize/accessibility invariants established in Phase 2D.
+Phase 2E is complete, including the product-neutral theme API cleanup and renderer color-channel fix. The next implementation target is a static Luna text view that uses the locked theme tokens, the renderer color contract, and the resize/accessibility invariants established in Phase 2D.
