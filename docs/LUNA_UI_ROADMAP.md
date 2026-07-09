@@ -676,63 +676,70 @@ Phase 3 should not begin until Phase 2D/2D.1/2D.2/2D.3 and Phase 2E are complete
 
 ### Phase 3A — Static Accessible Text View
 
-Goal: draw and expose text semantically.
+**Status:** complete.
+
+Goal: establish the first editor-shaped Luna widget before editing exists.
+
+Scope completed:
+
+- `LunaStaticTextDocument`;
+- stable plain-text line model;
+- UTF-8 byte ranges for lines;
+- `LunaStaticTextView` widget;
+- editor background from theme tokens;
+- gutter background from theme tokens;
+- current-line row paint geometry from theme tokens;
+- gutter/text viewport layout;
+- bounded visible line text using Luna's debug-font metrics;
+- accessibility text-area root node;
+- visible text-run accessibility children;
+- line hit testing through stable line node IDs;
+- LunaUITestApp static editor-surface proof.
+
+Explicit non-goals for Phase 3A:
+
+- no editable input yet;
+- no real caret yet;
+- no mutable selection yet;
+- no scrollbars yet;
+- no syntax highlighting yet;
+- no HarfBuzz glyph-run display-list command yet.
+
+Definition of done:
+
+```text
+static text layout -> draw bounds -> hit-test bounds -> accessibility ranges
+```
+
+### Phase 3B — Caret Geometry and Static Selection Model
+
+**Status:** next.
+
+Goal: add non-editable caret and selection geometry on top of the Phase 3A text surface before mutation/input policy exists.
 
 Scope:
 
-- `LunaTextView`;
-- text content;
-- bounds/layout;
-- visible lines;
-- caret drawing;
-- current line highlight;
-- selection rendering placeholder;
-- accessibility text node;
-- accessibility text ranges;
-- theme-driven text/background/caret/selection colors.
+- caret position model;
+- caret rectangle calculation from line/column;
+- current line derived from caret;
+- static selection range model;
+- selection rectangles across one or more visible lines;
+- click-to-text-position hit calculation without mutating document text;
+- accessibility focused line/range proof.
 
 Demo requirement:
 
-- demo shows a Sublime-like editor panel with text, gutter-like spacing, caret, and theme colors;
-- resize updates text view bounds;
-- accessibility bounds match visual bounds.
+- demo shows a caret and static selection highlight inside the Phase 3A text view;
+- clicking a visible line reports the computed text position without editing the document.
 
 Tests required:
 
-- text view builds display list;
-- caret rect is correct;
-- accessibility node exposes text role/value;
-- theme colors flow into text view;
-- resize updates text view layout.
-
-### Phase 3B — Editable Text Input
-
-Goal: make the text view interactive.
-
-Scope:
-
-- keyboard focus;
-- typing;
-- backspace/delete;
-- enter;
-- arrow keys;
-- click to move caret;
-- basic selection;
-- copy/paste path prepared;
-- text changed event/command;
-- accessibility update after edit.
-
-Demo requirement:
-
-- click text view, type text, move caret, delete text.
-
-Tests required:
-
-- typing mutates text;
-- caret moves;
-- backspace/delete work;
-- click positions caret;
-- accessibility text updates after mutation.
+- caret rect is correct for line/column;
+- current line follows caret position;
+- selection rects clip to visible line bounds;
+- multi-line selections produce one rect per visible touched line;
+- hit testing can map points to line/column positions;
+- accessibility exposes focused line/range state.
 
 ### Phase 3C — Text View Scroll and Viewport
 

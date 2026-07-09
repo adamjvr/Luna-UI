@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 2E and the renderer color-channel fix.
+This document is the working checkpoint after Phase 3A static text-view work.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 2E**.
+Luna UI is through **Phase 3A**.
 
 The engine now has:
 
@@ -22,7 +22,8 @@ The engine now has:
 - responsive modal control layout for narrow viewports;
 - product-neutral visual theme tokens and render-ready style snapshots;
 - demo theme switching for Luna demo blue, demo-only Moth Obsidian, and high-contrast proof;
-- a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter.
+- a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
+- a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children.
 
 ---
 
@@ -107,6 +108,7 @@ The blue highlight should stay mostly out of sight until text selection, focused
 - Phase 2E — Visual style token lockdown: complete.
 - Phase 2E.1 — Product-neutral theme API cleanup: complete.
 - Phase 2E.2 — Renderer color contract and demo palette proof: complete.
+- Phase 3A — Static Accessible Text View: complete.
 
 ---
 
@@ -114,12 +116,11 @@ The blue highlight should stay mostly out of sight until text selection, focused
 
 Luna does not yet have:
 
-- a real text view;
+- editable text input;
 - caret geometry inside a text surface;
 - selection rendering;
 - editable text input;
 - scrolling text viewport;
-- line/gutter layout;
 - command palette / quick panel;
 - find/replace panel;
 - menu bar and dropdown menus;
@@ -131,15 +132,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 3A — Static Accessible Text View
+Phase 3B — Caret Geometry and Static Selection Model
 ```
 
-Phase 3A should build a static Luna text-view primitive that is:
-
-- theme-driven;
-- resize-safe;
-- accessible;
-- backed by explicit text/glyph/layout data;
-- prepared for caret, selection, scrolling, and later editable input.
-
-Do not jump to command palette, menus, tabs, or Moth app bootstrap before this text surface exists.
+Phase 3B should add non-editable caret and selection geometry on top of the Phase 3A static text surface. It should still avoid full editing/input policy until the text-view can prove visual, hit-test, and accessibility geometry for caret/selection states.

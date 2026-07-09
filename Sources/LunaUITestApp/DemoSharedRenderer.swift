@@ -34,6 +34,7 @@ import LunaUI
 /// future accessibility bounds are derived from the same reflowed geometry.
 public struct LunaCPUDemoSceneLayout: Sendable {
     public static let semanticWidgetID: LunaNodeID = "demo.phase1.semantic-widget"
+    public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
     public static let hudID: LunaNodeID = "demo.hud"
     public static let statusID: LunaNodeID = "demo.status"
 
@@ -47,6 +48,10 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 
     public var semanticWidgetBounds: LunaRectI {
         frames.frame(for: Self.semanticWidgetID) ?? LunaRectI(x: 0, y: 0, w: 0, h: 0)
+    }
+
+    public var textViewBounds: LunaRectI {
+        frames.frame(for: Self.textViewID) ?? LunaRectI(x: 0, y: 0, w: 0, h: 0)
     }
 
     public var hudBounds: LunaRectI {
@@ -88,6 +93,11 @@ public struct LunaCPUDemoScene {
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
     private var modalManager = LunaModalOverlayManager()
+
+    /// Phase 3A static editor-surface proof. The demo keeps this read-only so
+    /// the first text-view step proves layout/render/accessibility boundaries
+    /// before we add caret movement, selection mutation, or editing.
+    private var staticTextDocument = LunaStaticTextDocument(text: LunaCPUDemoScene.demoText)
 
     /// Create a new demo scene.
     public init(
@@ -143,6 +153,11 @@ public struct LunaCPUDemoScene {
         // Moth palette before any drawing happens.
         let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
         drawBackground(into: &fb, theme: renderTheme)
+        drawStaticTextViewProof(
+            into: &fb,
+            document: staticTextDocument,
+            theme: renderTheme
+        )
         drawMovingBlock(into: &fb, timeSeconds: t, theme: renderTheme)
         drawSemanticWidgetProof(
             into: &fb,
@@ -292,6 +307,15 @@ public struct LunaCPUDemoScene {
         ).frame(in: context)
         result.set(semanticFrame)
 
+        let textTop = hudHeight + 14
+        let reservedRight = viewport.size.width >= 560 ? panelW + 54 : 18
+        let textW = max(1, viewport.size.width - 18 - reservedRight)
+        let textH = max(1, viewport.size.height - textTop - 56)
+        result.set(
+            id: LunaCPUDemoSceneLayout.textViewID,
+            bounds: LunaRectI(x: 18, y: textTop, w: textW, h: textH)
+        )
+
         let statusY = min(max(semanticFrame.bounds.y + semanticFrame.bounds.h + 12, 120), max(120, viewport.size.height - 28))
         result.set(
             id: LunaCPUDemoSceneLayout.statusID,
@@ -300,6 +324,39 @@ public struct LunaCPUDemoScene {
 
         return LunaCPUDemoSceneLayout(viewport: viewport, frames: result)
     }
+
+    /// Build the Phase 3A static text-view proof for a framebuffer size.
+    public static func staticTextView(
+        for framebufferSize: LunaSizeI,
+        document: LunaStaticTextDocument,
+        theme: LunaTheme = MothDemoTheme.theme
+    ) -> LunaStaticTextView {
+        let layout = Self.layout(for: framebufferSize)
+        return LunaStaticTextView(
+            id: LunaCPUDemoSceneLayout.textViewID,
+            bounds: layout.textViewBounds,
+            document: document,
+            scrollTopLine: 0,
+            currentLineIndex: 3,
+            theme: theme,
+            metrics: .demo,
+            isFocused: false
+        )
+    }
+
+    /// Sample static document for Phase 3A. This is demo data, not editor
+    /// policy; the LunaStaticTextView itself accepts any app-supplied text.
+    public static let demoText = """
+    // Phase 3A: Static Accessible Text View
+    struct LunaProof {
+        let background = "theme.ui.editor.background"
+        let gutter = "theme.ui.editor.gutterBackground"
+        let text = "theme.ui.editor.foreground"
+    }
+
+    // Next phases add caret geometry, selection, scrolling,
+    // editable input, and real glyph runs.
+    """
 
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
     /// path and input path both call this helper, which keeps draw bounds and
@@ -369,6 +426,48 @@ private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
                 p[3] = color.a         // A
             }
         }
+    }
+}
+
+/// Draw the Phase 3A static text-view proof through Luna's text-view widget.
+///
+/// Rect/background/current-line geometry comes from `LunaStaticTextView`'s
+/// display-list output. Glyphs still use the demo 5x7 font until LunaRender
+/// grows backend-neutral text/glyph commands.
+private func drawStaticTextViewProof(
+    into fb: inout LunaFramebuffer,
+    document: LunaStaticTextDocument,
+    theme: LunaTheme
+) {
+    let view = LunaCPUDemoScene.staticTextView(
+        for: LunaSizeI(width: fb.width, height: fb.height),
+        document: document,
+        theme: theme
+    )
+    guard !view.bounds.isEmpty else { return }
+
+    var displayList = LunaDisplayList()
+    view.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let layout = view.layout()
+    for line in layout.visibleLines {
+        drawText5x7Color(
+            into: &fb,
+            x: line.lineNumberBounds.x,
+            y: line.lineNumberBounds.y,
+            text: line.lineNumberText,
+            scale: 1,
+            color: theme.ui.editor.gutterForeground
+        )
+        drawText5x7Color(
+            into: &fb,
+            x: line.visualText.bounds.x,
+            y: line.visualText.bounds.y,
+            text: line.visualText.text,
+            scale: 1,
+            color: theme.ui.editor.foreground
+        )
     }
 }
 

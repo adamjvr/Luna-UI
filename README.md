@@ -260,17 +260,18 @@ The current checkpoint has:
 - product-neutral theme API cleanup completed so Moth-specific names are not part of Luna's reusable public API;
 - demo-only Moth Obsidian theme added inside `LunaUITestApp`, proving applications can supply exact theme tokens without naming the product in the Luna library;
 - renderer color contract fixed so logical RGBA hex colors flow through Luna's framebuffer and SDL presentation path without alpha/channel-order swaps;
-- demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals draw from active theme variables;
+- Phase 3A static accessible text view implemented with read-only document lines, gutter/text viewport layout, current-line paint geometry, visible line text ranges, hit testing, and accessibility text-run children;
+- demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 3A — Static Accessible Text View
+Phase 3B — Caret Geometry and Static Selection Model
 ```
 
-Phase 2E is complete. The next step is to build the first static, resize-safe, accessibility-aware Luna text-view primitive using the locked visual tokens and renderer color contract.
+Phase 3A is complete. The next step is to add non-editable caret and selection geometry on top of the static text surface before editable input policy lands.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
