@@ -92,6 +92,34 @@ public struct LunaStaticTextSelectionRect: Hashable, Sendable {
     }
 }
 
+/// App-supplied text highlight range rendered behind text.
+///
+/// Phase 4B uses this for find-result highlights, but the type is intentionally
+/// generic so later features can use the same text-view overlay path for search,
+/// diagnostics, symbol references, or custom application annotations.
+public struct LunaStaticTextHighlight: Hashable, Sendable {
+    public var range: LunaTextRange
+    public var color: LunaColor
+
+    public init(range: LunaTextRange, color: LunaColor) {
+        self.range = range.normalized
+        self.color = color
+    }
+}
+
+/// Visual rectangle for a generic text highlight.
+public struct LunaStaticTextHighlightRect: Hashable, Sendable {
+    public var range: LunaTextRange
+    public var color: LunaColor
+    public var selectionRect: LunaStaticTextSelectionRect
+
+    public init(range: LunaTextRange, color: LunaColor, selectionRect: LunaStaticTextSelectionRect) {
+        self.range = range.normalized
+        self.color = color
+        self.selectionRect = selectionRect
+    }
+}
+
 /// Text-coordinate hit result from a point inside a static text view.
 public struct LunaStaticTextHitResult: Hashable, Sendable {
     public var nodeID: LunaNodeID
@@ -422,6 +450,9 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     /// current static viewport or no caret was supplied.
     public var caretRect: LunaRectI?
 
+    /// Generic highlighted text geometry rendered beneath selection/caret.
+    public var highlightRects: [LunaStaticTextHighlightRect]
+
     /// Phase 3B static selection geometry. Each rectangle is already clipped to
     /// the visible text viewport for its line.
     public var selectionRects: [LunaStaticTextSelectionRect]
@@ -440,6 +471,7 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         scrollbarLaneBounds: LunaRectI? = nil,
         scrollbarThumbBounds: LunaRectI? = nil,
         caretRect: LunaRectI? = nil,
+        highlightRects: [LunaStaticTextHighlightRect] = [],
         selectionRects: [LunaStaticTextSelectionRect] = []
     ) {
         self.bounds = bounds
@@ -458,6 +490,7 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         self.scrollbarLaneBounds = scrollbarLaneBounds ?? LunaRectI(x: bounds.x + max(0, bounds.w), y: bounds.y, w: 0, h: bounds.h)
         self.scrollbarThumbBounds = scrollbarThumbBounds
         self.caretRect = caretRect
+        self.highlightRects = highlightRects
         self.selectionRects = selectionRects
     }
 }
@@ -490,6 +523,9 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     /// Optional static selection state introduced in Phase 3B.
     public var selection: LunaStaticTextSelection?
 
+    /// Generic app-supplied highlighted ranges introduced in Phase 4B.
+    public var highlights: [LunaStaticTextHighlight]
+
     public init(
         id: LunaNodeID,
         bounds: LunaRectI,
@@ -501,7 +537,8 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         isFocused: Bool = false,
         isEditable: Bool = false,
         caret: LunaStaticTextCaret? = nil,
-        selection: LunaStaticTextSelection? = nil
+        selection: LunaStaticTextSelection? = nil,
+        highlights: [LunaStaticTextHighlight] = []
     ) {
         self.id = id
         self.bounds = bounds
@@ -518,6 +555,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         } else {
             self.selection = nil
         }
+        self.highlights = highlights.map { LunaStaticTextHighlight(range: document.clampedRange($0.range), color: $0.color) }
     }
 
     public var lineNodeIDPrefix: LunaNodeID { id.child("line") }
@@ -640,6 +678,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             endLineIndexExclusive: firstLine + visible.count
         )
         let visibleTextRange = Self.visibleTextRange(for: visible, document: document)
+        let computedHighlightRects = self.highlightRects(visibleLines: visible)
         let computedSelectionRects = self.selection.map { self.selectionRects(for: $0, visibleLines: visible) } ?? []
         let computedCaretRect = self.caret.flatMap { self.caretRect(for: $0, visibleLines: visible) }
 
@@ -657,6 +696,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             scrollbarLaneBounds: scrollbarLaneBounds,
             scrollbarThumbBounds: scrollbarThumbBounds,
             caretRect: computedCaretRect,
+            highlightRects: computedHighlightRects,
             selectionRects: computedSelectionRects
         )
     }
@@ -735,6 +775,19 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         guard let visible = lines.first(where: { $0.line.index == location.lineIndex }) else { return nil }
         let x = clampedTextX(forUTF8Column: location.utf8Column, in: visible)
         return LunaRectI(x: x, y: visible.rowBounds.y, w: max(1, metrics.glyphMetrics.scale), h: visible.rowBounds.h)
+    }
+
+    /// Calculate clipped visible rectangles for all generic app-supplied highlights.
+    public func highlightRects(visibleLines: [LunaStaticTextVisibleLine]? = nil) -> [LunaStaticTextHighlightRect] {
+        let lines = visibleLines ?? layout().visibleLines
+        var rects: [LunaStaticTextHighlightRect] = []
+        for highlight in highlights {
+            let selection = LunaStaticTextSelection(range: document.clampedRange(highlight.range))
+            for rect in selectionRects(for: selection, visibleLines: lines) {
+                rects.append(LunaStaticTextHighlightRect(range: highlight.range, color: highlight.color, selectionRect: rect))
+            }
+        }
+        return rects
     }
 
     /// Calculate clipped visible selection rectangles for the supplied selection.
@@ -825,6 +878,10 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
 
         for line in layout.visibleLines where line.isCurrentLine {
             displayList.append(.rect(line.rowBounds, style.currentLineBackground))
+        }
+
+        for highlightRect in layout.highlightRects {
+            displayList.append(.rect(highlightRect.selectionRect.bounds, highlightRect.color.asRenderColor))
         }
 
         for selectionRect in layout.selectionRects {

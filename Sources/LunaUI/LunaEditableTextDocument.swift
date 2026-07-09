@@ -255,6 +255,18 @@ public struct LunaEditableTextState: Hashable, Sendable {
         insertText("\n")
     }
 
+    /// Replace an explicit text range and update caret/selection/revision state.
+    ///
+    /// Phase 4B uses this for find/replace. Keeping the operation on the editable
+    /// state rather than mutating `document` directly preserves the single place
+    /// that advances edit revisions and collapses selections after text changes.
+    @discardableResult
+    public mutating func replaceRange(_ range: LunaTextRange, with replacement: String) -> LunaTextEditResult {
+        let result = document.replace(range, with: replacement)
+        apply(result)
+        return result
+    }
+
     @discardableResult
     public mutating func deleteBackward() -> LunaTextEditResult {
         let result = document.deleteBackward(caret: caret, selection: selection)

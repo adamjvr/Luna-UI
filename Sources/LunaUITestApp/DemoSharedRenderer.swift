@@ -40,6 +40,7 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let statusID: LunaNodeID = "demo.status"
     public static let proofPanelID: LunaNodeID = "demo.proof-panel"
     public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
+    public static let findPanelID: LunaNodeID = "demo.phase4b.find-panel"
 
     public var viewport: LunaViewport
     public var frames: LunaLayoutResult
@@ -95,7 +96,7 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Ready. Click editor to type, Ctrl+P opens palette, Phase 1 panel opens notice."
+    private var lastInteractionStatus: String = "Ready. Click/type editor, Ctrl+P opens palette, Ctrl+F opens find/replace."
 
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
@@ -116,6 +117,11 @@ public struct LunaCPUDemoScene {
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
     /// supplies the generic widget/model, while the demo supplies its commands.
     private var quickPanelState: LunaQuickPanelState? = nil
+
+    /// Phase 4B generic find/replace panel state. The state lives in the demo
+    /// because the app owns when a find UI is open and which document it targets;
+    /// LunaUI owns the reusable panel/search primitives.
+    private var findPanelState: LunaFindPanelState? = nil
 
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
@@ -203,6 +209,7 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
+            highlights: findHighlights(theme: renderTheme),
             theme: renderTheme
         )
         drawMovingBlock(
@@ -231,6 +238,11 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             lineCount: staticTextDocument.lineCount,
             editRevision: editableTextState.editRevision,
+            theme: renderTheme
+        )
+        drawActiveFindPanelOverlay(
+            into: &fb,
+            findPanel: activeFindPanel(framebufferSize: LunaSizeI(width: fb.width, height: fb.height), theme: renderTheme),
             theme: renderTheme
         )
         drawActiveQuickPanelOverlay(
@@ -304,6 +316,56 @@ public struct LunaCPUDemoScene {
                 // The quick panel consumes backdrop/panel clicks while active.
                 quickPanelState = hit == panel.id ? nil : state
                 lastInteractionStatus = hit == panel.id ? "Phase 4A command palette dismissed" : "Phase 4A command palette pointer hit: \(hit.rawValue)"
+                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
+            }
+        }
+
+        if var state = findPanelState {
+            let panel = Self.findPanel(for: framebufferSize, state: state, theme: theme)
+            if event.phase == .down, event.button == .primary, let hit = panel.hitTest(event.location) {
+                switch hit {
+                case panel.queryFieldNodeID:
+                    state.focusedField = .query
+                    findPanelState = state
+                    lastInteractionStatus = "Phase 4B find field focused"
+                case panel.replaceFieldNodeID:
+                    state.focusedField = .replace
+                    findPanelState = state
+                    lastInteractionStatus = "Phase 4B replace field focused"
+                case panel.caseToggleNodeID:
+                    state.toggleCaseSensitive()
+                    state.refreshResults(in: staticTextDocument)
+                    findPanelState = state
+                    syncSelectionToFindMatch(framebufferSize: framebufferSize)
+                    lastInteractionStatus = "Phase 4B case-sensitive \(state.options.isCaseSensitive ? "on" : "off"); \(state.results.statusText)"
+                case panel.wholeWordToggleNodeID:
+                    state.toggleWholeWord()
+                    state.refreshResults(in: staticTextDocument)
+                    findPanelState = state
+                    syncSelectionToFindMatch(framebufferSize: framebufferSize)
+                    lastInteractionStatus = "Phase 4B whole-word \(state.options.matchesWholeWord ? "on" : "off"); \(state.results.statusText)"
+                case panel.regexToggleNodeID:
+                    state.toggleRegex()
+                    state.refreshResults(in: staticTextDocument)
+                    findPanelState = state
+                    syncSelectionToFindMatch(framebufferSize: framebufferSize)
+                    lastInteractionStatus = "Phase 4B regex \(state.options.usesRegularExpression ? "on" : "off"); \(state.results.statusText)"
+                case panel.previousButtonNodeID:
+                    findPanelState = state
+                    performFindPanelAction(.findPrevious, framebufferSize: framebufferSize)
+                case panel.nextButtonNodeID:
+                    findPanelState = state
+                    performFindPanelAction(.findNext, framebufferSize: framebufferSize)
+                case panel.replaceButtonNodeID:
+                    findPanelState = state
+                    performFindPanelAction(.replaceCurrent, framebufferSize: framebufferSize)
+                case panel.replaceAllButtonNodeID:
+                    findPanelState = state
+                    performFindPanelAction(.replaceAll, framebufferSize: framebufferSize)
+                default:
+                    findPanelState = state
+                    lastInteractionStatus = "Phase 4B find panel pointer hit: \(hit.rawValue)"
+                }
                 return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
             }
         }
@@ -382,6 +444,14 @@ public struct LunaCPUDemoScene {
             return result.didConsumeEvent
         }
 
+        if var state = findPanelState {
+            let result = state.handleTextInput(event, document: staticTextDocument)
+            findPanelState = state
+            syncSelectionToFindMatch(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 4B find: \(state.queryText.debugDescription), \(state.results.statusText)"
+            return result.didConsumeEvent
+        }
+
         let result = editableTextState.insertText(event.text)
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         lastInteractionStatus = "Phase 3D inserted \(event.text.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
@@ -428,9 +498,31 @@ public struct LunaCPUDemoScene {
             if result.didConsumeEvent { return true }
         }
 
+        if var state = findPanelState {
+            let result = state.handleKeyboardEvent(event, document: staticTextDocument)
+            findPanelState = state
+            if let action = result.requestedAction {
+                performFindPanelAction(action, framebufferSize: framebufferSize)
+            } else if result.didDismiss {
+                findPanelState = nil
+                editableTextState.selection = nil
+                lastInteractionStatus = "Phase 4B find panel dismissed"
+            } else if result.didChangeState {
+                syncSelectionToFindMatch(framebufferSize: framebufferSize)
+                let focused = state.focusedField == .query ? "find" : "replace"
+                lastInteractionStatus = "Phase 4B \(focused): \(state.queryText.debugDescription), \(state.results.statusText)"
+            }
+            if result.didConsumeEvent { return true }
+        }
+
         if isCommandPaletteShortcut(event) {
             openQuickPanel()
             lastInteractionStatus = "Phase 4A command palette opened; type to filter, Enter runs, Esc closes"
+            return true
+        }
+
+        if isFindPanelShortcut(event) {
+            openFindPanel(framebufferSize: framebufferSize)
             return true
         }
 
@@ -505,6 +597,15 @@ public struct LunaCPUDemoScene {
         }
     }
 
+    private func isFindPanelShortcut(_ event: LunaKeyboardEvent) -> Bool {
+        switch event.key {
+        case .other(let key):
+            return key.lowercased() == "f" && (event.modifiers.control || event.modifiers.command)
+        default:
+            return false
+        }
+    }
+
     private mutating func openQuickPanel() {
         quickPanelState = LunaQuickPanelState(items: Self.demoQuickPanelItems)
     }
@@ -512,6 +613,69 @@ public struct LunaCPUDemoScene {
     private func activeQuickPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaQuickPanel? {
         guard let state = quickPanelState else { return nil }
         return Self.quickPanel(for: framebufferSize, state: state, theme: theme)
+    }
+
+    private mutating func openFindPanel(framebufferSize: LunaSizeI) {
+        quickPanelState = nil
+        var state = findPanelState ?? LunaFindPanelState()
+        state.refreshResults(in: staticTextDocument, preservingSelectionNear: staticTextCaret.location)
+        findPanelState = state
+        syncSelectionToFindMatch(framebufferSize: framebufferSize)
+        lastInteractionStatus = "Phase 4B find panel opened; type query, Enter next, Shift+Enter previous, Tab replace, Esc closes"
+    }
+
+    private func activeFindPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaFindPanel? {
+        guard let state = findPanelState else { return nil }
+        return Self.findPanel(for: framebufferSize, state: state, theme: theme)
+    }
+
+    private mutating func syncSelectionToFindMatch(framebufferSize: LunaSizeI) {
+        guard let match = findPanelState?.results.selectedMatch else { return }
+        editableTextState.selection = LunaStaticTextSelection(range: match.range)
+        editableTextState.caret = LunaStaticTextCaret(location: match.range.normalized.focus)
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+    }
+
+    private func findHighlights(theme: LunaTheme) -> [LunaStaticTextHighlight] {
+        guard let state = findPanelState else { return [] }
+        let base = theme.ui.textField.selectionBackground
+        let soft = LunaColor(r: base.r, g: base.g, b: base.b, a: min(base.a, 96))
+        let strong = theme.selection
+        return state.results.matches.map { match in
+            let isCurrent = state.results.selectedMatchIndex == match.index
+            return LunaStaticTextHighlight(range: match.range, color: isCurrent ? strong : soft)
+        }
+    }
+
+    private mutating func performFindPanelAction(_ action: LunaFindPanelAction, framebufferSize: LunaSizeI) {
+        guard var state = findPanelState else { return }
+        switch action {
+        case .findNext:
+            state.selectNext()
+            findPanelState = state
+            syncSelectionToFindMatch(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 4B find next: \(state.results.statusText)"
+        case .findPrevious:
+            state.selectPrevious()
+            findPanelState = state
+            syncSelectionToFindMatch(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 4B find previous: \(state.results.statusText)"
+        case .replaceCurrent:
+            if let result = LunaFindReplaceController.replaceCurrent(state: &state, text: &editableTextState) {
+                findPanelState = state
+                syncSelectionToFindMatch(framebufferSize: framebufferSize)
+                lastInteractionStatus = "Phase 4B replaced match; caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); \(state.results.statusText)"
+            } else {
+                findPanelState = state
+                lastInteractionStatus = "Phase 4B replace: no current match"
+            }
+        case .replaceAll:
+            let count = LunaFindReplaceController.replaceAll(state: &state, text: &editableTextState)
+            findPanelState = state
+            editableTextState.selection = nil
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 4B replace all: \(count) replacement(s)"
+        }
     }
 
     private mutating func performQuickPanelCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
@@ -541,6 +705,8 @@ public struct LunaCPUDemoScene {
             let result = editableTextState.insertText("quick-panel")
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
             lastInteractionStatus = "Phase 4A inserted sample text; caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column)"
+        case "luna.demo.find.open":
+            openFindPanel(framebufferSize: framebufferSize)
         default:
             lastInteractionStatus = "Phase 4A ran command: \(command.rawValue)"
         }
@@ -695,6 +861,7 @@ public struct LunaCPUDemoScene {
         scrollTopLine: Int = 0,
         caret: LunaStaticTextCaret? = nil,
         selection: LunaStaticTextSelection? = nil,
+        highlights: [LunaStaticTextHighlight] = [],
         theme: LunaTheme = MothDemoTheme.theme
     ) -> LunaStaticTextView {
         let layout = Self.layout(for: framebufferSize)
@@ -709,7 +876,26 @@ public struct LunaCPUDemoScene {
             isFocused: caret != nil,
             isEditable: true,
             caret: caret,
-            selection: selection
+            selection: selection,
+            highlights: highlights
+        )
+    }
+
+    /// Build the Phase 4B generic find/replace panel proof.
+    public static func findPanel(
+        for framebufferSize: LunaSizeI,
+        state: LunaFindPanelState,
+        theme: LunaTheme = MothDemoTheme.theme
+    ) -> LunaFindPanel {
+        LunaFindPanel(
+            id: LunaCPUDemoSceneLayout.findPanelID,
+            bounds: LunaRectI(x: 0, y: 0, w: framebufferSize.width, h: framebufferSize.height),
+            title: "Find / Replace",
+            queryPlaceholder: "Find in editor…",
+            replacePlaceholder: "Replace with…",
+            state: state,
+            theme: theme,
+            metrics: .demo
         )
     }
 
@@ -738,6 +924,7 @@ public struct LunaCPUDemoScene {
         LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["Goto"]),
         LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["Goto"]),
         LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
+        LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
     ]
 
     public static let demoQuickPanelItems: [LunaQuickPanelItem] = demoCommandDescriptors.map(LunaQuickPanelItem.init(command:))
@@ -745,9 +932,9 @@ public struct LunaCPUDemoScene {
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
     public static let demoText = """
-    // Phase 4A: Command Palette / Quick Panel Foundation
+    // Phase 4B: Generic Find / Replace Panel Foundation
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
-    // and Right edit; Ctrl+P opens the generic Luna quick panel.
+    // and Right edit; Ctrl+P opens the quick panel; Ctrl+F opens find/replace.
     struct LunaProof {
         let background = "theme.ui.editor.background"
         let gutter = "theme.ui.editor.gutterBackground"
@@ -864,6 +1051,7 @@ private func drawStaticTextViewProof(
     scrollTopLine: Int,
     caret: LunaStaticTextCaret?,
     selection: LunaStaticTextSelection?,
+    highlights: [LunaStaticTextHighlight],
     theme: LunaTheme
 ) {
     let view = LunaCPUDemoScene.staticTextView(
@@ -872,6 +1060,7 @@ private func drawStaticTextViewProof(
         scrollTopLine: scrollTopLine,
         caret: caret,
         selection: selection,
+        highlights: highlights,
         theme: theme
     )
     guard !view.bounds.isEmpty else { return }
@@ -1003,6 +1192,74 @@ private func drawSemanticWidgetProof(
 
 }
 
+
+/// Draw the active Phase 4B find/replace panel through Luna's generic panel widget.
+private func drawActiveFindPanelOverlay(
+    into fb: inout LunaFramebuffer,
+    findPanel: LunaFindPanel?,
+    theme: LunaTheme
+) {
+    guard let findPanel else { return }
+
+    var displayList = LunaDisplayList()
+    findPanel.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let text = findPanel.textLayout()
+    drawText5x7Color(
+        into: &fb,
+        x: text.title.bounds.x,
+        y: text.title.bounds.y,
+        text: text.title.text,
+        scale: findPanel.metrics.titleScale,
+        color: theme.ui.panel.titleForeground
+    )
+
+    let queryColor = findPanel.state.queryText.isEmpty
+        ? theme.ui.textField.placeholderForeground
+        : theme.ui.textField.foreground
+    drawText5x7Color(
+        into: &fb,
+        x: text.query.bounds.x,
+        y: text.query.bounds.y,
+        text: text.query.text,
+        scale: findPanel.metrics.textScale,
+        color: queryColor
+    )
+
+    let replaceColor = findPanel.state.replaceText.isEmpty
+        ? theme.ui.textField.placeholderForeground
+        : theme.ui.textField.foreground
+    drawText5x7Color(
+        into: &fb,
+        x: text.replace.bounds.x,
+        y: text.replace.bounds.y,
+        text: text.replace.text,
+        scale: findPanel.metrics.textScale,
+        color: replaceColor
+    )
+
+    drawText5x7Color(
+        into: &fb,
+        x: text.status.bounds.x,
+        y: text.status.bounds.y,
+        text: text.status.text,
+        scale: findPanel.metrics.textScale,
+        color: theme.ui.panel.mutedForeground
+    )
+
+    for button in text.buttons {
+        let color = button.isSelected ? theme.ui.controlColors.selectedForeground : theme.ui.controlColors.foreground
+        drawText5x7Color(
+            into: &fb,
+            x: button.bounds.x + 7,
+            y: button.bounds.y + 7,
+            text: button.label,
+            scale: findPanel.metrics.textScale,
+            color: color
+        )
+    }
+}
 
 /// Draw the active Phase 4A quick-panel overlay through Luna's generic quick-panel widget.
 private func drawActiveQuickPanelOverlay(
@@ -1196,7 +1453,7 @@ private func drawHUD(
 
     let title = "Luna-UI Test App"
     let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
-    let keys = "Ctrl+P palette   1/2/3 themes   click/type editor   Enter/Backspace/Delete   arrows/Page/Home/End scroll"
+    let keys = "Ctrl+P palette   Ctrl+F find   1/2/3 themes   click/type editor   Enter/Backspace/Delete   arrows/Page/Home/End scroll"
 
     drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
 

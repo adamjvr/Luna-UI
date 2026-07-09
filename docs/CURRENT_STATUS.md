@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4A.1 LunaUITestApp demo layout cleanup.
+This document is the working checkpoint after Phase 4B generic find / replace panel foundation.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4A**.
+Luna UI is through **Phase 4B**.
 
 The engine now has:
 
@@ -28,7 +28,8 @@ The engine now has:
 - logical-line scroll state, visible line ranges, content height, scrollbar/minimap-lane placeholder geometry, scrolled hit testing, and accessibility visible text range metadata;
 - a small editable text document/state layer with insertion, newline, backspace/delete, selection replacement, caret movement, host text-input events, and editable accessibility metadata;
 - a command palette / quick-panel foundation with filtering, keyboard navigation, command activation, theme-driven rows, pointer selection, and accessibility nodes;
-- a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor.
+- a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor;
+- a generic find / replace foundation with product-neutral query/options/results, literal and regex scanning, whole-word/case toggles, text-view match highlights, replace-current/replace-all operations, keyboard/pointer interaction, theme-driven panel visuals, and accessibility nodes.
 
 ---
 
@@ -119,6 +120,7 @@ The blue highlight should stay mostly out of sight until text selection, focused
 - Phase 3D — Editable Text Input Foundation: complete.
 - Phase 4A — Command Palette / Quick Panel: complete.
 - Phase 4A.1 — LunaUITestApp Demo Layout Cleanup: complete.
+- Phase 4B — Generic Find / Replace Panel Foundation: complete.
 
 ---
 
@@ -126,7 +128,6 @@ The blue highlight should stay mostly out of sight until text selection, focused
 
 Luna does not yet have:
 
-- find/replace panel;
 - menu bar and dropdown menus;
 - tabs, sidebar, status bar, or minimap;
 - the actual Moth Text application target.
@@ -136,7 +137,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4B — Find / Replace Panel
+Phase 4C — Menu Bar and Dropdown Menus
 ```
 
-Phase 4B should add the first Sublime-style bottom find / replace panel on top of the existing text-view, quick-panel, modal, bounded text, theme, keyboard, accessibility, and cleaned-up demo layout foundation.
+Phase 4C should add a reusable Luna menu bar/dropdown/menu-row foundation. Moth can later feed it Sublime-compatible menu items, shortcuts, disabled states, toggles, and submenus without baking Moth product naming into Luna's library API.

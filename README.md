@@ -266,6 +266,7 @@ The current checkpoint has:
 - Phase 3D editable text-input foundation implemented with a small mutable document/state layer, committed text-input events, insertion/newline/backspace/delete, selection replacement, caret movement, and editable accessibility metadata;
 - Phase 4A command palette / quick panel foundation implemented with generic Luna quick-panel items, deterministic filtering, query state, selected rows, keyboard navigation, Enter activation, Escape dismissal, pointer row activation, accessibility dialog/list nodes, and a demo command palette opened with Ctrl+P;
 - Phase 4A.1 LunaUITestApp demo layout cleanup completed with a readable header, main editor area, side proof panel, bottom status bar, and constrained moving animation so debug/iteration info no longer stacks over the editor;
+- Phase 4B generic find / replace panel foundation implemented with reusable find query/options/results, literal/regex scanning, whole-word/case toggles, replace-current/replace-all operations, text-view match highlights, keyboard/pointer interaction, theme-driven panel visuals, accessibility nodes, and a demo panel opened with Ctrl+F;
 - demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
@@ -273,10 +274,10 @@ The current checkpoint has:
 The next implementation target is:
 
 ```text
-Phase 4B — Find / Replace Panel
+Phase 4C — Menu Bar and Dropdown Menus
 ```
 
-Phase 4A.1 is complete. The next step is to add a Sublime-style find / replace panel on top of the existing quick-panel, modal, text, input, theme, and cleaned-up demo layout foundations.
+Phase 4B is complete. The next step is to add a product-neutral menu bar/dropdown foundation that Moth can later populate with Sublime-compatible menu structure and behavior.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -318,6 +319,15 @@ swift build --target LunaUIPhase3CTests
 swift test --filter LunaUIPhase3CTests
 swift build --target LunaUIPhase3DTests
 swift test --filter LunaUIPhase3DTests
+```
+
+Phase 4 surface tests:
+
+```bash
+swift build --target LunaUIPhase4ATests
+swift test --filter LunaUIPhase4ATests
+swift build --target LunaUIPhase4BTests
+swift test --filter LunaUIPhase4BTests
 ```
 
 Full Linux check:

@@ -279,5 +279,17 @@ let package = Package(
                 "LunaRender",
             ]
         ),
+
+
+        .testTarget(
+            name: "LunaUIPhase4BTests",
+            dependencies: [
+                "LunaAccessibility",
+                "LunaInput",
+                "LunaUI",
+                "LunaTheme",
+                "LunaRender",
+            ]
+        ),
     ]
 )

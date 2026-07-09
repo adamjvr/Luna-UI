@@ -862,19 +862,25 @@ Hard rule preserved:
 LunaUITestApp can be a product-specific visual playground, but Luna library APIs stay product-neutral.
 ```
 
-### Phase 4B — Find / Replace Panel
+### Phase 4B — Generic Find / Replace Panel Foundation
 
-Scope:
+**Status:** complete.
 
-- bottom panel layout;
-- find input;
-- replace input;
-- compact buttons;
-- toggle icons/placeholders;
-- keyboard handling;
-- theme tokens.
+Implemented:
 
-Visual target: Sublime find and find/replace references.
+- product-neutral `LunaFindQuery`, `LunaFindOptions`, `LunaFindMatch`, and `LunaFindResultSet`;
+- deterministic literal scanning with case-sensitive and whole-word options;
+- Foundation-backed regex scanning for the initial regex toggle path;
+- `LunaFindPanelState` with query text, replace text, focused field, options, and selected match;
+- keyboard interaction for Escape, Tab, Backspace, Enter, and Shift+Enter;
+- replace-current and replace-all controller operations over `LunaEditableTextState`;
+- generic app-supplied text-view highlight ranges so find results are not special-cased as selections;
+- bottom find/replace panel layout with query/replace fields, option toggles, previous/next, replace, and replace-all buttons;
+- theme-driven panel, field, button, and highlight colors;
+- accessibility dialog, editable fields, status, buttons, and toggle buttons;
+- `LunaUITestApp` demo opened with Ctrl+F while keeping any Moth-specific demo language outside Luna's public API.
+
+Visual target: Sublime find and find/replace references, implemented as reusable Luna primitives.
 
 ### Phase 4C — Menu Bar and Dropdown Menus
 
