@@ -264,6 +264,7 @@ The current checkpoint has:
 - Phase 3B caret geometry and static selection implemented with stable text locations, caret rectangles, selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
 - Phase 3C text-view scrolling and viewport metrics implemented with logical line scroll state, visible line ranges, content height, scrollbar placeholder geometry, scrolled hit testing, and accessibility visible text ranges;
 - Phase 3D editable text-input foundation implemented with a small mutable document/state layer, committed text-input events, insertion/newline/backspace/delete, selection replacement, caret movement, and editable accessibility metadata;
+- Phase 4A command palette / quick panel foundation implemented with generic Luna quick-panel items, deterministic filtering, query state, selected rows, keyboard navigation, Enter activation, Escape dismissal, pointer row activation, accessibility dialog/list nodes, and a demo command palette opened with Ctrl+P;
 - demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
@@ -271,10 +272,10 @@ The current checkpoint has:
 The next implementation target is:
 
 ```text
-Phase 4A — Command Palette / Quick Panel
+Phase 4B — Find / Replace Panel
 ```
 
-Phase 3D is complete. The next step is to add a Sublime-style command palette / quick panel on top of the existing modal, text, input, and theme foundations.
+Phase 4A is complete. The next step is to add a Sublime-style find / replace panel on top of the existing quick-panel, modal, text, input, and theme foundations.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

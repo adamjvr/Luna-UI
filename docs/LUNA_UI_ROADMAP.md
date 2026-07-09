@@ -823,15 +823,21 @@ Explicit non-goals for Phase 3D:
 
 ### Phase 4A — Command Palette / Quick Panel
 
-Scope:
+Status: complete.
 
-- quick panel overlay;
-- filter input;
-- selected row;
-- keyboard navigation;
-- Enter activation;
-- Escape close;
-- accessibility list roles.
+Implemented:
+
+- generic `LunaQuickPanelItem` and command-descriptor item bridge;
+- deterministic query filtering and ranking;
+- quick-panel state with query text and selected row;
+- quick-panel overlay layout;
+- selected row rendering through theme/menu tokens;
+- keyboard navigation with Up/Down/PageUp/PageDown/Home/End;
+- Backspace query editing;
+- Enter activation and Escape close;
+- pointer row activation;
+- accessibility dialog, editable query field, list, and list-item nodes;
+- demo command palette opened with Ctrl+P.
 
 Visual target: Sublime command palette and Goto Anything references.
 

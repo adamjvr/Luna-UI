@@ -176,6 +176,20 @@ public struct LunaSDLInputTranslator {
             return .number(2)
         case SDLK_3.rawValue:
             return .number(3)
+        case 97...122:
+            // SDL lowercase letter keycodes match ASCII on Linux. Keep this raw
+            // normalization inside LunaHostSDL so shortcuts such as Ctrl+P can
+            // reach Luna as platform-neutral .other("p") without leaking SDL
+            // key constants into the demo/editor layer.
+            if let scalar = UnicodeScalar(Int(symRaw)) {
+                return .other(String(scalar))
+            }
+            return nil
+        case 65...90:
+            if let scalar = UnicodeScalar(Int(symRaw + 32)) {
+                return .other(String(scalar))
+            }
+            return nil
         default:
             return nil
         }

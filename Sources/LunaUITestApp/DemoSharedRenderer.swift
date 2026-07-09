@@ -19,6 +19,7 @@
 //
 
 import Foundation
+import LunaCommands
 import LunaCore
 import LunaLayout
 import LunaRender
@@ -37,6 +38,7 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
     public static let hudID: LunaNodeID = "demo.hud"
     public static let statusID: LunaNodeID = "demo.status"
+    public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
 
     public var viewport: LunaViewport
     public var frames: LunaLayoutResult
@@ -105,6 +107,10 @@ public struct LunaCPUDemoScene {
     /// Phase 3C scroll state. This remains a logical line viewport offset;
     /// pixel-fractional scrolling comes later.
     private var staticTextScroll = LunaStaticTextScrollState(scrollTopLine: 0)
+
+    /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
+    /// supplies the generic widget/model, while the demo supplies its commands.
+    private var quickPanelState: LunaQuickPanelState? = nil
 
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
@@ -200,6 +206,11 @@ public struct LunaCPUDemoScene {
             theme: renderTheme
         )
         drawHUD(into: &fb, timeSeconds: t, frameIndex: frameIndex, theme: renderTheme)
+        drawActiveQuickPanelOverlay(
+            into: &fb,
+            quickPanel: activeQuickPanel(framebufferSize: LunaSizeI(width: fb.width, height: fb.height), theme: renderTheme),
+            theme: renderTheme
+        )
         drawActiveModalOverlay(into: &fb, manager: modalManager)
     }
 
@@ -237,6 +248,36 @@ public struct LunaCPUDemoScene {
                     requestedCommand: modalResult.requestedCommand,
                     announcementTexts: context.announcements.map(\.text)
                 )
+            }
+        }
+
+        if var state = quickPanelState {
+            let panel = Self.quickPanel(
+                for: framebufferSize,
+                state: state,
+                theme: theme
+            )
+            if event.phase == .down, event.button == .primary, let hit = panel.hitTest(event.location) {
+                if let rowIndex = panel.rowIndex(for: hit), let row = panel.layout().rows.first(where: { $0.index == rowIndex }) {
+                    let result = state.selectOriginalIndex(row.match.originalIndex)
+                    quickPanelState = nil
+                    if let command = result.requestedCommand {
+                        performQuickPanelCommand(command, framebufferSize: framebufferSize)
+                    } else if let item = result.selectedItem {
+                        lastInteractionStatus = "Phase 4A selected quick panel item: \(item.title)"
+                    }
+                    return LunaPointerActivationResult(
+                        event: event,
+                        hitNodeID: hit,
+                        requestedCommand: result.requestedCommand,
+                        announcementTexts: ["Command palette selected"]
+                    )
+                }
+
+                // The quick panel consumes backdrop/panel clicks while active.
+                quickPanelState = hit == panel.id ? nil : state
+                lastInteractionStatus = hit == panel.id ? "Phase 4A command palette dismissed" : "Phase 4A command palette pointer hit: \(hit.rawValue)"
+                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
             }
         }
 
@@ -307,6 +348,13 @@ public struct LunaCPUDemoScene {
     @discardableResult
     public mutating func handleTextInput(_ event: LunaTextInputEvent, framebufferSize: LunaSizeI) -> Bool {
         guard !event.text.isEmpty else { return false }
+        if var state = quickPanelState {
+            let result = state.handleTextInput(event)
+            quickPanelState = state
+            lastInteractionStatus = "Phase 4A palette query: \(state.query.debugDescription) (\(state.matches.count) matches)"
+            return result.didConsumeEvent
+        }
+
         let result = editableTextState.insertText(event.text)
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         lastInteractionStatus = "Phase 3D inserted \(event.text.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
@@ -330,6 +378,33 @@ public struct LunaCPUDemoScene {
             }
 
             if result.didConsumeEvent { return true }
+        }
+
+        if var state = quickPanelState {
+            let result = state.handleKeyboardEvent(event)
+            if result.didDismiss {
+                quickPanelState = nil
+                if let command = result.requestedCommand {
+                    performQuickPanelCommand(command, framebufferSize: framebufferSize)
+                } else if let item = result.selectedItem {
+                    lastInteractionStatus = "Phase 4A selected quick panel item: \(item.title)"
+                } else {
+                    lastInteractionStatus = "Phase 4A command palette dismissed"
+                }
+            } else {
+                quickPanelState = state
+                if result.didChangeState {
+                    let selectedTitle = state.selectedMatch?.item.title ?? "none"
+                    lastInteractionStatus = "Phase 4A palette query: \(state.query.debugDescription), selected: \(selectedTitle)"
+                }
+            }
+            if result.didConsumeEvent { return true }
+        }
+
+        if isCommandPaletteShortcut(event) {
+            openQuickPanel()
+            lastInteractionStatus = "Phase 4A command palette opened; type to filter, Enter runs, Esc closes"
+            return true
         }
 
         switch event.key {
@@ -391,6 +466,56 @@ public struct LunaCPUDemoScene {
             return true
         default:
             return false
+        }
+    }
+
+    private func isCommandPaletteShortcut(_ event: LunaKeyboardEvent) -> Bool {
+        switch event.key {
+        case .other(let key):
+            return key.lowercased() == "p" && (event.modifiers.control || event.modifiers.command)
+        default:
+            return false
+        }
+    }
+
+    private mutating func openQuickPanel() {
+        quickPanelState = LunaQuickPanelState(items: Self.demoQuickPanelItems)
+    }
+
+    private func activeQuickPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaQuickPanel? {
+        guard let state = quickPanelState else { return nil }
+        return Self.quickPanel(for: framebufferSize, state: state, theme: theme)
+    }
+
+    private mutating func performQuickPanelCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
+        switch command.rawValue {
+        case "luna.demo.theme.blue":
+            setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
+        case "luna.demo.theme.moth":
+            setTheme(MothDemoTheme.theme, framebufferSize: framebufferSize)
+        case "luna.demo.theme.highContrast":
+            setTheme(.highContrastProof, framebufferSize: framebufferSize)
+        case "luna.demo.notice":
+            var context = LunaUIContext()
+            context.openNotice(
+                LunaNoticeRequest(
+                    id: "demo.phase4a.notice",
+                    title: "Phase 4A Command Palette",
+                    message: "The command palette is a generic Luna quick panel. The demo supplies these commands; LunaUI owns filtering, layout, theming, input, and accessibility."
+                )
+            )
+            modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
+            lastInteractionStatus = "Phase 4A ran command: Show Demo Notice"
+        case "luna.demo.scroll.top":
+            setStaticTextScrollTopLine(0, framebufferSize: framebufferSize, reason: "quick panel top")
+        case "luna.demo.scroll.end":
+            setStaticTextScrollTopLine(Int.max, framebufferSize: framebufferSize, reason: "quick panel end")
+        case "luna.demo.insert.sample":
+            let result = editableTextState.insertText("quick-panel")
+            ensureEditableCaretVisible(framebufferSize: framebufferSize)
+            lastInteractionStatus = "Phase 4A inserted sample text; caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column)"
+        default:
+            lastInteractionStatus = "Phase 4A ran command: \(command.rawValue)"
         }
     }
 
@@ -525,12 +650,41 @@ public struct LunaCPUDemoScene {
         )
     }
 
+    /// Build the Phase 4A command-palette / quick-panel proof.
+    public static func quickPanel(
+        for framebufferSize: LunaSizeI,
+        state: LunaQuickPanelState,
+        theme: LunaTheme = MothDemoTheme.theme
+    ) -> LunaQuickPanel {
+        LunaQuickPanel(
+            id: LunaCPUDemoSceneLayout.quickPanelID,
+            bounds: LunaRectI(x: 0, y: 0, w: framebufferSize.width, h: framebufferSize.height),
+            title: "Command Palette",
+            placeholder: "Type a command…",
+            state: state,
+            theme: theme,
+            metrics: .demo
+        )
+    }
+
+    public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
+        LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Tools", "Demo"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: LunaKeyEquivalent("1"), menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: LunaKeyEquivalent("2"), menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: LunaKeyEquivalent("3"), menuPath: ["View", "Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["Goto"]),
+        LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["Goto"]),
+        LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
+    ]
+
+    public static let demoQuickPanelItems: [LunaQuickPanelItem] = demoCommandDescriptors.map(LunaQuickPanelItem.init(command:))
+
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
     public static let demoText = """
-    // Phase 3D: Editable Text Input Foundation
+    // Phase 4A: Command Palette / Quick Panel Foundation
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
-    // and Right now mutate or move caret state through Luna's neutral input path.
+    // and Right edit; Ctrl+P opens the generic Luna quick panel.
     struct LunaProof {
         let background = "theme.ui.editor.background"
         let gutter = "theme.ui.editor.gutterBackground"
@@ -791,6 +945,75 @@ private func drawSemanticWidgetProof(
     }
 }
 
+
+/// Draw the active Phase 4A quick-panel overlay through Luna's generic quick-panel widget.
+private func drawActiveQuickPanelOverlay(
+    into fb: inout LunaFramebuffer,
+    quickPanel: LunaQuickPanel?,
+    theme: LunaTheme
+) {
+    guard let quickPanel else { return }
+
+    var displayList = LunaDisplayList()
+    quickPanel.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let text = quickPanel.textLayout()
+    drawText5x7Color(
+        into: &fb,
+        x: text.title.bounds.x,
+        y: text.title.bounds.y,
+        text: text.title.text,
+        scale: quickPanel.metrics.titleScale,
+        color: theme.ui.panel.titleForeground
+    )
+
+    let queryColor = quickPanel.state.query.isEmpty
+        ? theme.ui.textField.placeholderForeground
+        : theme.ui.textField.foreground
+    drawText5x7Color(
+        into: &fb,
+        x: text.query.bounds.x,
+        y: text.query.bounds.y,
+        text: text.query.text,
+        scale: quickPanel.metrics.textScale,
+        color: queryColor
+    )
+
+    for row in text.rows {
+        let titleColor = row.isSelected ? theme.ui.menu.rowHoveredForeground : theme.ui.menu.rowForeground
+        let subtitleColor = row.isSelected ? theme.ui.menu.rowHoveredForeground : theme.ui.menu.rowMutedForeground
+        drawText5x7Color(
+            into: &fb,
+            x: row.title.bounds.x,
+            y: row.title.bounds.y,
+            text: row.title.text,
+            scale: quickPanel.metrics.textScale,
+            color: titleColor
+        )
+        if let subtitle = row.subtitle {
+            drawText5x7Color(
+                into: &fb,
+                x: subtitle.bounds.x,
+                y: subtitle.bounds.y,
+                text: subtitle.text,
+                scale: quickPanel.metrics.textScale,
+                color: subtitleColor
+            )
+        }
+    }
+
+    if let empty = text.emptyState {
+        drawText5x7Color(
+            into: &fb,
+            x: empty.bounds.x,
+            y: empty.bounds.y,
+            text: empty.text,
+            scale: quickPanel.metrics.textScale,
+            color: theme.ui.panel.mutedForeground
+        )
+    }
+}
 
 /// Draw the active Phase 2 modal overlay through Luna's modal/display-list path.
 private func drawActiveModalOverlay(

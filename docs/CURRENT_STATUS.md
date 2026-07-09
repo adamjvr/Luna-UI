@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 3D editable text-input foundation work.
+This document is the working checkpoint after Phase 4A command palette / quick-panel foundation work.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 3D**.
+Luna UI is through **Phase 4A**.
 
 The engine now has:
 
@@ -115,6 +115,7 @@ The blue highlight should stay mostly out of sight until text selection, focused
 - Phase 3B — Caret Geometry and Static Selection Model: complete.
 - Phase 3C — Text View Scroll and Viewport: complete.
 - Phase 3D — Editable Text Input Foundation: complete.
+- Phase 4A — Command Palette / Quick Panel: complete.
 
 ---
 
@@ -133,7 +134,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4A — Command Palette / Quick Panel
+Phase 4B — Find / Replace Panel
 ```
 
-Phase 4A should add the first Sublime-style command palette / quick panel surface on top of the modal, bounded text, theme, keyboard, and text-input foundation now in place.
+Phase 4B should add the first Sublime-style bottom find / replace panel on top of the existing text-view, quick-panel, modal, bounded text, theme, keyboard, and accessibility foundation.
