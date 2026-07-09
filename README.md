@@ -269,17 +269,18 @@ The current checkpoint has:
 - Phase 4A.1 LunaUITestApp demo layout cleanup completed with a readable header, main editor area, side proof panel, bottom status bar, and constrained moving animation so debug/iteration info no longer stacks over the editor;
 - Phase 4B generic find / replace panel foundation implemented with reusable find query/options/results, literal/regex scanning, whole-word/case toggles, replace-current/replace-all operations, text-view match highlights, keyboard/pointer interaction, theme-driven panel visuals, accessibility nodes, and a demo panel opened with Ctrl+F;
 - Phase 4B.1 interactive text selection completion implemented with click-drag selection, Shift-click extension, Shift+Left/Right extension, plain-arrow selection collapse, selection replacement/delete behavior, and pointer modifier propagation through LunaInput;
-- demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
+- demo theme switching now routes through command palette/menu commands instead of bare number hotkeys, proving Luna widgets/modals/text surfaces draw from active theme variables while the editor can type numbers normally;
+- Phase 4C product-neutral menu bar/dropdown foundation implemented with top menus, dropdown rows, disabled/checked states, shortcut display, first-pass submenus, pointer/keyboard interaction, theme-driven rendering, accessibility nodes, and demo command dispatch;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 4C — Menu Bar and Dropdown Menus
+Phase 4D — Tabs / Sidebar / Status Bar Shell
 ```
 
-Phase 4B.1 is complete. The next step is to add a product-neutral menu bar/dropdown foundation that Moth can later populate with Sublime-compatible menu structure and behavior.
+Phase 4C is complete. The next step is to add the editor chrome shell pieces that will eventually frame real Moth Text documents: tabs, sidebar, status bar, and related layout/state primitives.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

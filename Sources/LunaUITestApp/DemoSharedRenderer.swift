@@ -38,6 +38,7 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
     public static let hudID: LunaNodeID = "demo.hud"
     public static let statusID: LunaNodeID = "demo.status"
+    public static let menuBarID: LunaNodeID = "demo.phase4c.menu-bar"
     public static let proofPanelID: LunaNodeID = "demo.proof-panel"
     public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
     public static let findPanelID: LunaNodeID = "demo.phase4b.find-panel"
@@ -68,6 +69,10 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 
     public var proofPanelBounds: LunaRectI {
         frames.frame(for: Self.proofPanelID) ?? LunaRectI(x: 0, y: 0, w: 0, h: 0)
+    }
+
+    public var menuBarBounds: LunaRectI {
+        frames.frame(for: Self.menuBarID) ?? LunaRectI(x: 0, y: 0, w: viewport.size.width, h: 24)
     }
 }
 
@@ -117,6 +122,11 @@ public struct LunaCPUDemoScene {
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
     /// supplies the generic widget/model, while the demo supplies its commands.
     private var quickPanelState: LunaQuickPanelState? = nil
+
+    /// Phase 4C product-neutral menu bar/dropdown state. The reusable LunaUI
+    /// menu primitives own layout/input/accessibility; the demo owns which
+    /// commands are present and how they are handled.
+    private var menuBarState = LunaMenuBarState()
 
     /// Phase 4B generic find/replace panel state. The state lives in the demo
     /// because the app owns when a find UI is open and which document it targets;
@@ -193,6 +203,7 @@ public struct LunaCPUDemoScene {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: newTheme)
         theme = resolvedTheme
         modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
+        menuBarState.close()
         modalManager.reflow(viewportSize: framebufferSize)
         lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Use Ctrl+P and run a Theme command to switch themes."
     }
@@ -217,6 +228,11 @@ public struct LunaCPUDemoScene {
         let renderLayout = Self.layout(for: LunaSizeI(width: fb.width, height: fb.height))
         drawBackground(into: &fb, theme: renderTheme)
         drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
+        drawMenuBarOverlay(
+            into: &fb,
+            menuBar: Self.menuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
+            theme: renderTheme
+        )
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
@@ -252,6 +268,11 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             lineCount: staticTextDocument.lineCount,
             editRevision: editableTextState.editRevision,
+            theme: renderTheme
+        )
+        drawMenuDropdownOverlay(
+            into: &fb,
+            menuBar: Self.menuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
             theme: renderTheme
         )
         drawActiveFindPanelOverlay(
@@ -315,7 +336,7 @@ public struct LunaCPUDemoScene {
                     let result = state.selectOriginalIndex(row.match.originalIndex)
                     quickPanelState = nil
                     if let command = result.requestedCommand {
-                        performQuickPanelCommand(command, framebufferSize: framebufferSize)
+                        performDemoCommand(command, framebufferSize: framebufferSize)
                     } else if let item = result.selectedItem {
                         lastInteractionStatus = "Phase 4A selected quick panel item: \(item.title)"
                     }
@@ -381,6 +402,32 @@ public struct LunaCPUDemoScene {
                     lastInteractionStatus = "Phase 4B find panel pointer hit: \(hit.rawValue)"
                 }
                 return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
+            }
+        }
+
+        // Phase 4C menu routing. Menus sit below modal/palette/find overlays but
+        // above the editor surface. When a menu is open, outside clicks close it
+        // and are consumed so they do not accidentally edit text underneath.
+        do {
+            var state = menuBarState
+            let menu = Self.menuBar(for: framebufferSize, state: state, theme: theme)
+            let result = menu.handlePointerEvent(event, state: &state)
+            menuBarState = state
+            if let command = result.requestedCommand {
+                performDemoCommand(command, framebufferSize: framebufferSize)
+                lastInteractionStatus = "Phase 4C menu ran command: \(result.activatedTitle ?? command.rawValue)"
+            } else if result.didDismiss {
+                lastInteractionStatus = "Phase 4C menu dismissed"
+            } else if result.didChangeState, let hit = result.hitNodeID {
+                lastInteractionStatus = "Phase 4C menu hit: \(hit.rawValue)"
+            }
+            if result.didConsumeEvent {
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: result.hitNodeID,
+                    requestedCommand: result.requestedCommand,
+                    announcementTexts: result.requestedCommand == nil ? [] : ["Menu command activated"]
+                )
             }
         }
 
@@ -553,7 +600,7 @@ public struct LunaCPUDemoScene {
             if result.didDismiss {
                 quickPanelState = nil
                 if let command = result.requestedCommand {
-                    performQuickPanelCommand(command, framebufferSize: framebufferSize)
+                    performDemoCommand(command, framebufferSize: framebufferSize)
                 } else if let item = result.selectedItem {
                     lastInteractionStatus = "Phase 4A selected quick panel item: \(item.title)"
                 } else {
@@ -590,6 +637,22 @@ public struct LunaCPUDemoScene {
             // underneath should not receive keys that the find UI chooses not to
             // handle yet.
             return true
+        }
+
+        if menuBarState.isOpen {
+            var state = menuBarState
+            let menu = Self.menuBar(for: framebufferSize, state: state, theme: theme)
+            let result = menu.handleKeyboardEvent(event, state: &state)
+            menuBarState = state
+            if let command = result.requestedCommand {
+                performDemoCommand(command, framebufferSize: framebufferSize)
+                lastInteractionStatus = "Phase 4C menu ran command: \(result.activatedTitle ?? command.rawValue)"
+            } else if result.didDismiss {
+                lastInteractionStatus = "Phase 4C menu dismissed"
+            } else if result.didChangeState {
+                lastInteractionStatus = "Phase 4C menu keyboard navigation"
+            }
+            return result.didConsumeEvent
         }
 
         activeTextSelectionAnchor = nil
@@ -704,6 +767,8 @@ public struct LunaCPUDemoScene {
     }
 
     private mutating func openQuickPanel() {
+        menuBarState.close()
+        findPanelState = nil
         quickPanelState = LunaQuickPanelState(items: Self.demoQuickPanelItems)
     }
 
@@ -713,6 +778,7 @@ public struct LunaCPUDemoScene {
     }
 
     private mutating func openFindPanel(framebufferSize: LunaSizeI) {
+        menuBarState.close()
         quickPanelState = nil
         var state = findPanelState ?? LunaFindPanelState()
         state.refreshResults(in: staticTextDocument, preservingSelectionNear: staticTextCaret.location)
@@ -782,7 +848,7 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Edit: Select All selected \(selectedBytes) UTF-8 bytes"
     }
 
-    private mutating func performQuickPanelCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
+    private mutating func performDemoCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
         switch command.rawValue {
         case "luna.demo.theme.blue":
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
@@ -794,13 +860,16 @@ public struct LunaCPUDemoScene {
             var context = LunaUIContext()
             context.openNotice(
                 LunaNoticeRequest(
-                    id: "demo.phase4a.notice",
-                    title: "Phase 4A Command Palette",
-                    message: "The command palette is a generic Luna quick panel. The demo supplies these commands; LunaUI owns filtering, layout, theming, input, and accessibility."
+                    id: "demo.phase4c.notice",
+                    title: "Luna Menu / Command Demo",
+                    message: "Menus, the command palette, and keyboard shortcuts all route through product-neutral Luna command IDs. The demo supplies the command handlers."
                 )
             )
             modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
-            lastInteractionStatus = "Phase 4A ran command: Show Demo Notice"
+            lastInteractionStatus = "Demo command: Show Notice"
+        case "luna.demo.palette.open":
+            openQuickPanel()
+            lastInteractionStatus = "Command palette opened from menu command"
         case "luna.demo.scroll.top":
             setStaticTextScrollTopLine(0, framebufferSize: framebufferSize, reason: "quick panel top")
         case "luna.demo.scroll.end":
@@ -813,6 +882,9 @@ public struct LunaCPUDemoScene {
             openFindPanel(framebufferSize: framebufferSize)
         case "luna.demo.edit.selectAll":
             selectAllEditableText(framebufferSize: framebufferSize)
+        case "luna.demo.selection.clear":
+            editableTextState.selection = nil
+            lastInteractionStatus = "Selection cleared"
         default:
             lastInteractionStatus = "Phase 4A ran command: \(command.rawValue)"
         }
@@ -891,7 +963,7 @@ public struct LunaCPUDemoScene {
 
         let margin = 18
         let gap = 14
-        let headerHeight = max(54, min(68, viewport.size.height / 8))
+        let headerHeight = max(78, min(92, viewport.size.height / 7))
         let statusHeight = max(30, min(38, viewport.size.height / 14))
         let contentTop = headerHeight + gap
         let contentBottom = max(contentTop + 1, viewport.size.height - statusHeight - gap)
@@ -900,6 +972,11 @@ public struct LunaCPUDemoScene {
         result.set(
             id: LunaCPUDemoSceneLayout.hudID,
             bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: headerHeight)
+        )
+
+        result.set(
+            id: LunaCPUDemoSceneLayout.menuBarID,
+            bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: 24)
         )
 
         result.set(
@@ -1005,6 +1082,25 @@ public struct LunaCPUDemoScene {
         )
     }
 
+    /// Build the Phase 4C product-neutral menu bar proof. The menu contents are
+    /// demo-owned, but layout/hit testing/accessibility/keyboard behavior live in
+    /// LunaUI's reusable `LunaMenuBar`.
+    public static func menuBar(
+        for framebufferSize: LunaSizeI,
+        state: LunaMenuBarState,
+        theme: LunaTheme = MothDemoTheme.theme
+    ) -> LunaMenuBar {
+        let layout = Self.layout(for: framebufferSize)
+        return LunaMenuBar(
+            id: LunaCPUDemoSceneLayout.menuBarID,
+            bounds: layout.menuBarBounds,
+            menus: demoMenus(for: theme),
+            state: state,
+            theme: theme,
+            metrics: .demo
+        )
+    }
+
     /// Build the Phase 4A command-palette / quick-panel proof.
     public static func quickPanel(
         for framebufferSize: LunaSizeI,
@@ -1023,18 +1119,65 @@ public struct LunaCPUDemoScene {
     }
 
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
-        LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Tools", "Demo"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: nil, menuPath: ["View", "Theme"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: nil, menuPath: ["View", "Theme"]),
-        LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: nil, menuPath: ["View", "Theme"]),
-        LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["Goto"]),
-        LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["Goto"]),
+        LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("Ctrl+P"), menuPath: ["View"]),
+        LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: nil, menuPath: ["Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: nil, menuPath: ["Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: nil, menuPath: ["Theme"]),
+        LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["View"]),
+        LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
         LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("Ctrl+A"), menuPath: ["Edit"]),
+        LunaCommandDescriptor(id: "luna.demo.selection.clear", title: "Clear Selection", menuPath: ["Selection"]),
         LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
     ]
 
     public static let demoQuickPanelItems: [LunaQuickPanelItem] = demoCommandDescriptors.map(LunaQuickPanelItem.init(command:))
+
+    /// Demo menu contents for Phase 4C. These are deliberately app-local. LunaUI
+    /// owns `LunaMenuBar`; this test app owns the editor-ish menu structure.
+    public static func demoMenus(for theme: LunaTheme) -> [LunaMenuDefinition] {
+        let current = MothDemoTheme.canonicalTheme(for: theme).name
+        let isBlue = current == LunaTheme.lunaDemoBlue.name
+        let isMoth = current == MothDemoTheme.theme.name
+        let isHighContrast = current == LunaTheme.highContrastProof.name
+
+        return [
+            LunaMenuDefinition(id: "file", title: "File", items: [
+                LunaMenuItem.command(id: "file.new", title: "New File", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("N", modifiers: [.primary])),
+                LunaMenuItem.separator(id: "file.sep.0"),
+                LunaMenuItem.command(id: "file.close", title: "Close Window", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("W", modifiers: [.primary]), isEnabled: false),
+            ]),
+            LunaMenuDefinition(id: "edit", title: "Edit", items: [
+                LunaMenuItem.command(id: "edit.undo", title: "Undo", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("Z", modifiers: [.primary]), isEnabled: false),
+                LunaMenuItem.command(id: "edit.redo", title: "Redo", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("Z", modifiers: [.primary, .shift]), isEnabled: false),
+                LunaMenuItem.separator(id: "edit.sep.0"),
+                LunaMenuItem.command(id: "edit.selectAll", title: "Select All", command: "luna.demo.edit.selectAll", keyEquivalent: LunaKeyEquivalent("A", modifiers: [.primary])),
+                LunaMenuItem.command(id: "edit.insertSample", title: "Insert Sample Text", command: "luna.demo.insert.sample"),
+            ]),
+            LunaMenuDefinition(id: "selection", title: "Selection", items: [
+                LunaMenuItem.command(id: "selection.selectAll", title: "Select All", command: "luna.demo.edit.selectAll", keyEquivalent: LunaKeyEquivalent("A", modifiers: [.primary])),
+                LunaMenuItem.command(id: "selection.clear", title: "Clear Selection", command: "luna.demo.selection.clear"),
+            ]),
+            LunaMenuDefinition(id: "find", title: "Find", items: [
+                LunaMenuItem.command(id: "find.open", title: "Find / Replace…", command: "luna.demo.find.open", keyEquivalent: LunaKeyEquivalent("F", modifiers: [.primary])),
+            ]),
+            LunaMenuDefinition(id: "view", title: "View", items: [
+                LunaMenuItem.command(id: "view.palette", title: "Command Palette…", command: "luna.demo.palette.open", keyEquivalent: LunaKeyEquivalent("P", modifiers: [.primary])),
+                LunaMenuItem.separator(id: "view.sep.0"),
+                LunaMenuItem.command(id: "view.top", title: "Scroll Text View to Top", command: "luna.demo.scroll.top"),
+                LunaMenuItem.command(id: "view.end", title: "Scroll Text View to End", command: "luna.demo.scroll.end"),
+            ]),
+            LunaMenuDefinition(id: "theme", title: "Theme", items: [
+                LunaMenuItem.command(id: "theme.blue", title: "Luna Demo Blue", command: "luna.demo.theme.blue", isChecked: isBlue),
+                LunaMenuItem.command(id: "theme.moth", title: "Moth Obsidian Demo", command: "luna.demo.theme.moth", isChecked: isMoth),
+                LunaMenuItem.command(id: "theme.highContrast", title: "High Contrast Proof", command: "luna.demo.theme.highContrast", isChecked: isHighContrast),
+            ]),
+            LunaMenuDefinition(id: "help", title: "Help", items: [
+                LunaMenuItem.command(id: "help.notice", title: "Show Demo Notice", command: "luna.demo.notice"),
+            ]),
+        ]
+    }
 
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
@@ -1547,6 +1690,77 @@ private func drawDemoChrome(into fb: inout LunaFramebuffer, layout: LunaCPUDemoS
     strokeRectColor(into: &fb, x: 0, y: layout.statusBounds.y, w: fb.width, h: 1, thickness: 1, color: theme.ui.statusBar.border)
 }
 
+/// Draw the always-visible top menu bar. Dropdowns are drawn later as an overlay
+/// so they sit above the editor/proof/status surfaces.
+private func drawMenuBarOverlay(into fb: inout LunaFramebuffer, menuBar: LunaMenuBar, theme: LunaTheme) {
+    let layout = menuBar.layout()
+    fillRectColor(into: &fb, x: menuBar.bounds.x, y: menuBar.bounds.y, w: menuBar.bounds.w, h: menuBar.bounds.h, color: theme.ui.chrome.menuBarBackground)
+    strokeRectColor(into: &fb, x: menuBar.bounds.x, y: menuBar.bounds.y + menuBar.bounds.h - 1, w: menuBar.bounds.w, h: 1, thickness: 1, color: theme.ui.chrome.separator)
+
+    for top in layout.topLevelFrames {
+        let isActive = menuBar.state.activeMenuIndex == top.index
+        let isHovered = menuBar.state.hoveredMenuIndex == top.index
+        if isActive || isHovered {
+            fillRectColor(into: &fb, x: top.bounds.x, y: top.bounds.y, w: top.bounds.w, h: top.bounds.h, color: theme.ui.chrome.menuBarHoveredBackground)
+        }
+        if isActive {
+            fillRectColor(into: &fb, x: top.bounds.x + 5, y: top.bounds.y + top.bounds.h - 2, w: max(1, top.bounds.w - 10), h: 2, color: theme.ui.chrome.menuBarActiveUnderline)
+        }
+        let color = isActive ? theme.ui.chrome.menuBarActiveForeground : theme.ui.chrome.menuBarForeground
+        let textBounds = LunaRectI(x: top.bounds.x + 8, y: top.bounds.y + 8, w: max(1, top.bounds.w - 16), h: 9)
+        if let line = LunaBoundedTextLayout.layout(top.title, in: textBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: color)
+        }
+    }
+}
+
+/// Draw active dropdown menus plus row labels/shortcuts/check/submenu marks.
+private func drawMenuDropdownOverlay(into fb: inout LunaFramebuffer, menuBar: LunaMenuBar, theme: LunaTheme) {
+    guard menuBar.state.isOpen else { return }
+
+    var displayList = LunaDisplayList()
+    menuBar.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let layout = menuBar.layout()
+    drawMenuBarOverlay(into: &fb, menuBar: menuBar, theme: theme)
+
+    for dropdown in layout.dropdowns {
+        for row in dropdown.rows {
+            if row.item.isSeparator { continue }
+
+            let isHighlighted = menuBar.state.highlightedPath == row.path
+            let isEnabled = row.item.isEnabled
+            let fg: LunaColor
+            if !isEnabled {
+                fg = theme.ui.menu.rowDisabledForeground
+            } else if isHighlighted {
+                fg = theme.ui.menu.rowHoveredForeground
+            } else {
+                fg = theme.ui.menu.rowForeground
+            }
+            let muted: LunaColor = isEnabled ? theme.ui.menu.shortcutForeground : theme.ui.menu.rowDisabledForeground
+
+            if row.item.isChecked {
+                drawText5x7Color(into: &fb, x: row.bounds.x + 8, y: row.titleBounds.y, text: "*", scale: 1, color: theme.ui.menu.checkedMark)
+            }
+
+            if let titleLine = LunaBoundedTextLayout.layout(row.item.title, in: row.titleBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
+                drawText5x7Color(into: &fb, x: titleLine.bounds.x, y: titleLine.bounds.y, text: titleLine.text, scale: 1, color: fg)
+            }
+
+            if let shortcut = row.item.keyEquivalent?.lunaMenuDisplayString,
+               let shortcutLine = LunaBoundedTextLayout.layout(shortcut, in: row.shortcutBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail, alignment: .trailing).firstLine {
+                drawText5x7Color(into: &fb, x: shortcutLine.bounds.x, y: shortcutLine.bounds.y, text: shortcutLine.text, scale: 1, color: muted)
+            }
+
+            if row.item.hasSubmenu {
+                drawText5x7Color(into: &fb, x: row.bounds.x + row.bounds.w - 14, y: row.titleBounds.y, text: ">", scale: 1, color: theme.ui.menu.submenuArrow)
+            }
+        }
+    }
+}
+
 /// Heads-up display: title, current theme, and compact key help.
 private func drawHUD(
     into fb: inout LunaFramebuffer,
@@ -1560,16 +1774,16 @@ private func drawHUD(
 
     let title = "Luna-UI Test App"
     let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
-    let keys = "Ctrl+P palette/theme   Ctrl+F find   Ctrl+A select all   click/type editor incl. 123   Enter/Backspace/Delete   arrows/Page/Home/End"
+    let keys = "Menu bar: File/Edit/Selection/Find/View/Theme/Help   Ctrl+P palette/theme   Ctrl+F find   Ctrl+A select all"
 
-    drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
+    drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 31, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
 
-    let infoBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 30, w: max(1, bounds.w - 20), h: 9)
+    let infoBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 53, w: max(1, bounds.w - 20), h: 9)
     if let line = LunaBoundedTextLayout.layout(info, in: infoBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
         drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.statusBar.foreground)
     }
 
-    let keyBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 43, w: max(1, bounds.w - 20), h: 9)
+    let keyBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 66, w: max(1, bounds.w - 20), h: 9)
     if let line = LunaBoundedTextLayout.layout(keys, in: keyBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
         drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.panel.mutedForeground)
     }

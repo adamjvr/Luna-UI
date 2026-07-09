@@ -578,11 +578,9 @@ minimal submenu arrows
 
 Demo requirement:
 
-- demo can switch themes at runtime:
-  - `1` = Luna demo blue;
-  - `2` = demo-only Moth Obsidian theme supplied by `LunaUITestApp`;
-  - `3` = high-contrast proof;
-- semantic widget, modal overlay, modal text, button states, HUD/status text, moving block, and background all pull from the active theme.
+- demo can switch themes at runtime through app-supplied commands rather than hardcoded color paths;
+- current demo exposes those commands through the command palette and menu bar so bare number keys remain available for editor text input;
+- semantic widget, modal overlay, modal text, button states, HUD/status text, moving block, menu rows, editor selection, and background all pull from the active theme.
 
 Tests required:
 
@@ -658,9 +656,10 @@ That must display as near-black, not bright blue.
 
 Demo requirement:
 
-- pressing `1` visibly selects the loud Luna demo-blue proof theme;
-- pressing `2` visibly selects the black/graphite demo-only Moth Obsidian theme;
-- pressing `3` visibly selects the high-contrast proof theme.
+- running the Luna Demo Blue command visibly selects the loud blue proof theme;
+- running the Moth Obsidian command visibly selects the black/graphite demo-only app-supplied theme;
+- running the High Contrast Proof command visibly selects the high-contrast proof theme;
+- bare `1` / `2` / `3` remain ordinary editable text after Phase 4B.2.
 
 Tests required:
 
@@ -929,11 +928,15 @@ command-palette theme commands remain the only demo theme-switching path
 
 ## Phase 4C — Menu Bar and Dropdown Menus
 
-Scope:
+Status: complete.
+
+Phase 4C adds the reusable product-neutral menu foundation. Luna owns menu state, layout, hit testing, accessibility, pointer/keyboard navigation, and theme-driven row geometry; applications supply menus and command handlers.
+
+Completed scope:
 
 - top menu bar;
 - dropdown rows;
-- submenus;
+- first-pass submenus;
 - disabled items;
 - checkbox items;
 - shortcut alignment;
@@ -948,6 +951,19 @@ Innovation allowed here:
 - preserve 1:1 Sublime functionality where applicable;
 - add better search/discovery/command descriptions/accessibility where useful.
 
+Phase 4C demo proof:
+
+```text
+click top-level menu -> dropdown opens
+hover rows -> highlighted row changes
+click command row -> command runs through existing demo command dispatch
+click disabled row -> menu consumes but does not activate
+keyboard arrows navigate top-level menus, rows, and first-pass submenus
+Enter/Space activates the highlighted command
+Escape dismisses menus
+Theme menu check marks follow the active demo theme
+```
+
 ### Phase 4D — Context Menu
 
 Scope:
@@ -956,7 +972,7 @@ Scope:
 - compact rows;
 - separators;
 - disabled states;
-- submenus;
+- first-pass submenus;
 - shortcut display.
 
 ### Phase 4E — Completion Popup

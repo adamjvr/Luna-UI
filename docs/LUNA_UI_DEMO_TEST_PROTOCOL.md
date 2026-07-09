@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 4B.2 command routing and text-input focus cleanup.
+This protocol is the standing manual regression checklist for the demo app after Phase 4C menu bar and dropdown menus.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -15,7 +15,7 @@ The demo is an integration harness for Luna UI. It may show the Moth Obsidian pa
 | `Ctrl+P` | Open the command palette / quick panel. |
 | `Ctrl+F` | Open the generic find / replace panel. |
 | `Ctrl+A` | Select all text in the editor when no overlay owns input. |
-| `Escape` | Close the active modal/palette/find panel before the editor sees it. |
+| `Escape` | Close the active modal/palette/find panel/menu before the editor sees it. |
 | Window resize | Header, editor, proof panel, overlays, and status bar reflow cleanly. |
 
 Retired behavior:
@@ -24,6 +24,67 @@ Retired behavior:
 Bare 1 / 2 / 3 are no longer theme hotkeys.
 They should insert text when the editor has focus.
 Theme switching is command-palette-only.
+```
+
+---
+
+## Menu Bar Protocol
+
+The top menu bar is a Phase 4C product-neutral Luna menu proof. The demo supplies editor-like menu contents; LunaUI supplies menu layout, input, rendering geometry, hit testing, and accessibility.
+
+Top-level menus to test:
+
+```text
+File
+Edit
+Selection
+Find
+View
+Theme
+Help
+```
+
+| Action | Expected reaction |
+|---|---|
+| Click a top-level menu | Opens its dropdown. |
+| Move pointer across top-level menus while a menu is open | Active dropdown switches to the hovered top-level menu. |
+| Hover a command row | Row highlight changes using menu theme tokens. |
+| Click enabled command row | Command runs and menu closes. |
+| Click disabled row | Menu consumes the click, does not run a command, remains sane. |
+| Click outside an open menu | Menu closes; underlying editor does not accidentally edit/click. |
+| `Escape` with menu open | Menu closes. |
+| `Up` / `Down` with menu open | Moves highlighted row. |
+| `Left` / `Right` with menu open | Moves top-level menu or opens/closes submenu level. |
+| `Enter` / `Space` with menu open | Activates highlighted command or opens highlighted submenu. |
+
+Menu command checks:
+
+| Menu path | Expected reaction |
+|---|---|
+| `Edit > Select All` | Selects entire editor document. |
+| `Edit > Insert Sample Text` | Inserts `quick-panel` at caret or replaces selection. |
+| `Selection > Clear Selection` | Clears active user text selection. |
+| `Find > Find / Replace…` | Opens find panel. |
+| `View > Command Palette…` | Opens command palette. |
+| `View > Scroll Text View to Top` | Scrolls editor to top. |
+| `View > Scroll Text View to End` | Scrolls editor to bottom. |
+| `Theme > Luna Demo Blue` | Switches to blue proof theme. |
+| `Theme > Moth Obsidian Demo` | Switches to black/graphite Moth demo theme. |
+| `Theme > High Contrast Proof` | Switches to high-contrast proof theme. |
+| `Help > Show Demo Notice` | Opens modal notice. |
+
+Theme menu check mark:
+
+```text
+Open Theme menu after switching themes.
+Expected: active theme row has the checked mark.
+```
+
+Input ownership rule:
+
+```text
+When a menu is open, keyboard/pointer events belong to the menu until it closes.
+No menu navigation key should leak into the editor underneath.
 ```
 
 ---

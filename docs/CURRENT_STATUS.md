@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4B.2 command routing and text-input focus cleanup.
+This document is the working checkpoint after Phase 4C menu bar and dropdown menus.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4B.2**.
+Luna UI is through **Phase 4C**.
 
 The engine now has:
 
@@ -33,7 +33,8 @@ The engine now has:
 - completed interactive user text selection with click-drag selection, Shift-click/Shift-arrow extension, selection replacement/delete behavior, and pointer modifier propagation through LunaInput;
 - command-palette-only demo theme switching so bare `1`, `2`, and `3` can be typed into the editor as text;
 - Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
-- tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath.
+- tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
+- a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven rendering, accessibility menu/menuitem nodes, and demo command dispatch.
 
 ---
 
@@ -127,6 +128,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4B — Generic Find / Replace Panel Foundation: complete.
 - Phase 4B.1 — Interactive Text Selection Completion: complete.
 - Phase 4B.2 — Demo Command Routing and Text Input Focus Cleanup: complete.
+- Phase 4C — Menu Bar and Dropdown Menus: complete.
 
 ---
 
@@ -134,7 +136,6 @@ The blue highlight is now visible for real user text selection, focused fields, 
 
 Luna does not yet have:
 
-- menu bar and dropdown menus;
 - tabs, sidebar, status bar, or minimap;
 - the actual Moth Text application target.
 
@@ -143,7 +144,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4C — Menu Bar and Dropdown Menus
+Phase 4D — Tabs / Sidebar / Status Bar Shell
 ```
 
-Phase 4C should add a reusable Luna menu bar/dropdown/menu-row foundation. Moth can later feed it Sublime-compatible menu items, shortcuts, disabled states, toggles, and submenus without baking Moth product naming into Luna's library API.
+Phase 4D should add product-neutral editor shell primitives for tabs, sidebar, and status bar layout/state. Moth can later feed those primitives real project folders, dirty document state, syntax mode, cursor status, and document metadata without baking Moth product naming into Luna's library API.
