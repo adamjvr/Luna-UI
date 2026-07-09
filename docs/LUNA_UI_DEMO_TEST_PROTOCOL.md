@@ -46,7 +46,8 @@ Help
 
 | Action | Expected reaction |
 |---|---|
-| Click a top-level menu | Opens its dropdown. |
+| Top menu bar at rest | `File`, `Edit`, `Selection`, `Find`, `View`, `Theme`, and `Help` labels are visible against the menu-bar background. |
+| Click a top-level menu | Opens its dropdown with visible row titles, shortcut labels, check marks, and submenu arrows. |
 | Move pointer across top-level menus while a menu is open | Active dropdown switches to the hovered top-level menu. |
 | Hover a command row | Row highlight changes using menu theme tokens. |
 | Click enabled command row | Command runs and menu closes. |

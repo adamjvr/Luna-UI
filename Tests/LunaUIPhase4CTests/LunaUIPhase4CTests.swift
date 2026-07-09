@@ -160,6 +160,30 @@ final class LunaUIPhase4CTests: XCTestCase {
         })
     }
 
+    func testMenuTextLayoutsUseCompactMenuMetrics() {
+        var state = LunaMenuBarState()
+        state.open(menuIndex: 1, menus: makeMenus())
+        let menu = LunaMenuBar(id: "menu", bounds: LunaRectI(x: 0, y: 0, w: 800, h: 24), menus: makeMenus(), state: state, theme: .lunaDefaultDark)
+        let layout = menu.layout()
+        let metrics = menu.metrics.glyphMetrics
+
+        let editTop = layout.topLevelFrames[1]
+        let topTextBounds = LunaRectI(
+            x: editTop.bounds.x + 8,
+            y: editTop.bounds.y + max(0, (editTop.bounds.h - metrics.glyphHeight) / 2),
+            w: max(1, editTop.bounds.w - 16),
+            h: metrics.lineHeight
+        )
+        XCTAssertEqual(LunaBoundedTextLayout.layout(editTop.title, in: topTextBounds, metrics: metrics).firstLine?.text, "Edit")
+
+        let selectAllRow = layout.dropdowns[0].rows[0]
+        XCTAssertEqual(LunaBoundedTextLayout.layout(selectAllRow.item.title, in: selectAllRow.titleBounds, metrics: metrics).firstLine?.text, "Select All")
+        XCTAssertEqual(
+            LunaBoundedTextLayout.layout(selectAllRow.item.keyEquivalent?.lunaMenuDisplayString ?? "", in: selectAllRow.shortcutBounds, metrics: metrics, alignment: .trailing).firstLine?.text,
+            "Ctrl+A"
+        )
+    }
+
     func testMenuAccessibilityExposesMenuAndMenuItems() {
         var state = LunaMenuBarState()
         state.open(menuIndex: 1, menus: makeMenus())

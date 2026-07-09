@@ -961,6 +961,8 @@ click disabled row -> menu consumes but does not activate
 keyboard arrows navigate top-level menus, rows, and first-pass submenus
 Enter/Space activates the highlighted command
 Escape dismisses menus
+visible labels render for top-level menus and dropdown rows
+shortcut labels render in the aligned shortcut column
 Theme menu check marks follow the active demo theme
 ```
 

@@ -34,7 +34,7 @@ The engine now has:
 - command-palette-only demo theme switching so bare `1`, `2`, and `3` can be typed into the editor as text;
 - Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
 - tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
-- a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven rendering, accessibility menu/menuitem nodes, and demo command dispatch.
+- a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch.
 
 ---
 

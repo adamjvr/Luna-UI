@@ -1707,9 +1707,15 @@ private func drawMenuBarOverlay(into fb: inout LunaFramebuffer, menuBar: LunaMen
             fillRectColor(into: &fb, x: top.bounds.x + 5, y: top.bounds.y + top.bounds.h - 2, w: max(1, top.bounds.w - 10), h: 2, color: theme.ui.chrome.menuBarActiveUnderline)
         }
         let color = isActive ? theme.ui.chrome.menuBarActiveForeground : theme.ui.chrome.menuBarForeground
-        let textBounds = LunaRectI(x: top.bounds.x + 8, y: top.bounds.y + 8, w: max(1, top.bounds.w - 16), h: 9)
-        if let line = LunaBoundedTextLayout.layout(top.title, in: textBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
-            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: color)
+        let textMetrics = menuBar.metrics.glyphMetrics
+        let textBounds = LunaRectI(
+            x: top.bounds.x + 8,
+            y: top.bounds.y + max(0, (top.bounds.h - textMetrics.glyphHeight) / 2),
+            w: max(1, top.bounds.w - 16),
+            h: textMetrics.lineHeight
+        )
+        if let line = LunaBoundedTextLayout.layout(top.title, in: textBounds, metrics: textMetrics, overflow: .ellipsizeTail).firstLine {
+            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: menuBar.metrics.textScale, color: color)
         }
     }
 }
@@ -1742,20 +1748,21 @@ private func drawMenuDropdownOverlay(into fb: inout LunaFramebuffer, menuBar: Lu
             let muted: LunaColor = isEnabled ? theme.ui.menu.shortcutForeground : theme.ui.menu.rowDisabledForeground
 
             if row.item.isChecked {
-                drawText5x7Color(into: &fb, x: row.bounds.x + 8, y: row.titleBounds.y, text: "*", scale: 1, color: theme.ui.menu.checkedMark)
+                drawText5x7Color(into: &fb, x: row.bounds.x + 8, y: row.titleBounds.y, text: "*", scale: menuBar.metrics.textScale, color: theme.ui.menu.checkedMark)
             }
 
-            if let titleLine = LunaBoundedTextLayout.layout(row.item.title, in: row.titleBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
-                drawText5x7Color(into: &fb, x: titleLine.bounds.x, y: titleLine.bounds.y, text: titleLine.text, scale: 1, color: fg)
+            let textMetrics = menuBar.metrics.glyphMetrics
+            if let titleLine = LunaBoundedTextLayout.layout(row.item.title, in: row.titleBounds, metrics: textMetrics, overflow: .ellipsizeTail).firstLine {
+                drawText5x7Color(into: &fb, x: titleLine.bounds.x, y: titleLine.bounds.y, text: titleLine.text, scale: menuBar.metrics.textScale, color: fg)
             }
 
             if let shortcut = row.item.keyEquivalent?.lunaMenuDisplayString,
-               let shortcutLine = LunaBoundedTextLayout.layout(shortcut, in: row.shortcutBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail, alignment: .trailing).firstLine {
-                drawText5x7Color(into: &fb, x: shortcutLine.bounds.x, y: shortcutLine.bounds.y, text: shortcutLine.text, scale: 1, color: muted)
+               let shortcutLine = LunaBoundedTextLayout.layout(shortcut, in: row.shortcutBounds, metrics: menuBar.metrics.glyphMetrics, overflow: .ellipsizeTail, alignment: .trailing).firstLine {
+                drawText5x7Color(into: &fb, x: shortcutLine.bounds.x, y: shortcutLine.bounds.y, text: shortcutLine.text, scale: menuBar.metrics.textScale, color: muted)
             }
 
             if row.item.hasSubmenu {
-                drawText5x7Color(into: &fb, x: row.bounds.x + row.bounds.w - 14, y: row.titleBounds.y, text: ">", scale: 1, color: theme.ui.menu.submenuArrow)
+                drawText5x7Color(into: &fb, x: row.bounds.x + row.bounds.w - 14, y: row.titleBounds.y, text: ">", scale: menuBar.metrics.textScale, color: theme.ui.menu.submenuArrow)
             }
         }
     }
