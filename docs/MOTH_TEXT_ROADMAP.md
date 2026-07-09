@@ -169,7 +169,7 @@ Definition of done:
 
 ## Moth Phase 3 — First Luna-Hosted Editor Window
 
-Requires: Luna Phase 3A/3B text view foundation.
+Requires: Luna Phase 3A/3B/3C text view foundation.
 
 Goal: prove Moth can run as a thin app over Luna.
 
@@ -439,6 +439,7 @@ Luna Phase 2D — Layout, Resize, and Accessibility Reflow
 Luna Phase 2D.2 — Universal Bounded Text and Control Reflow
 Luna Phase 3A — Static Accessible Text View
 Luna Phase 3B — Caret Geometry and Static Selection Model
+Luna Phase 3C — Text View Scroll and Viewport
 ```
 
-Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware text surface. Luna now also has locked Sublime/Moth visual tokens, so Moth color work should map onto those token groups instead of hardcoding colors into editor widgets.
+Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware, scrollable text surface. Luna now also has locked product-neutral visual tokens, so Moth color work should map onto those token groups from Moth/app code instead of hardcoding colors into editor widgets.

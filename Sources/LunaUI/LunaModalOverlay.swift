@@ -703,7 +703,7 @@ public struct LunaModalOverlayManager: Sendable {
                 didConsumeEvent: false
             )
 
-        case .other:
+        case .arrowUp, .arrowDown, .pageUp, .pageDown, .home, .end, .other:
             return LunaModalKeyboardInteractionResult(
                 event: event,
                 activeModalID: overlay.id,

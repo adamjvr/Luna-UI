@@ -119,6 +119,12 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
     /// normalized UTF-8 range even if the visual selection spans multiple lines.
     public var selectedTextRange: LunaAccessibilityTextRange?
 
+    /// Optional visible text range for scrollable text-bearing nodes.
+    ///
+    /// Phase 3C adds this so platform bridges can distinguish the complete
+    /// document text range from the portion currently exposed by the viewport.
+    public var visibleTextRange: LunaAccessibilityTextRange?
+
     public init(
         id: LunaNodeID,
         role: LunaAccessibilityRole,
@@ -131,7 +137,8 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         actions: [LunaAccessibilityAction] = [],
         textRange: LunaAccessibilityTextRange? = nil,
         caretTextRange: LunaAccessibilityTextRange? = nil,
-        selectedTextRange: LunaAccessibilityTextRange? = nil
+        selectedTextRange: LunaAccessibilityTextRange? = nil,
+        visibleTextRange: LunaAccessibilityTextRange? = nil
     ) {
         self.id = id
         self.role = role
@@ -145,6 +152,7 @@ public struct LunaAccessibilityNode: Hashable, Sendable {
         self.textRange = textRange
         self.caretTextRange = caretTextRange
         self.selectedTextRange = selectedTextRange
+        self.visibleTextRange = visibleTextRange
     }
 }
 

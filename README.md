@@ -262,6 +262,7 @@ The current checkpoint has:
 - renderer color contract fixed so logical RGBA hex colors flow through Luna's framebuffer and SDL presentation path without alpha/channel-order swaps;
 - Phase 3A static accessible text view implemented with read-only document lines, gutter/text viewport layout, current-line paint geometry, visible line text ranges, hit testing, and accessibility text-run children;
 - Phase 3B caret geometry and static selection implemented with stable text locations, caret rectangles, selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
+- Phase 3C text-view scrolling and viewport metrics implemented with logical line scroll state, visible line ranges, content height, scrollbar placeholder geometry, scrolled hit testing, and accessibility visible text ranges;
 - demo theme switching implemented through `1` = Luna demo blue, `2` = demo-only Moth Obsidian, and `3` = high-contrast proof theme, proving Luna widgets/modals/text surfaces draw from active theme variables;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
@@ -269,10 +270,10 @@ The current checkpoint has:
 The next implementation target is:
 
 ```text
-Phase 3C — Text View Scroll and Viewport
+Phase 3D — Editable Text Input Foundation
 ```
 
-Phase 3B is complete. The next step is to add scrolling/viewport behavior on top of the static text surface with caret and selection geometry before editable input policy lands.
+Phase 3C is complete. The next step is to add controlled editable text input on top of the static text surface, caret/selection model, and scroll/viewport geometry.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -310,6 +311,8 @@ swift build --target LunaUIPhase3ATests
 swift test --filter LunaUIPhase3ATests
 swift build --target LunaUIPhase3BTests
 swift test --filter LunaUIPhase3BTests
+swift build --target LunaUIPhase3CTests
+swift test --filter LunaUIPhase3CTests
 ```
 
 Full Linux check:
@@ -323,6 +326,7 @@ swift test --filter LunaUIPhase2DTests
 swift test --filter LunaUIPhase2ETests
 swift test --filter LunaUIPhase3ATests
 swift test --filter LunaUIPhase3BTests
+swift test --filter LunaUIPhase3CTests
 swift run LunaUITestApp
 ```
 

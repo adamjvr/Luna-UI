@@ -1,11 +1,11 @@
 // LunaStaticTextView.swift
 //
-// Phase 3A: static, accessible text-view primitive.
+// Phase 3A/3B/3C: static, accessible text-view primitive.
 //
 // This is the first editor-shaped Luna widget. It is deliberately read-only:
 // Phase 3A proves text-surface layout, theme-driven paint geometry, line/gutter
 // semantics, hit testing, and accessibility ranges before editable input,
-// caret motion, selection mutation, real glyph runs, or scrollbars are added.
+// real editable input, real glyph runs, or production scrollbars are added.
 
 import Foundation
 import LunaAccessibility
@@ -112,6 +112,80 @@ public struct LunaStaticTextHitResult: Hashable, Sendable {
         self.line = line
         self.rowBounds = rowBounds
         self.isInsideTextViewport = isInsideTextViewport
+    }
+}
+
+/// Visible logical line range for a scrolled static text viewport.
+///
+/// The range is half-open: `startLineIndex..<endLineIndexExclusive`. It is a
+/// concrete struct instead of exposing a raw `Range<Int>` so accessibility and
+/// renderer snapshots can carry a stable value across module boundaries.
+public struct LunaStaticTextVisibleLineRange: Hashable, Sendable {
+    public var startLineIndex: Int
+    public var endLineIndexExclusive: Int
+
+    public init(startLineIndex: Int, endLineIndexExclusive: Int) {
+        let start = max(0, startLineIndex)
+        self.startLineIndex = start
+        self.endLineIndexExclusive = max(start, endLineIndexExclusive)
+    }
+
+    public var count: Int { max(0, endLineIndexExclusive - startLineIndex) }
+    public var isEmpty: Bool { count == 0 }
+
+    public func contains(lineIndex: Int) -> Bool {
+        lineIndex >= startLineIndex && lineIndex < endLineIndexExclusive
+    }
+}
+
+/// Scroll state for the static/read-only text viewport.
+///
+/// Phase 3C deliberately scrolls by logical line index. Pixel-fractional scroll,
+/// soft wrap, horizontal scroll, and minimap integration come later. This gives
+/// Luna a stable, testable viewport model before editable text input lands.
+public struct LunaStaticTextScrollState: Hashable, Sendable {
+    public var scrollTopLine: Int
+
+    public init(scrollTopLine: Int = 0) {
+        self.scrollTopLine = max(0, scrollTopLine)
+    }
+
+    public static func maximumScrollTopLine(documentLineCount: Int, maxVisibleLineCount: Int) -> Int {
+        guard documentLineCount > 0, maxVisibleLineCount > 0 else { return 0 }
+        return max(0, documentLineCount - maxVisibleLineCount)
+    }
+
+    public func clamped(document: LunaStaticTextDocument, maxVisibleLineCount: Int) -> LunaStaticTextScrollState {
+        let maxTop = Self.maximumScrollTopLine(
+            documentLineCount: document.lineCount,
+            maxVisibleLineCount: maxVisibleLineCount
+        )
+        return LunaStaticTextScrollState(scrollTopLine: min(max(0, scrollTopLine), maxTop))
+    }
+
+    public func scrolled(byLineDelta delta: Int, document: LunaStaticTextDocument, maxVisibleLineCount: Int) -> LunaStaticTextScrollState {
+        LunaStaticTextScrollState(scrollTopLine: scrollTopLine + delta)
+            .clamped(document: document, maxVisibleLineCount: maxVisibleLineCount)
+    }
+
+    public func ensuringVisible(
+        _ location: LunaTextLocation,
+        document: LunaStaticTextDocument,
+        maxVisibleLineCount: Int
+    ) -> LunaStaticTextScrollState {
+        guard maxVisibleLineCount > 0 else { return clamped(document: document, maxVisibleLineCount: maxVisibleLineCount) }
+
+        let target = document.clampedLocation(location).lineIndex
+        let clampedTop = clamped(document: document, maxVisibleLineCount: maxVisibleLineCount).scrollTopLine
+        if target < clampedTop {
+            return LunaStaticTextScrollState(scrollTopLine: target)
+                .clamped(document: document, maxVisibleLineCount: maxVisibleLineCount)
+        }
+        if target >= clampedTop + maxVisibleLineCount {
+            return LunaStaticTextScrollState(scrollTopLine: target - maxVisibleLineCount + 1)
+                .clamped(document: document, maxVisibleLineCount: maxVisibleLineCount)
+        }
+        return LunaStaticTextScrollState(scrollTopLine: clampedTop)
     }
 }
 
@@ -264,19 +338,28 @@ public struct LunaStaticTextViewMetrics: Hashable, Sendable {
     public var gutterPadding: Int
     public var lineHeight: Int
     public var glyphMetrics: LunaDebugTextMetrics
+    public var scrollbarLaneWidth: Int
+    public var scrollbarPadding: Int
+    public var scrollbarThumbMinHeight: Int
 
     public init(
         contentInsets: LunaInsetsI = LunaInsetsI(top: 8, right: 10, bottom: 8, left: 0),
         gutterWidth: Int = 52,
         gutterPadding: Int = 6,
         lineHeight: Int = LunaDebugTextMetrics.body.lineHeight,
-        glyphMetrics: LunaDebugTextMetrics = .body
+        glyphMetrics: LunaDebugTextMetrics = .body,
+        scrollbarLaneWidth: Int = 8,
+        scrollbarPadding: Int = 1,
+        scrollbarThumbMinHeight: Int = 14
     ) {
         self.contentInsets = contentInsets
         self.gutterWidth = max(0, gutterWidth)
         self.gutterPadding = max(0, gutterPadding)
         self.lineHeight = max(1, lineHeight)
         self.glyphMetrics = glyphMetrics
+        self.scrollbarLaneWidth = max(0, scrollbarLaneWidth)
+        self.scrollbarPadding = max(0, scrollbarPadding)
+        self.scrollbarThumbMinHeight = max(1, scrollbarThumbMinHeight)
     }
 
     public static let demo = LunaStaticTextViewMetrics()
@@ -323,6 +406,17 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     public var firstVisibleLineIndex: Int
     public var maxVisibleLineCount: Int
 
+    /// Phase 3C line-range and content metrics for the scrolled viewport.
+    public var visibleLineRange: LunaStaticTextVisibleLineRange
+    public var contentHeight: Int
+    public var maxScrollTopLine: Int
+    public var visibleTextRange: LunaAccessibilityTextRange
+
+    /// Phase 3C scrollbar/minimap-lane placeholder geometry. The thumb is nil
+    /// when the complete document fits inside the viewport.
+    public var scrollbarLaneBounds: LunaRectI
+    public var scrollbarThumbBounds: LunaRectI?
+
     /// Phase 3B caret geometry. Nil when the caret line is scrolled outside the
     /// current static viewport or no caret was supplied.
     public var caretRect: LunaRectI?
@@ -338,6 +432,12 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         visibleLines: [LunaStaticTextVisibleLine],
         firstVisibleLineIndex: Int,
         maxVisibleLineCount: Int,
+        visibleLineRange: LunaStaticTextVisibleLineRange? = nil,
+        contentHeight: Int = 0,
+        maxScrollTopLine: Int = 0,
+        visibleTextRange: LunaAccessibilityTextRange = LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: 0),
+        scrollbarLaneBounds: LunaRectI? = nil,
+        scrollbarThumbBounds: LunaRectI? = nil,
         caretRect: LunaRectI? = nil,
         selectionRects: [LunaStaticTextSelectionRect] = []
     ) {
@@ -347,6 +447,15 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         self.visibleLines = visibleLines
         self.firstVisibleLineIndex = max(0, firstVisibleLineIndex)
         self.maxVisibleLineCount = max(0, maxVisibleLineCount)
+        self.visibleLineRange = visibleLineRange ?? LunaStaticTextVisibleLineRange(
+            startLineIndex: max(0, firstVisibleLineIndex),
+            endLineIndexExclusive: max(0, firstVisibleLineIndex) + visibleLines.count
+        )
+        self.contentHeight = max(0, contentHeight)
+        self.maxScrollTopLine = max(0, maxScrollTopLine)
+        self.visibleTextRange = visibleTextRange
+        self.scrollbarLaneBounds = scrollbarLaneBounds ?? LunaRectI(x: bounds.x + max(0, bounds.w), y: bounds.y, w: 0, h: bounds.h)
+        self.scrollbarThumbBounds = scrollbarThumbBounds
         self.caretRect = caretRect
         self.selectionRects = selectionRects
     }
@@ -417,7 +526,12 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                 textViewportBounds: LunaRectI(x: bounds.x, y: bounds.y, w: 0, h: 0),
                 visibleLines: [],
                 firstVisibleLineIndex: 0,
-                maxVisibleLineCount: 0
+                maxVisibleLineCount: 0,
+                visibleLineRange: LunaStaticTextVisibleLineRange(startLineIndex: 0, endLineIndexExclusive: 0),
+                contentHeight: 0,
+                maxScrollTopLine: 0,
+                visibleTextRange: LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: 0),
+                scrollbarLaneBounds: LunaRectI(x: bounds.x, y: bounds.y, w: 0, h: 0)
             )
         }
 
@@ -429,6 +543,30 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         let bodyH = max(0, bounds.h - topInset - bottomInset)
         let lineHeight = max(1, metrics.lineHeight)
         let maxVisible = max(0, bodyH / lineHeight)
+        let contentHeight = topInset + bottomInset + document.lineCount * lineHeight
+        let maxScrollTopLine = LunaStaticTextScrollState.maximumScrollTopLine(
+            documentLineCount: document.lineCount,
+            maxVisibleLineCount: maxVisible
+        )
+        let scrollState = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
+            .clamped(document: document, maxVisibleLineCount: maxVisible)
+
+        let hasVerticalOverflow = maxVisible > 0 && document.lineCount > maxVisible
+        let laneW = hasVerticalOverflow ? min(bounds.w, metrics.scrollbarLaneWidth) : 0
+        let scrollbarLaneBounds = LunaRectI(
+            x: bounds.x + bounds.w - laneW,
+            y: bounds.y,
+            w: laneW,
+            h: bounds.h
+        )
+        let scrollbarThumbBounds = Self.scrollbarThumbBounds(
+            lane: scrollbarLaneBounds,
+            documentLineCount: document.lineCount,
+            maxVisibleLineCount: maxVisible,
+            maxScrollTopLine: maxScrollTopLine,
+            scrollTopLine: scrollState.scrollTopLine,
+            metrics: metrics
+        )
 
         let gutterBounds = LunaRectI(
             x: bounds.x,
@@ -439,11 +577,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         let textViewportBounds = LunaRectI(
             x: bounds.x + gutterW + metrics.gutterPadding,
             y: bodyY,
-            w: max(0, bounds.w - gutterW - metrics.gutterPadding - rightInset),
+            w: max(0, bounds.w - gutterW - metrics.gutterPadding - rightInset - laneW),
             h: bodyH
         )
 
-        let firstLine = min(max(0, scrollTopLine), max(0, document.lineCount - 1))
+        let firstLine = scrollState.scrollTopLine
         let availableLines = max(0, document.lineCount - firstLine)
         let count = min(maxVisible, availableLines)
         let numberWidth = max(0, gutterW - metrics.gutterPadding * 2)
@@ -455,7 +593,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             let lineIndex = firstLine + visualIndex
             guard let line = document[line: lineIndex] else { continue }
             let rowY = bodyY + visualIndex * lineHeight
-            let rowBounds = LunaRectI(x: bounds.x, y: rowY, w: bounds.w, h: lineHeight)
+            let rowBounds = LunaRectI(x: bounds.x, y: rowY, w: bounds.w - laneW, h: lineHeight)
             let lineNumberBounds = LunaRectI(
                 x: bounds.x + metrics.gutterPadding,
                 y: rowY,
@@ -489,6 +627,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             )
         }
 
+        let visibleLineRange = LunaStaticTextVisibleLineRange(
+            startLineIndex: firstLine,
+            endLineIndexExclusive: firstLine + visible.count
+        )
+        let visibleTextRange = Self.visibleTextRange(for: visible, document: document)
         let computedSelectionRects = self.selection.map { self.selectionRects(for: $0, visibleLines: visible) } ?? []
         let computedCaretRect = self.caret.flatMap { self.caretRect(for: $0, visibleLines: visible) }
 
@@ -499,9 +642,82 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             visibleLines: visible,
             firstVisibleLineIndex: firstLine,
             maxVisibleLineCount: maxVisible,
+            visibleLineRange: visibleLineRange,
+            contentHeight: contentHeight,
+            maxScrollTopLine: maxScrollTopLine,
+            visibleTextRange: visibleTextRange,
+            scrollbarLaneBounds: scrollbarLaneBounds,
+            scrollbarThumbBounds: scrollbarThumbBounds,
             caretRect: computedCaretRect,
             selectionRects: computedSelectionRects
         )
+    }
+
+    private static func scrollbarThumbBounds(
+        lane: LunaRectI,
+        documentLineCount: Int,
+        maxVisibleLineCount: Int,
+        maxScrollTopLine: Int,
+        scrollTopLine: Int,
+        metrics: LunaStaticTextViewMetrics
+    ) -> LunaRectI? {
+        guard !lane.isEmpty, documentLineCount > 0, maxVisibleLineCount > 0, documentLineCount > maxVisibleLineCount else {
+            return nil
+        }
+
+        let pad = min(max(0, metrics.scrollbarPadding), max(0, lane.w / 2))
+        let trackH = max(0, lane.h - pad * 2)
+        guard trackH > 0 else { return nil }
+
+        let proportional = (trackH * maxVisibleLineCount) / max(1, documentLineCount)
+        let thumbH = min(trackH, max(metrics.scrollbarThumbMinHeight, proportional))
+        let travel = max(0, trackH - thumbH)
+        let yOffset: Int
+        if maxScrollTopLine <= 0 {
+            yOffset = 0
+        } else {
+            yOffset = Int((Double(travel) * Double(min(max(0, scrollTopLine), maxScrollTopLine)) / Double(maxScrollTopLine)).rounded(.toNearestOrAwayFromZero))
+        }
+
+        return LunaRectI(
+            x: lane.x + pad,
+            y: lane.y + pad + yOffset,
+            w: max(1, lane.w - pad * 2),
+            h: thumbH
+        )
+    }
+
+    private static func visibleTextRange(
+        for visibleLines: [LunaStaticTextVisibleLine],
+        document: LunaStaticTextDocument
+    ) -> LunaAccessibilityTextRange {
+        guard let first = visibleLines.first, let last = visibleLines.last else {
+            return LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: 0)
+        }
+
+        let start = first.line.utf8Offset
+        let end = last.line.utf8Offset + last.line.utf8Length
+        return LunaAccessibilityTextRange(utf8Offset: start, utf8Length: max(0, end - start))
+    }
+
+    /// Return a copy of the view scrolled by a logical number of lines.
+    public func scrolled(byLineDelta delta: Int) -> LunaStaticTextView {
+        let current = layout()
+        var copy = self
+        copy.scrollTopLine = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
+            .scrolled(byLineDelta: delta, document: document, maxVisibleLineCount: current.maxVisibleLineCount)
+            .scrollTopLine
+        return copy
+    }
+
+    /// Return a copy of the view with the supplied location brought into the visible line range.
+    public func ensuringVisible(_ location: LunaTextLocation) -> LunaStaticTextView {
+        let current = layout()
+        var copy = self
+        copy.scrollTopLine = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
+            .ensuringVisible(location, document: document, maxVisibleLineCount: current.maxVisibleLineCount)
+            .scrollTopLine
+        return copy
     }
 
     /// Calculate the caret insertion rectangle for a visible line.
@@ -595,12 +811,20 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             displayList.append(.rect(layout.gutterBounds, style.gutterBackground))
         }
 
+        if !layout.scrollbarLaneBounds.isEmpty {
+            displayList.append(.rect(layout.scrollbarLaneBounds, style.scrollbarTrack))
+        }
+
         for line in layout.visibleLines where line.isCurrentLine {
             displayList.append(.rect(line.rowBounds, style.currentLineBackground))
         }
 
         for selectionRect in layout.selectionRects {
             displayList.append(.rect(selectionRect.bounds, style.selectionBackground))
+        }
+
+        if let thumb = layout.scrollbarThumbBounds {
+            displayList.append(.rect(thumb, style.scrollbarThumb))
         }
 
         if let caretRect = layout.caretRect {
@@ -640,7 +864,8 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             actions: [.focus],
             textRange: LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: document.text.utf8.count),
             caretTextRange: caret.map { document.accessibilityCaretRange(for: $0) },
-            selectedTextRange: selection.map { document.accessibilityRange(for: $0.range) }
+            selectedTextRange: selection.map { document.accessibilityRange(for: $0.range) },
+            visibleTextRange: layout.visibleTextRange
         )
     }
 

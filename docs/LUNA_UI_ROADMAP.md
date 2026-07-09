@@ -750,22 +750,62 @@ Tests completed:
 
 ### Phase 3C — Text View Scroll and Viewport
 
-Goal: prepare for real editor usage.
+**Status:** complete.
+
+Goal: prepare the read-only text surface for real editor usage by making the viewport explicit and scrollable before editable mutation exists.
+
+Scope completed:
+
+- `LunaStaticTextScrollState`;
+- logical-line scroll offset;
+- visible line range value;
+- content height;
+- max scroll-top-line calculation;
+- scrollbar/minimap lane placeholder geometry;
+- theme-driven scrollbar track/thumb display-list commands;
+- hit testing with scroll offset;
+- accessibility visible text range;
+- demo keyboard scrolling with Up/Down/PageUp/PageDown/Home/End.
+
+Demo requirement completed:
+
+- long demo text scrolls;
+- caret and hit testing respect scroll position;
+- Moth Obsidian / Luna demo / high-contrast themes still flow through text-view colors.
+
+Tests completed:
+
+- scroll-state clamping and logical scroll deltas;
+- ensure-visible scroll positioning for caret locations;
+- content height and visible line range;
+- scrollbar lane/thumb geometry;
+- scrolled hit testing;
+- offscreen caret/selection clipping;
+- accessibility visible text range;
+- display-list scrollbar theme tokens.
+
+### Phase 3D — Editable Text Input Foundation
+
+Goal: start controlled text mutation on top of the Phase 3A/3B/3C text-view foundation without pulling command palette, file I/O, or Moth app policy into Luna.
 
 Scope:
 
-- scroll offset;
-- visible line range;
-- line height;
-- content height;
-- scrollbar/minimap lane placeholder;
-- hit testing with scroll offset;
-- accessibility visible text range.
+- editable plain-text document wrapper or mutation adapter;
+- insertion at caret;
+- backspace/delete around caret;
+- newline insertion;
+- caret update after mutation;
+- selection replacement;
+- viewport ensure-visible after mutation;
+- accessibility caret/selection range updates after mutation.
 
-Demo requirement:
+Explicit non-goals for Phase 3D:
 
-- long text scrolls;
-- caret and hit testing respect scroll position.
+- no syntax highlighting;
+- no undo stack yet;
+- no file save/load;
+- no command palette;
+- no Moth application shell.
 
 ---
 
@@ -953,7 +993,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 3A — Static Accessible Text View
+Phase 3D — Editable Text Input Foundation
 ```
 
-Phase 2E is complete, including the product-neutral theme API cleanup and renderer color-channel fix. The next implementation target is a static Luna text view that uses the locked theme tokens, the renderer color contract, and the resize/accessibility invariants established in Phase 2D.
+Phase 3A, 3B, and 3C are complete. The next implementation target is a small editable text-input foundation layered on top of the existing static document, caret/selection geometry, and scroll/viewport model.

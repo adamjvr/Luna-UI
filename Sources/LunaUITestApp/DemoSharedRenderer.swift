@@ -112,6 +112,10 @@ public struct LunaCPUDemoScene {
         )
     )
 
+    /// Phase 3C scroll state. This remains a logical line viewport offset;
+    /// editable text input and pixel-fractional scrolling come later.
+    private var staticTextScroll = LunaStaticTextScrollState(scrollTopLine: 0)
+
     /// Create a new demo scene.
     public init(
         theme: LunaTheme = MothDemoTheme.theme,
@@ -131,6 +135,16 @@ public struct LunaCPUDemoScene {
     /// hit testing. Active modals are stateful, so the manager explicitly
     /// recalculates their panel/choice/accessibility bounds here.
     public mutating func handleWindowResize(_ size: LunaSizeI) {
+        let view = Self.staticTextView(
+            for: size,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
+            .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
         modalManager.reflow(viewportSize: size)
         lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
     }
@@ -169,6 +183,7 @@ public struct LunaCPUDemoScene {
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
             theme: renderTheme
@@ -228,13 +243,14 @@ public struct LunaCPUDemoScene {
             let textView = Self.staticTextView(
                 for: framebufferSize,
                 document: staticTextDocument,
+                scrollTopLine: staticTextScroll.scrollTopLine,
                 caret: staticTextCaret,
                 selection: staticTextSelection,
                 theme: theme
             )
             if let hit = textView.textHitTest(event.location) {
                 staticTextCaret = LunaStaticTextCaret(location: hit.location)
-                lastInteractionStatus = "Phase 3B caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
+                lastInteractionStatus = "Phase 3B caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); Phase 3C top=\(staticTextScroll.scrollTopLine + 1)"
                 return LunaPointerActivationResult(
                     event: event,
                     hitNodeID: hit.nodeID,
@@ -313,9 +329,71 @@ public struct LunaCPUDemoScene {
         case .number(3):
             setTheme(.highContrastProof, framebufferSize: framebufferSize)
             return true
+        case .arrowUp:
+            scrollStaticTextView(byLineDelta: -1, framebufferSize: framebufferSize)
+            return true
+        case .arrowDown:
+            scrollStaticTextView(byLineDelta: 1, framebufferSize: framebufferSize)
+            return true
+        case .pageUp:
+            scrollStaticTextView(byLineDelta: -staticTextPageDelta(framebufferSize: framebufferSize), framebufferSize: framebufferSize)
+            return true
+        case .pageDown:
+            scrollStaticTextView(byLineDelta: staticTextPageDelta(framebufferSize: framebufferSize), framebufferSize: framebufferSize)
+            return true
+        case .home:
+            setStaticTextScrollTopLine(0, framebufferSize: framebufferSize, reason: "home")
+            return true
+        case .end:
+            setStaticTextScrollTopLine(Int.max, framebufferSize: framebufferSize, reason: "end")
+            return true
         default:
             return false
         }
+    }
+
+    private mutating func staticTextPageDelta(framebufferSize: LunaSizeI) -> Int {
+        let view = Self.staticTextView(
+            for: framebufferSize,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        return max(1, view.layout().maxVisibleLineCount - 1)
+    }
+
+    private mutating func scrollStaticTextView(byLineDelta delta: Int, framebufferSize: LunaSizeI) {
+        let view = Self.staticTextView(
+            for: framebufferSize,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        let layout = view.layout()
+        staticTextScroll = staticTextScroll.scrolled(
+            byLineDelta: delta,
+            document: staticTextDocument,
+            maxVisibleLineCount: layout.maxVisibleLineCount
+        )
+        lastInteractionStatus = "Phase 3C scroll: top line \(staticTextScroll.scrollTopLine + 1) / \(staticTextDocument.lineCount)"
+    }
+
+    private mutating func setStaticTextScrollTopLine(_ line: Int, framebufferSize: LunaSizeI, reason: String) {
+        let view = Self.staticTextView(
+            for: framebufferSize,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: line)
+            .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
+        lastInteractionStatus = "Phase 3C scroll \(reason): top line \(staticTextScroll.scrollTopLine + 1) / \(staticTextDocument.lineCount)"
     }
 
 
@@ -367,6 +445,7 @@ public struct LunaCPUDemoScene {
     public static func staticTextView(
         for framebufferSize: LunaSizeI,
         document: LunaStaticTextDocument,
+        scrollTopLine: Int = 0,
         caret: LunaStaticTextCaret? = nil,
         selection: LunaStaticTextSelection? = nil,
         theme: LunaTheme = MothDemoTheme.theme
@@ -376,7 +455,7 @@ public struct LunaCPUDemoScene {
             id: LunaCPUDemoSceneLayout.textViewID,
             bounds: layout.textViewBounds,
             document: document,
-            scrollTopLine: 0,
+            scrollTopLine: scrollTopLine,
             currentLineIndex: 3,
             theme: theme,
             metrics: .demo,
@@ -397,7 +476,31 @@ public struct LunaCPUDemoScene {
     }
 
     // Phase 3B adds caret geometry and static selection.
-    // Next phases add scrolling, editable input, and real glyph runs.
+    // Phase 3C adds logical-line scrolling and viewport metrics.
+    // Use Up/Down/PageUp/PageDown/Home/End to scroll this proof surface.
+
+    let phase3c_scrollOffset = "logical top line"
+    let phase3c_visibleRange = "first visible line ..< last visible line"
+    let phase3c_contentHeight = "document.lineCount * lineHeight"
+    let phase3c_accessibility = "visible text range follows viewport"
+    let phase3c_scrollbar = "theme-driven lane and thumb placeholder"
+
+    // More lines so the viewport actually overflows in normal windows.
+    line_01: Luna text viewport proof
+    line_02: black/graphite Moth demo still comes from app-supplied theme
+    line_03: caret stays document-coordinate stable while viewport moves
+    line_04: hit testing maps screen points into scrolled text coordinates
+    line_05: selection rectangles only draw for visible touched lines
+    line_06: accessibility reports visible ranges in UTF-8 byte offsets
+    line_07: scroll thumb position is derived from line offset
+    line_08: scroll lane uses editor scrollbar theme tokens
+    line_09: no editable mutation yet
+    line_10: no pixel-fractional scroll yet
+    line_11: no soft wrap yet
+    line_12: no minimap rendering yet
+    line_13: all of that comes later on top of this viewport model
+    line_14: Phase 3C is the last read-only viewport foundation step
+    line_15: next phase can safely move toward editable input
     """
 
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
@@ -479,6 +582,7 @@ private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
 private func drawStaticTextViewProof(
     into fb: inout LunaFramebuffer,
     document: LunaStaticTextDocument,
+    scrollTopLine: Int,
     caret: LunaStaticTextCaret?,
     selection: LunaStaticTextSelection?,
     theme: LunaTheme
@@ -486,6 +590,7 @@ private func drawStaticTextViewProof(
     let view = LunaCPUDemoScene.staticTextView(
         for: LunaSizeI(width: fb.width, height: fb.height),
         document: document,
+        scrollTopLine: scrollTopLine,
         caret: caret,
         selection: selection,
         theme: theme

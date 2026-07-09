@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 3B caret and static selection work.
+This document is the working checkpoint after Phase 3C text-view scroll and viewport work.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 3B**.
+Luna UI is through **Phase 3C**.
 
 The engine now has:
 
@@ -24,7 +24,8 @@ The engine now has:
 - demo theme switching for Luna demo blue, demo-only Moth Obsidian, and high-contrast proof;
 - a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
 - a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children;
-- non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata.
+- non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
+- logical-line scroll state, visible line ranges, content height, scrollbar/minimap-lane placeholder geometry, scrolled hit testing, and accessibility visible text range metadata.
 
 ---
 
@@ -111,6 +112,7 @@ The blue highlight should stay mostly out of sight until text selection, focused
 - Phase 2E.2 — Renderer color contract and demo palette proof: complete.
 - Phase 3A — Static Accessible Text View: complete.
 - Phase 3B — Caret Geometry and Static Selection Model: complete.
+- Phase 3C — Text View Scroll and Viewport: complete.
 
 ---
 
@@ -119,7 +121,6 @@ The blue highlight should stay mostly out of sight until text selection, focused
 Luna does not yet have:
 
 - editable text input;
-- scrolling text viewport;
 - command palette / quick panel;
 - find/replace panel;
 - menu bar and dropdown menus;
@@ -131,7 +132,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 3C — Text View Scroll and Viewport
+Phase 3D — Editable Text Input Foundation
 ```
 
-Phase 3C should add scroll offset, visible range control, content height, and hit testing with scroll offset on top of the Phase 3B caret/selection geometry. It should still avoid full editable input until the viewport model is correct.
+Phase 3D should add controlled text mutation and keyboard text input on top of the scroll/viewport model. It should keep document editing policy small and testable before command palette, find panels, menus, and Moth application shell work.
