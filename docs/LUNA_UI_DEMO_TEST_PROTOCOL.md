@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5A real document / buffer integration.
+This protocol is the standing manual regression checklist for the demo app after Phase 5B product-neutral command runtime.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -31,6 +31,35 @@ Theme switching is command-palette-only.
 
 
 
+
+## Command Runtime Protocol
+
+Phase 5B adds the product-neutral command runtime that future Moth surfaces should use instead of ad-hoc demo-specific dispatch. The demo still owns the handlers, but menus, context menus, the command palette, and keyboard shortcuts now resolve through one runtime-backed command path.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| `Ctrl+P` | Opens command palette through the command keymap. |
+| `Ctrl+F` | Opens find/replace through the command keymap. |
+| `Ctrl+A` | Runs the same Select All command used by menus/context/palette. |
+| `Ctrl+Space` | Opens completion popup through the command keymap. |
+| `Edit > Select All` | Runs the same command ID as `Ctrl+A`. |
+| `Selection > Select All` | Runs the same command ID as `Ctrl+A`. |
+| `Editor context > Select All` | Runs the same command ID as `Ctrl+A`. |
+| Command palette > `Select All` | Runs the same command ID as `Ctrl+A`. |
+| `Theme` menu/context submenu | Active theme check mark follows command availability state. |
+| `View > Toggle Sidebar` / sidebar context/status context | Sidebar checked/visible state comes from command availability and the same handler. |
+
+Boundary rule:
+
+```text
+LunaCommands owns descriptor/availability/keymap/runtime plumbing.
+LunaUITestApp owns demo handlers.
+Moth will later provide its own handlers and policy.
+```
+
+---
 
 ## Document / Buffer Protocol
 

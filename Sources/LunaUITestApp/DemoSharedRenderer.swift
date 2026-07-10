@@ -271,7 +271,7 @@ public struct LunaCPUDemoScene {
         drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         drawMenuBarOverlay(
             into: &fb,
-            menuBar: Self.menuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
+            menuBar: demoMenuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
             theme: renderTheme
         )
         drawEditorShellOverlay(
@@ -315,7 +315,7 @@ public struct LunaCPUDemoScene {
         )
         drawMenuDropdownOverlay(
             into: &fb,
-            menuBar: Self.menuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
+            menuBar: demoMenuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
             theme: renderTheme
         )
         drawContextMenuOverlay(
@@ -515,7 +515,7 @@ public struct LunaCPUDemoScene {
         // and are consumed so they do not accidentally edit text underneath.
         do {
             var state = menuBarState
-            let menu = Self.menuBar(for: framebufferSize, state: state, theme: theme)
+            let menu = demoMenuBar(for: framebufferSize, state: state, theme: theme)
             let result = menu.handlePointerEvent(event, state: &state)
             menuBarState = state
             if let command = result.requestedCommand {
@@ -840,7 +840,7 @@ public struct LunaCPUDemoScene {
 
         if menuBarState.isOpen {
             var state = menuBarState
-            let menu = Self.menuBar(for: framebufferSize, state: state, theme: theme)
+            let menu = demoMenuBar(for: framebufferSize, state: state, theme: theme)
             let result = menu.handleKeyboardEvent(event, state: &state)
             menuBarState = state
             if let command = result.requestedCommand {
@@ -856,27 +856,15 @@ public struct LunaCPUDemoScene {
 
         activeTextSelectionAnchor = nil
 
-        if isCommandPaletteShortcut(event) {
-            suppressShortcutTextInput("p")
-            openQuickPanel()
-            lastInteractionStatus = "Phase 4A command palette opened; type to filter, Enter runs, Esc closes"
-            return true
-        }
-
-        if isFindPanelShortcut(event) {
-            suppressShortcutTextInput("f")
-            openFindPanel(framebufferSize: framebufferSize)
-            return true
-        }
-
-        if isSelectAllShortcut(event) {
-            suppressShortcutTextInput("a")
-            selectAllEditableText(framebufferSize: framebufferSize)
-            return true
-        }
-
-        if isCompletionShortcut(event) {
-            openCompletionPopup(framebufferSize: framebufferSize)
+        if let command = Self.demoCommandRuntime.command(
+            matching: event.lunaCommandKeyStroke,
+            host: self,
+            context: demoCommandContext(framebufferSize: framebufferSize, source: "keyboard")
+        ) {
+            if let suppressed = event.lunaShortcutTextInputSuppressionCandidate {
+                suppressShortcutTextInput(suppressed)
+            }
+            performDemoCommand(command, framebufferSize: framebufferSize)
             return true
         }
 
@@ -939,37 +927,6 @@ public struct LunaCPUDemoScene {
         }
     }
 
-    private func isCommandPaletteShortcut(_ event: LunaKeyboardEvent) -> Bool {
-        switch event.key {
-        case .other(let key):
-            return key.lowercased() == "p" && (event.modifiers.control || event.modifiers.command)
-        default:
-            return false
-        }
-    }
-
-    private func isFindPanelShortcut(_ event: LunaKeyboardEvent) -> Bool {
-        switch event.key {
-        case .other(let key):
-            return key.lowercased() == "f" && (event.modifiers.control || event.modifiers.command)
-        default:
-            return false
-        }
-    }
-
-    private func isSelectAllShortcut(_ event: LunaKeyboardEvent) -> Bool {
-        switch event.key {
-        case .other(let key):
-            return key.lowercased() == "a" && (event.modifiers.control || event.modifiers.command)
-        default:
-            return false
-        }
-    }
-
-    private func isCompletionShortcut(_ event: LunaKeyboardEvent) -> Bool {
-        event.key == .space && (event.modifiers.control || event.modifiers.command)
-    }
-
     private mutating func suppressShortcutTextInput(_ text: String) {
         pendingShortcutTextInputSuppression = text.lowercased()
     }
@@ -979,7 +936,9 @@ public struct LunaCPUDemoScene {
         contextMenuState.close()
         completionPopupState.close()
         findPanelState = nil
-        quickPanelState = LunaQuickPanelState(items: Self.demoQuickPanelItems)
+        let context = demoCommandContext(framebufferSize: LunaSizeI(width: 1024, height: 768), source: "palette")
+        let descriptors = Self.demoCommandRuntime.paletteDescriptors(host: self, context: context)
+        quickPanelState = LunaQuickPanelState(items: descriptors.map(LunaQuickPanelItem.init(command:)))
     }
 
     private func activeQuickPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaQuickPanel? {
@@ -1002,6 +961,45 @@ public struct LunaCPUDemoScene {
     private func activeFindPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaFindPanel? {
         guard let state = findPanelState else { return nil }
         return Self.findPanel(for: framebufferSize, state: state, theme: theme)
+    }
+
+    private func demoMenuBar(for framebufferSize: LunaSizeI, state: LunaMenuBarState, theme: LunaTheme) -> LunaMenuBar {
+        Self.menuBar(
+            for: framebufferSize,
+            state: state,
+            theme: theme,
+            menus: resolvedDemoMenus(for: theme, framebufferSize: framebufferSize)
+        )
+    }
+
+    private func resolvedDemoMenus(for theme: LunaTheme, framebufferSize: LunaSizeI) -> [LunaMenuDefinition] {
+        let context = demoCommandContext(framebufferSize: framebufferSize, source: "menu")
+        return Self.demoMenus(for: theme).map { definition in
+            LunaMenuDefinition(
+                id: definition.id,
+                title: definition.title,
+                items: resolvedMenuItems(definition.items, context: context)
+            )
+        }
+    }
+
+    private func resolvedMenuItems(_ items: [LunaMenuItem], context: LunaCommandContext) -> [LunaMenuItem] {
+        items.map { item in
+            var resolved = item
+            if !item.children.isEmpty {
+                resolved.children = resolvedMenuItems(item.children, context: context)
+            }
+            guard let command = item.command,
+                  let surface = Self.demoCommandRuntime.surfaceItem(for: command, host: self, context: context) else {
+                return resolved
+            }
+            resolved.title = surface.title
+            resolved.keyEquivalent = surface.keyEquivalent ?? item.keyEquivalent
+            resolved.isEnabled = item.isEnabled && surface.isEnabled
+            resolved.isChecked = item.isChecked || surface.isChecked
+            resolved.accessibilityLabel = surface.accessibilityLabel
+            return resolved
+        }
     }
 
 
@@ -1073,6 +1071,7 @@ public struct LunaCPUDemoScene {
         let textHit = textView.textHitTest(point)
 
         let themeItems = demoThemeContextMenuItems(for: renderTheme)
+        let commandContext = demoCommandContext(framebufferSize: framebufferSize, source: "context-menu")
         let hasSelection = editableTextState.selection != nil
         let editorItems: [LunaMenuItem] = [
             LunaMenuItem.command(id: "editor.copy", title: "Copy", command: "luna.demo.context.copy", keyEquivalent: LunaKeyEquivalent("C", modifiers: [.primary]), isEnabled: hasSelection),
@@ -1093,7 +1092,7 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "editor-text",
                 title: "Editor Context",
-                items: editorItems,
+                items: resolvedMenuItems(editorItems, context: commandContext),
                 sourceNodeID: textHit.nodeID,
                 accessibilityLabel: "Editor Context Menu"
             )
@@ -1114,7 +1113,7 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "tab-\(tab.tab.id.rawValue)",
                 title: "Tab: \(tab.tab.title)",
-                items: items,
+                items: resolvedMenuItems(items, context: commandContext),
                 sourceNodeID: tab.nodeID,
                 accessibilityLabel: "Tab Context Menu"
             )
@@ -1136,7 +1135,7 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "sidebar-\(row.item.id.rawValue)",
                 title: "Sidebar: \(row.item.title)",
-                items: items,
+                items: resolvedMenuItems(items, context: commandContext),
                 sourceNodeID: row.nodeID,
                 accessibilityLabel: "Sidebar Context Menu"
             )
@@ -1154,7 +1153,7 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "status-\(segment.segment.id.rawValue)",
                 title: "Status: \(segment.segment.visibleText)",
-                items: items,
+                items: resolvedMenuItems(items, context: commandContext),
                 sourceNodeID: segment.nodeID,
                 accessibilityLabel: "Status Bar Context Menu"
             )
@@ -1164,7 +1163,7 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "editor-content",
                 title: "Editor Context",
-                items: editorItems,
+                items: resolvedMenuItems(editorItems, context: commandContext),
                 sourceNodeID: shell.editorContentNodeID,
                 accessibilityLabel: "Editor Context Menu"
             )
@@ -1257,9 +1256,68 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Phase 5A active document: \(title) (\(reason))"
     }
 
+    private func demoCommandAvailability(for command: LunaCommandID, context: LunaCommandContext) -> LunaCommandAvailability {
+        let currentTheme = MothDemoTheme.canonicalTheme(for: theme).name
+        let hasSelection = editableTextState.selection != nil
+
+        switch command.rawValue {
+        case "luna.demo.theme.blue":
+            return LunaCommandAvailability(isChecked: currentTheme == LunaTheme.lunaDemoBlue.name)
+        case "luna.demo.theme.moth":
+            return LunaCommandAvailability(isChecked: currentTheme == MothDemoTheme.theme.name)
+        case "luna.demo.theme.highContrast":
+            return LunaCommandAvailability(isChecked: currentTheme == LunaTheme.highContrastProof.name)
+        case "luna.demo.sidebar.toggle":
+            return LunaCommandAvailability(isChecked: editorShellState.isSidebarVisible)
+        case "luna.demo.edit.selectAll":
+            return LunaCommandAvailability(isEnabled: !staticTextDocument.lines.isEmpty)
+        case "luna.demo.selection.clear":
+            return LunaCommandAvailability(isEnabled: hasSelection, disabledReason: hasSelection ? nil : "No active selection")
+        case "luna.demo.context.copy":
+            return LunaCommandAvailability(isEnabled: hasSelection, disabledReason: hasSelection ? nil : "No active selection")
+        case "luna.demo.context.cut":
+            return .disabled("Cut is not implemented in the demo yet")
+        case "luna.demo.tab.overview":
+            return LunaCommandAvailability(isChecked: documentStore.activeDocumentID == "overview")
+        case "luna.demo.tab.editor":
+            return LunaCommandAvailability(isChecked: documentStore.activeDocumentID == "editor")
+        case "luna.demo.tab.theme":
+            return LunaCommandAvailability(isChecked: documentStore.activeDocumentID == "theme")
+        case "luna.demo.tab.close":
+            let canClose = documentStore.activeDocument?.descriptor.isClosable ?? false
+            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Active document is not closable in this demo")
+        case "luna.demo.scroll.top":
+            return LunaCommandAvailability(isEnabled: staticTextScroll.scrollTopLine > 0, disabledReason: staticTextScroll.scrollTopLine > 0 ? nil : "Already at top")
+        case "luna.demo.scroll.end":
+            return .enabled
+        default:
+            return .enabled
+        }
+    }
+
     private mutating func performDemoCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
         contextMenuState.close()
         completionPopupState.close()
+        let context = demoCommandContext(framebufferSize: framebufferSize, source: "demo")
+        let result = Self.demoCommandRuntime.execute(command, host: &self, context: context)
+        if !result.didHandle, let status = result.statusMessage {
+            lastInteractionStatus = status
+        }
+    }
+
+    private func demoCommandContext(framebufferSize: LunaSizeI, source: String? = nil) -> LunaCommandContext {
+        LunaCommandContext(
+            focusedSurface: "editor",
+            activeDocumentID: activeDocumentDescriptor?.id.rawValue,
+            source: source,
+            attributes: [
+                "framebuffer.width": String(framebufferSize.width),
+                "framebuffer.height": String(framebufferSize.height),
+            ]
+        )
+    }
+
+    private mutating func performDemoCommandBody(_ command: LunaCommandID, framebufferSize: LunaSizeI) -> LunaCommandExecutionResult {
         switch command.rawValue {
         case "luna.demo.theme.blue":
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
@@ -1352,6 +1410,7 @@ public struct LunaCPUDemoScene {
         default:
             lastInteractionStatus = "Demo command: \(command.rawValue)"
         }
+        return .handled(lastInteractionStatus)
     }
 
     private mutating func staticTextPageDelta(framebufferSize: LunaSizeI) -> Int {
@@ -1608,13 +1667,14 @@ public struct LunaCPUDemoScene {
     public static func menuBar(
         for framebufferSize: LunaSizeI,
         state: LunaMenuBarState,
-        theme: LunaTheme = MothDemoTheme.theme
+        theme: LunaTheme = MothDemoTheme.theme,
+        menus: [LunaMenuDefinition]? = nil
     ) -> LunaMenuBar {
         let layout = Self.layout(for: framebufferSize)
         return LunaMenuBar(
             id: LunaCPUDemoSceneLayout.menuBarID,
             bounds: layout.menuBarBounds,
-            menus: demoMenus(for: theme),
+            menus: menus ?? demoMenus(for: theme),
             state: state,
             theme: theme,
             metrics: .demo
@@ -1792,7 +1852,7 @@ public struct LunaCPUDemoScene {
     ]
 
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
-        LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("Ctrl+P"), menuPath: ["View"]),
+        LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("P", modifiers: [.primary]), menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
         LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: nil, menuPath: ["Theme"]),
         LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: nil, menuPath: ["Theme"]),
@@ -1801,10 +1861,10 @@ public struct LunaCPUDemoScene {
         LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.sidebar.toggle", title: "Toggle Sidebar", menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
-        LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("Ctrl+A"), menuPath: ["Edit"]),
+        LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("A", modifiers: [.primary]), menuPath: ["Edit"]),
         LunaCommandDescriptor(id: "luna.demo.selection.clear", title: "Clear Selection", menuPath: ["Selection"]),
-        LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
-        LunaCommandDescriptor(id: "luna.demo.completion.open", title: "Open Completion Popup", defaultKey: LunaKeyEquivalent("Ctrl+Space"), menuPath: ["Edit", "Completion"]),
+        LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("F", modifiers: [.primary]), menuPath: ["Find"]),
+        LunaCommandDescriptor(id: "luna.demo.completion.open", title: "Open Completion Popup", defaultKey: LunaKeyEquivalent("Space", modifiers: [.primary]), menuPath: ["Edit", "Completion"]),
         LunaCommandDescriptor(id: "luna.demo.completion.info", title: "Completion: Show Info", menuPath: ["Completion"]),
         LunaCommandDescriptor(id: "luna.demo.sidebar.documentBuffer", title: "Sidebar: LunaDocumentBuffer.swift", menuPath: ["Sidebar"]),
         LunaCommandDescriptor(id: "luna.demo.sidebar.editorShell", title: "Sidebar: LunaEditorShell.swift", menuPath: ["Sidebar"]),
@@ -1823,6 +1883,28 @@ public struct LunaCPUDemoScene {
     ]
 
     public static let demoQuickPanelItems: [LunaQuickPanelItem] = demoCommandDescriptors.map(LunaQuickPanelItem.init(command:))
+
+    /// Product-neutral command runtime proof for Phase 5B. Luna supplies the
+    /// registry, keymap, availability, and execution path; this demo scene
+    /// supplies the handlers and dynamic policy. The property is computed so it
+    /// remains a pure value builder instead of a shared mutable singleton.
+    public static var demoCommandRuntime: LunaCommandRuntime<LunaCPUDemoScene> {
+        var runtime = LunaCommandRuntime<LunaCPUDemoScene>()
+        runtime.register(
+            contentsOf: demoCommandDescriptors,
+            handler: { command, scene, context in
+                let size = LunaSizeI(
+                    width: context.integerValue(for: "framebuffer.width") ?? 1024,
+                    height: context.integerValue(for: "framebuffer.height") ?? 768
+                )
+                return scene.performDemoCommandBody(command, framebufferSize: size)
+            },
+            availability: { command, scene, context in
+                scene.demoCommandAvailability(for: command, context: context)
+            }
+        )
+        return runtime
+    }
 
     /// Demo menu contents for Phase 4C. These are deliberately app-local. LunaUI
     /// owns `LunaMenuBar`; this test app owns the editor-ish menu structure.

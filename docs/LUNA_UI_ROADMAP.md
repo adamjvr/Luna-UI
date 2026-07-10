@@ -1090,7 +1090,35 @@ sidebar open-document rows activate the same document IDs
 find/replace/completion/context/menu operations target the active document
 ```
 
-### Phase 5B — Sidebar Data Adapters
+### Phase 5B — Product-Neutral Editor Command Runtime
+
+Status: complete.
+
+Phase 5B turns the earlier command descriptors into an actual runtime path that Moth can later use across menus, context menus, the command palette, keyboard shortcuts, accessibility actions, and future toolbar/status actions. Luna owns descriptors, availability projection, key binding matching, and execution plumbing; applications own command handlers and product policy.
+
+Completed scope:
+
+- `LunaCommandContext` for focused surface, active document ID, source, and simple execution attributes;
+- `LunaCommandAvailability` for dynamic enabled, visible, checked, title override, and disabled-reason state;
+- `LunaCommandExecutionResult` for handled/unhandled status, announcements, and follow-up command hooks;
+- `LunaKeyStroke`, `LunaKeyBinding`, and `LunaKeyBindingMap` for product-neutral shortcut matching;
+- compatibility matching for legacy display strings like `Ctrl+P` while preferring explicit key/modifier descriptors;
+- `LunaCommandSurfaceItem` for menu/palette/context/status projection;
+- generic `LunaCommandRuntime<Host>` that executes handlers against an app-owned mutable host;
+- LunaUI keyboard-event adapters that translate `LunaKeyboardEvent`/modifiers into command key strokes;
+- demo key shortcuts, command palette, menu rows, and context menu rows now resolve through the same runtime-backed command state/execution path.
+
+Phase 5B demo proof:
+
+```text
+Ctrl+A, Edit > Select All, Selection > Select All, context menu > Select All, and command palette > Select All route through one command ID
+Ctrl+P, Ctrl+F, and Ctrl+Space route through the command keymap rather than ad-hoc shortcut checks
+disabled/checked menu and context rows are resolved from command availability
+theme/sidebar/tab checked states come from command runtime surface projection
+command handlers still live in LunaUITestApp, proving Luna owns machinery but not product policy
+```
+
+### Phase 5C — Sidebar Data Adapters
 
 Scope:
 
@@ -1098,7 +1126,7 @@ Scope:
 - preserve expanded/selected row state across refreshes;
 - prepare for file icons/symbol icons once display-list text/icon support matures.
 
-### Phase 5C — Minimap / Scrollbar Lane
+### Phase 5D — Minimap / Scrollbar Lane
 
 Scope:
 
@@ -1108,7 +1136,7 @@ Scope:
 - theme tokens;
 - pointer hit testing for scroll thumb/minimap viewport later.
 
-### Phase 5D — Tab Overflow and Split/Panes
+### Phase 5E — Tab Overflow and Split/Panes
 
 Scope:
 
@@ -1173,7 +1201,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5B — Sidebar Data Adapters
+Phase 5C — Sidebar Data Adapters
 ```
 
-Phase 5A is complete. Phase 5B should add product-neutral adapter helpers that map app/project trees into `LunaSidebarItem` values while preserving expanded/selected row state across refreshes. Real file I/O and Moth-specific project policy still belong above Luna.
+Phase 5B is complete. Phase 5C should add product-neutral adapter helpers that map app/project trees into `LunaSidebarItem` values while preserving expanded/selected row state across refreshes. Real file I/O and Moth-specific project policy still belong above Luna.
