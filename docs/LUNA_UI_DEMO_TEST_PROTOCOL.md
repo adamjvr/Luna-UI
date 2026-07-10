@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 4C menu bar and dropdown menus.
+This protocol is the standing manual regression checklist for the demo app after Phase 4D tabs / sidebar / status bar shell.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -16,7 +16,7 @@ The demo is an integration harness for Luna UI. It may show the Moth Obsidian pa
 | `Ctrl+F` | Open the generic find / replace panel. |
 | `Ctrl+A` | Select all text in the editor when no overlay owns input. |
 | `Escape` | Close the active modal/palette/find panel/menu before the editor sees it. |
-| Window resize | Header, editor, proof panel, overlays, and status bar reflow cleanly. |
+| Window resize | Header, menu bar, tab strip, sidebar, editor content, proof panel, overlays, and status bar reflow cleanly. |
 
 Retired behavior:
 
@@ -24,6 +24,41 @@ Retired behavior:
 Bare 1 / 2 / 3 are no longer theme hotkeys.
 They should insert text when the editor has focus.
 Theme switching is command-palette-only.
+```
+
+---
+
+## Editor Shell Protocol
+
+The Phase 4D editor shell is product-neutral Luna infrastructure. The demo supplies fake tabs, a fake project tree, and dynamic status segments; LunaUI supplies layout, state shape, hit testing, theme-driven geometry, and accessibility.
+
+Visible shell pieces to test:
+
+```text
+tab strip above the editor
+left project/sidebar tree
+editor content frame
+bottom status bar segments
+```
+
+| Action | Expected reaction |
+|---|---|
+| App at rest | Tabs, sidebar rows, editor text surface, proof panel when wide, and status segments are all visible. |
+| Resize window wide/narrow | Sidebar/content/proof panel reflow without text or hit-test bounds drifting. |
+| Click a tab | Active tab changes and status reports the tab command. |
+| Click a closable tab's close box | Close-tab command is requested; demo keeps static fixture tabs. |
+| Click sidebar disclosure arrows | Folder rows expand/collapse. |
+| Click a sidebar file row | Row selection changes and routes a demo command. |
+| Click inside the editor content frame | Text caret/selection still works; shell does not consume editor-content clicks. |
+| Click status segments | Clickable segments route commands where provided; non-command status text remains inert. |
+| Switch themes | Tab/sidebar/status backgrounds and labels update from theme tokens. |
+
+Input ownership rule:
+
+```text
+The shell owns tab/sidebar/status hits only.
+Editor content hits continue to flow to the text view.
+Menus, palette, find panel, and modals still sit above the shell and own input while open.
 ```
 
 ---
@@ -121,6 +156,8 @@ find
 notice
 scroll
 sample
+sidebar
+tab
 ```
 
 Expected command reactions:
@@ -136,6 +173,8 @@ Expected command reactions:
 | `Scroll Text View to Top` | Scrolls editor to top. |
 | `Scroll Text View to End` | Scrolls editor to bottom. |
 | `Insert Sample Text` | Inserts `quick-panel` at the caret or replaces selection. |
+| `Toggle Sidebar` | Shows/hides the Phase 4D sidebar shell region. |
+| `Activate Editor Tab` / related tab commands | Updates active tab state and status text. |
 
 Input ownership rule:
 

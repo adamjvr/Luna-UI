@@ -966,18 +966,51 @@ shortcut labels render in the aligned shortcut column
 Theme menu check marks follow the active demo theme
 ```
 
-### Phase 4D — Context Menu
+### Phase 4D — Tabs / Sidebar / Status Bar Shell
+
+Status: complete.
+
+Phase 4D pulls the editor chrome shell forward from the old Phase 5 outline because the demo/editor surface now needs a stable frame before context menus, completion popups, minimap, and real application documents are layered in. Luna owns product-neutral shell model/state/layout/hit testing/accessibility; applications supply actual tabs, project/sidebar data, status values, and command handlers.
+
+Completed scope:
+
+- reusable `LunaEditorShell` primitive;
+- product-neutral tab IDs and tab model with active/hover/dirty/pinned/closable states;
+- product-neutral sidebar item IDs and tree/list model with expandable folders, selection, hover, and visible-row flattening;
+- product-neutral status-bar segment model with leading/trailing placement, normal/muted/accent emphasis, and optional command dispatch;
+- shell layout that produces tab-strip, sidebar, editor-content, and status-bar frames from one bounds source;
+- pointer routing for tab activation, close buttons, sidebar disclosure toggles, sidebar selection, and clickable status segments;
+- theme-driven display-list geometry for tabs, sidebar rows, editor content background, and status bar;
+- accessibility nodes for tab strip, tabs, close buttons, sidebar list/rows, status bar, and status segments;
+- demo integration that frames the editable text view with visible tabs, sidebar, and dynamic status segments.
+
+Phase 4D demo proof:
+
+```text
+tabs are visible above the editor content
+active/dirty/closable tab states are visible
+sidebar tree rows are visible and expandable
+clicking disclosure arrows expands/collapses rows
+clicking a sidebar file selects it and routes a command
+status bar segments show status, revision, syntax, scroll, and caret position
+editor text hit testing still works inside the shell content frame
+menus/palette/find/modal overlays retain input ownership above the shell
+```
+
+### Phase 4E — Context Menu
 
 Scope:
 
-- right-click menu;
+- right-click / secondary-click menu presentation;
+- reuse Phase 4C menu-row/dropdown machinery where possible;
 - compact rows;
 - separators;
 - disabled states;
 - first-pass submenus;
-- shortcut display.
+- shortcut display;
+- context-menu routing from editor, sidebar rows, tabs, and status segments.
 
-### Phase 4E — Completion Popup
+### Phase 4F — Completion Popup
 
 Scope:
 
@@ -990,58 +1023,45 @@ Scope:
 
 ---
 
-## Phase 5 — Editor Chrome Layout
+## Phase 5 — Editor Surface Deepening
 
-### Phase 5A — Window Chrome Layout
+The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/4D: menu bar, tabs, sidebar, and status-bar primitives now exist as reusable LunaUI surfaces. Phase 5 is now the deeper editor/content pass that can rely on that shell.
 
-Scope:
-
-- menu bar;
-- tab bar;
-- main editor region;
-- panel region;
-- status bar.
-
-### Phase 5B — Tabs
+### Phase 5A — Real Document / Buffer Integration
 
 Scope:
 
-- active tab;
-- inactive tab;
-- dirty tab state;
-- close button area;
-- tab overflow later.
+- replace demo-only editable text fixtures with app-supplied document descriptors;
+- connect shell tab state to real document identity;
+- surface dirty state from document edits instead of static demo flags;
+- keep LunaUI product-neutral while allowing Moth Text to provide file/project policy later.
 
-Visual target: Sublime dirty tab and active/inactive tab references.
-
-### Phase 5C — Sidebar
+### Phase 5B — Sidebar Data Adapters
 
 Scope:
 
-- open files section;
-- folders section;
-- tree rows;
-- hover/selection;
-- disclosure arrows.
+- map app/project trees into `LunaSidebarItem` values;
+- preserve expanded/selected row state across refreshes;
+- prepare for file icons/symbol icons once display-list text/icon support matures.
 
-### Phase 5D — Status Bar
+### Phase 5C — Minimap / Scrollbar Lane
 
 Scope:
 
-- line/column;
-- syntax mode;
-- encoding;
-- indentation;
-- Git/status slots later.
-
-### Phase 5E — Minimap / Scrollbar Lane
-
-Scope:
-
-- minimap placeholder;
+- minimap placeholder rendering;
 - scrollbar lane;
 - viewport indicator;
-- theme tokens.
+- theme tokens;
+- pointer hit testing for scroll thumb/minimap viewport later.
+
+### Phase 5D — Tab Overflow and Split/Panes
+
+Scope:
+
+- overflow behavior when tabs exceed strip width;
+- pinned-tab layout refinement;
+- future split panes / multiple editor groups;
+- keyboard-accessible tab traversal.
 
 ---
 

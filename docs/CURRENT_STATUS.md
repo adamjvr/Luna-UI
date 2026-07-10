@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4C menu bar and dropdown menus.
+This document is the working checkpoint after Phase 4D tabs / sidebar / status bar shell.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4C**.
+Luna UI is through **Phase 4D**.
 
 The engine now has:
 
@@ -34,7 +34,8 @@ The engine now has:
 - command-palette-only demo theme switching so bare `1`, `2`, and `3` can be typed into the editor as text;
 - Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
 - tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
-- a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch.
+- a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch;
+- a product-neutral editor shell foundation with reusable tab strip, sidebar tree/list rows, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, accessibility nodes, and demo integration that frames the editable text view.
 
 ---
 
@@ -129,6 +130,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4B.1 — Interactive Text Selection Completion: complete.
 - Phase 4B.2 — Demo Command Routing and Text Input Focus Cleanup: complete.
 - Phase 4C — Menu Bar and Dropdown Menus: complete.
+- Phase 4D — Tabs / Sidebar / Status Bar Shell: complete.
 
 ---
 
@@ -136,7 +138,10 @@ The blue highlight is now visible for real user text selection, focused fields, 
 
 Luna does not yet have:
 
-- tabs, sidebar, status bar, or minimap;
+- context menus;
+- completion popup;
+- minimap rendering;
+- real project/document/tab persistence;
 - the actual Moth Text application target.
 
 ---
@@ -144,7 +149,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4D — Tabs / Sidebar / Status Bar Shell
+Phase 4E — Context Menu
 ```
 
-Phase 4D should add product-neutral editor shell primitives for tabs, sidebar, and status bar layout/state. Moth can later feed those primitives real project folders, dirty document state, syntax mode, cursor status, and document metadata without baking Moth product naming into Luna's library API.
+Phase 4E should reuse the menu/dropdown row machinery for product-neutral context menus that can be opened from editor, sidebar, tab, and status surfaces. Applications should supply menu contents and command handlers without baking product naming into Luna's reusable API.

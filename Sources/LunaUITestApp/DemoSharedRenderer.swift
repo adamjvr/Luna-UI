@@ -37,8 +37,11 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let semanticWidgetID: LunaNodeID = "demo.phase1.semantic-widget"
     public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
     public static let hudID: LunaNodeID = "demo.hud"
-    public static let statusID: LunaNodeID = "demo.status"
+    public static let statusID: LunaNodeID = "demo.phase4d.status-bar"
     public static let menuBarID: LunaNodeID = "demo.phase4c.menu-bar"
+    public static let editorShellID: LunaNodeID = "demo.phase4d.editor-shell"
+    public static let tabStripID: LunaNodeID = "demo.phase4d.tab-strip"
+    public static let sidebarID: LunaNodeID = "demo.phase4d.sidebar"
     public static let proofPanelID: LunaNodeID = "demo.proof-panel"
     public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
     public static let findPanelID: LunaNodeID = "demo.phase4b.find-panel"
@@ -73,6 +76,18 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 
     public var menuBarBounds: LunaRectI {
         frames.frame(for: Self.menuBarID) ?? LunaRectI(x: 0, y: 0, w: viewport.size.width, h: 24)
+    }
+
+    public var editorShellBounds: LunaRectI {
+        frames.frame(for: Self.editorShellID) ?? LunaRectI(x: 0, y: 24, w: viewport.size.width, h: max(1, viewport.size.height - 24))
+    }
+
+    public var tabStripBounds: LunaRectI {
+        frames.frame(for: Self.tabStripID) ?? LunaRectI(x: editorShellBounds.x, y: editorShellBounds.y, w: editorShellBounds.w, h: 30)
+    }
+
+    public var sidebarBounds: LunaRectI {
+        frames.frame(for: Self.sidebarID) ?? LunaRectI(x: editorShellBounds.x, y: editorShellBounds.y + tabStripBounds.h, w: 0, h: max(1, editorShellBounds.h - tabStripBounds.h))
     }
 }
 
@@ -127,6 +142,10 @@ public struct LunaCPUDemoScene {
     /// menu primitives own layout/input/accessibility; the demo owns which
     /// commands are present and how they are handled.
     private var menuBarState = LunaMenuBarState()
+
+    /// Phase 4D product-neutral editor shell state. Tabs/sidebar/status are
+    /// LunaUI primitives; the demo supplies fake documents/project/status data.
+    private var editorShellState = LunaCPUDemoScene.demoEditorShellState
 
     /// Phase 4B generic find/replace panel state. The state lives in the demo
     /// because the app owns when a find UI is open and which document it targets;
@@ -233,6 +252,17 @@ public struct LunaCPUDemoScene {
             menuBar: Self.menuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
             theme: renderTheme
         )
+        drawEditorShellOverlay(
+            into: &fb,
+            shell: Self.editorShell(
+                for: LunaSizeI(width: fb.width, height: fb.height),
+                state: editorShellState,
+                theme: renderTheme,
+                statusSegments: demoStatusSegments()
+            ),
+            theme: renderTheme
+        )
+        drawProofPanelChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
@@ -258,16 +288,6 @@ public struct LunaCPUDemoScene {
             layout: renderLayout,
             timeSeconds: t,
             frameIndex: frameIndex,
-            theme: renderTheme
-        )
-        drawStatusBar(
-            into: &fb,
-            layout: renderLayout,
-            status: lastInteractionStatus,
-            caret: staticTextCaret,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            lineCount: staticTextDocument.lineCount,
-            editRevision: editableTextState.editRevision,
             theme: renderTheme
         )
         drawMenuDropdownOverlay(
@@ -427,6 +447,43 @@ public struct LunaCPUDemoScene {
                     hitNodeID: result.hitNodeID,
                     requestedCommand: result.requestedCommand,
                     announcementTexts: result.requestedCommand == nil ? [] : ["Menu command activated"]
+                )
+            }
+        }
+
+        // Phase 4D shell routing. The shell owns its chrome regions (tabs,
+        // project/sidebar rows, status segments) but deliberately does not
+        // consume editor-content hits, so the text surface can still receive
+        // caret/selection events inside the editor frame.
+        do {
+            var state = editorShellState
+            let shell = Self.editorShell(
+                for: framebufferSize,
+                state: state,
+                theme: theme,
+                statusSegments: demoStatusSegments()
+            )
+            let result = shell.handlePointerEvent(event, state: &state)
+            editorShellState = state
+            if let command = result.requestedCommand {
+                performDemoCommand(command, framebufferSize: framebufferSize)
+            } else if let tab = result.selectedTabID {
+                lastInteractionStatus = "Phase 4D selected tab: \(tab.rawValue)"
+            } else if let tab = result.closedTabID {
+                lastInteractionStatus = "Phase 4D close tab requested: \(tab.rawValue)"
+            } else if let item = result.selectedSidebarItemID {
+                lastInteractionStatus = "Phase 4D selected sidebar item: \(item.rawValue)"
+            } else if let item = result.toggledSidebarItemID {
+                lastInteractionStatus = "Phase 4D toggled sidebar item: \(item.rawValue)"
+            } else if let segment = result.activatedStatusSegmentID {
+                lastInteractionStatus = "Phase 4D status segment: \(segment.rawValue)"
+            }
+            if result.didConsumeEvent {
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: result.hitNodeID,
+                    requestedCommand: result.requestedCommand,
+                    announcementTexts: result.requestedCommand == nil ? [] : ["Shell command activated"]
                 )
             }
         }
@@ -885,8 +942,28 @@ public struct LunaCPUDemoScene {
         case "luna.demo.selection.clear":
             editableTextState.selection = nil
             lastInteractionStatus = "Selection cleared"
+        case "luna.demo.sidebar.toggle":
+            editorShellState.isSidebarVisible.toggle()
+            lastInteractionStatus = editorShellState.isSidebarVisible ? "Phase 4D sidebar shown" : "Phase 4D sidebar hidden"
+        case "luna.demo.tab.overview":
+            editorShellState.tabStrip.activeTabID = "overview"
+            lastInteractionStatus = "Phase 4D tab: Overview.swift"
+        case "luna.demo.tab.editor":
+            editorShellState.tabStrip.activeTabID = "editor"
+            lastInteractionStatus = "Phase 4D tab: EditorSurface.swift"
+        case "luna.demo.tab.theme":
+            editorShellState.tabStrip.activeTabID = "theme"
+            lastInteractionStatus = "Phase 4D tab: Theme.json"
+        case "luna.demo.tab.close":
+            lastInteractionStatus = "Phase 4D close-tab command requested; demo tabs are static fixtures"
+        case "luna.demo.sidebar.editorShell",
+             "luna.demo.sidebar.menu",
+             "luna.demo.sidebar.find",
+             "luna.demo.sidebar.phase4dTests",
+             "luna.demo.sidebar.roadmap":
+            lastInteractionStatus = "Phase 4D sidebar command: \(command.rawValue)"
         default:
-            lastInteractionStatus = "Phase 4A ran command: \(command.rawValue)"
+            lastInteractionStatus = "Demo command: \(command.rawValue)"
         }
     }
 
@@ -956,68 +1033,88 @@ public struct LunaCPUDemoScene {
     /// Compute the current demo layout for a framebuffer size.
     ///
     /// This is intentionally public/testable so resize/reflow correctness can be
-    /// validated without relying on screenshots.
+    /// validated without relying on screenshots. Phase 4D routes the editor area
+    /// through the product-neutral LunaEditorShell layout before assigning the
+    /// demo text/proof panels inside the shell content frame.
     public static func layout(for framebufferSize: LunaSizeI) -> LunaCPUDemoSceneLayout {
         let viewport = LunaViewport(size: framebufferSize)
         var result = LunaLayoutResult()
 
-        let margin = 18
-        let gap = 14
-        let headerHeight = max(78, min(92, viewport.size.height / 7))
-        let statusHeight = max(30, min(38, viewport.size.height / 14))
-        let contentTop = headerHeight + gap
-        let contentBottom = max(contentTop + 1, viewport.size.height - statusHeight - gap)
-        let contentHeight = max(1, contentBottom - contentTop)
-
-        result.set(
-            id: LunaCPUDemoSceneLayout.hudID,
-            bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: headerHeight)
+        let menuHeight = 24
+        let margin = viewport.size.width >= 700 ? 18 : 10
+        let gap = 12
+        let hudHeight = max(58, min(72, viewport.size.height / 8))
+        let shellTop = menuHeight + hudHeight + gap
+        let shellBottom = max(shellTop + 1, viewport.size.height - margin)
+        let shellBounds = LunaRectI(
+            x: margin,
+            y: shellTop,
+            w: max(1, viewport.size.width - margin * 2),
+            h: max(1, shellBottom - shellTop)
         )
 
         result.set(
             id: LunaCPUDemoSceneLayout.menuBarID,
-            bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: 24)
+            bounds: LunaRectI(x: 0, y: 0, w: viewport.size.width, h: menuHeight)
         )
 
         result.set(
-            id: LunaCPUDemoSceneLayout.statusID,
-            bounds: LunaRectI(x: 0, y: max(0, viewport.size.height - statusHeight), w: viewport.size.width, h: statusHeight)
+            id: LunaCPUDemoSceneLayout.hudID,
+            bounds: LunaRectI(x: 0, y: menuHeight, w: viewport.size.width, h: hudHeight)
         )
 
-        let usesSidePanel = viewport.size.width >= 760 && contentHeight >= 180
-        if usesSidePanel {
-            let panelW = min(320, max(260, viewport.size.width / 3))
-            let panelX = max(margin, viewport.size.width - margin - panelW)
-            let panel = LunaRectI(x: panelX, y: contentTop, w: panelW, h: contentHeight)
+        let shell = LunaEditorShell(
+            id: LunaCPUDemoSceneLayout.editorShellID,
+            bounds: shellBounds,
+            tabs: demoShellTabs,
+            sidebarTitle: "Project",
+            sidebarItems: demoSidebarItems,
+            statusSegments: demoStatusSegmentsSnapshot(),
+            state: demoEditorShellState,
+            theme: MothDemoTheme.theme,
+            metrics: .demo
+        )
+        let shellLayout = shell.layout()
+        result.set(id: LunaCPUDemoSceneLayout.editorShellID, bounds: shellBounds)
+        result.set(id: LunaCPUDemoSceneLayout.tabStripID, bounds: shellLayout.tabStripBounds)
+        result.set(id: LunaCPUDemoSceneLayout.sidebarID, bounds: shellLayout.sidebarBounds)
+        result.set(id: LunaCPUDemoSceneLayout.statusID, bounds: shellLayout.statusBarBounds)
+
+        let content = shellLayout.editorContentBounds
+        let usesProofPanel = content.w >= 700 && content.h >= 180
+        if usesProofPanel {
+            let panelW = min(300, max(236, content.w / 3))
+            let panelX = max(content.x, content.x + content.w - panelW)
+            let panel = LunaRectI(x: panelX, y: content.y, w: max(1, content.x + content.w - panelX), h: content.h)
             result.set(id: LunaCPUDemoSceneLayout.proofPanelID, bounds: panel)
 
             result.set(
                 id: LunaCPUDemoSceneLayout.semanticWidgetID,
                 bounds: LunaRectI(
                     x: panel.x + 12,
-                    y: panel.y + 34,
+                    y: panel.y + 38,
                     w: max(1, panel.w - 24),
                     h: 72
                 )
             )
 
-            let textRight = max(margin + 1, panel.x - gap)
+            let textRight = max(content.x + 1, panel.x - gap)
             result.set(
                 id: LunaCPUDemoSceneLayout.textViewID,
                 bounds: LunaRectI(
-                    x: margin,
-                    y: contentTop,
-                    w: max(1, textRight - margin),
-                    h: contentHeight
+                    x: content.x,
+                    y: content.y,
+                    w: max(1, textRight - content.x),
+                    h: content.h
                 )
             )
         } else {
-            let semanticHeight = viewport.size.height >= 360 ? 64 : 52
+            let semanticHeight = content.h >= 240 ? 62 : 50
             let semantic = LunaRectI(
-                x: margin,
-                y: contentTop,
-                w: max(1, viewport.size.width - margin * 2),
-                h: semanticHeight
+                x: content.x + 8,
+                y: content.y + 8,
+                w: max(1, content.w - 16),
+                h: min(semanticHeight, max(1, content.h / 3))
             )
             result.set(id: LunaCPUDemoSceneLayout.semanticWidgetID, bounds: semantic)
             result.set(id: LunaCPUDemoSceneLayout.proofPanelID, bounds: LunaRectI(x: 0, y: 0, w: 0, h: 0))
@@ -1026,15 +1123,64 @@ public struct LunaCPUDemoScene {
             result.set(
                 id: LunaCPUDemoSceneLayout.textViewID,
                 bounds: LunaRectI(
-                    x: margin,
+                    x: content.x + 8,
                     y: textY,
-                    w: max(1, viewport.size.width - margin * 2),
-                    h: max(1, contentBottom - textY)
+                    w: max(1, content.w - 16),
+                    h: max(1, content.y + content.h - textY - 8)
                 )
             )
         }
 
         return LunaCPUDemoSceneLayout(viewport: viewport, frames: result)
+    }
+
+    private func demoStatusSegments() -> [LunaStatusSegment] {
+        Self.demoStatusSegmentsSnapshot(
+            status: lastInteractionStatus,
+            caret: staticTextCaret,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            lineCount: staticTextDocument.lineCount,
+            editRevision: editableTextState.editRevision
+        )
+    }
+
+    public static func demoStatusSegmentsSnapshot(
+        status: String = "Ready",
+        caret: LunaStaticTextCaret = LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 0, utf8Column: 0)),
+        scrollTopLine: Int = 0,
+        lineCount: Int = 1,
+        editRevision: Int = 0
+    ) -> [LunaStatusSegment] {
+        [
+            LunaStatusSegment(id: "status", title: "Status:", value: status, placement: .leading),
+            LunaStatusSegment(id: "revision", title: "Rev", value: "\(editRevision)", placement: .leading, emphasis: .muted),
+            LunaStatusSegment(id: "syntax", title: "Swift", placement: .trailing),
+            LunaStatusSegment(id: "scroll", title: "Top", value: "\(scrollTopLine + 1)/\(max(1, lineCount))", placement: .trailing, emphasis: .muted),
+            LunaStatusSegment(id: "position", title: "Ln", value: "\(caret.location.lineIndex + 1), Col \(caret.location.utf8Column)", placement: .trailing),
+        ]
+    }
+
+    /// Build the Phase 4D product-neutral editor shell proof. The shell contents
+    /// are demo-owned, while LunaUI owns the layout/hit-test/accessibility model
+    /// for tabs, sidebar rows, editor content frame, and status segments.
+    public static func editorShell(
+        for framebufferSize: LunaSizeI,
+        state: LunaEditorShellState,
+        theme: LunaTheme = MothDemoTheme.theme,
+        statusSegments: [LunaStatusSegment] = LunaCPUDemoScene.demoStatusSegmentsSnapshot()
+    ) -> LunaEditorShell {
+        let layout = Self.layout(for: framebufferSize)
+        return LunaEditorShell(
+            id: LunaCPUDemoSceneLayout.editorShellID,
+            bounds: layout.editorShellBounds,
+            tabs: demoShellTabs,
+            sidebarTitle: "Project",
+            sidebarItems: demoSidebarItems,
+            statusSegments: statusSegments,
+            state: state,
+            theme: theme,
+            metrics: .demo
+        )
     }
 
     /// Build the Phase 3A/3B static text-view proof for a framebuffer size.
@@ -1118,6 +1264,72 @@ public struct LunaCPUDemoScene {
         )
     }
 
+    public static let demoShellTabs: [LunaShellTab] = [
+        LunaShellTab(
+            id: "overview",
+            title: "Overview.swift",
+            detail: "Demo/Overview.swift",
+            isDirty: false,
+            isClosable: false,
+            activateCommand: "luna.demo.tab.overview"
+        ),
+        LunaShellTab(
+            id: "editor",
+            title: "EditorSurface.swift",
+            detail: "Sources/LunaUI/LunaStaticTextView.swift",
+            isDirty: true,
+            activateCommand: "luna.demo.tab.editor",
+            closeCommand: "luna.demo.tab.close"
+        ),
+        LunaShellTab(
+            id: "theme",
+            title: "Theme.json",
+            detail: "Demo theme tokens",
+            isPinned: true,
+            activateCommand: "luna.demo.tab.theme",
+            closeCommand: "luna.demo.tab.close"
+        ),
+    ]
+
+    public static let demoSidebarItems: [LunaSidebarItem] = [
+        LunaSidebarItem(
+            id: "workspace",
+            title: "Luna-UI",
+            kind: .folder,
+            children: [
+                LunaSidebarItem(
+                    id: "sources",
+                    title: "Sources",
+                    kind: .folder,
+                    children: [
+                        LunaSidebarItem(id: "luna-ui", title: "LunaUI", kind: .folder, children: [
+                            LunaSidebarItem(id: "editor-shell", title: "LunaEditorShell.swift", kind: .file, activateCommand: "luna.demo.sidebar.editorShell"),
+                            LunaSidebarItem(id: "menu", title: "LunaMenu.swift", kind: .file, activateCommand: "luna.demo.sidebar.menu"),
+                            LunaSidebarItem(id: "find", title: "LunaFindPanel.swift", kind: .file, activateCommand: "luna.demo.sidebar.find"),
+                        ], isSelectable: false),
+                        LunaSidebarItem(id: "test-app", title: "LunaUITestApp", kind: .folder, isSelectable: false),
+                    ],
+                    isSelectable: false
+                ),
+                LunaSidebarItem(id: "tests", title: "Tests", kind: .folder, children: [
+                    LunaSidebarItem(id: "phase4d-tests", title: "LunaUIPhase4DTests.swift", kind: .file, activateCommand: "luna.demo.sidebar.phase4dTests"),
+                ], isSelectable: false),
+                LunaSidebarItem(id: "roadmap", title: "LUNA_UI_ROADMAP.md", kind: .file, activateCommand: "luna.demo.sidebar.roadmap"),
+            ],
+            isSelectable: false
+        ),
+    ]
+
+    public static let demoEditorShellState = LunaEditorShellState(
+        tabStrip: LunaTabStripState(activeTabID: "editor"),
+        sidebar: LunaSidebarState(
+            selectedItemID: "editor-shell",
+            expandedItemIDs: ["workspace", "sources", "luna-ui", "tests"]
+        ),
+        isSidebarVisible: true,
+        sidebarWidth: 236
+    )
+
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
         LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("Ctrl+P"), menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
@@ -1126,10 +1338,15 @@ public struct LunaCPUDemoScene {
         LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: nil, menuPath: ["Theme"]),
         LunaCommandDescriptor(id: "luna.demo.scroll.top", title: "Scroll Text View to Top", menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.scroll.end", title: "Scroll Text View to End", menuPath: ["View"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.toggle", title: "Toggle Sidebar", menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.insert.sample", title: "Insert Sample Text", menuPath: ["Edit", "Demo"]),
         LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("Ctrl+A"), menuPath: ["Edit"]),
         LunaCommandDescriptor(id: "luna.demo.selection.clear", title: "Clear Selection", menuPath: ["Selection"]),
         LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
+        LunaCommandDescriptor(id: "luna.demo.tab.overview", title: "Activate Overview Tab", menuPath: ["Tabs"]),
+        LunaCommandDescriptor(id: "luna.demo.tab.editor", title: "Activate Editor Tab", menuPath: ["Tabs"]),
+        LunaCommandDescriptor(id: "luna.demo.tab.theme", title: "Activate Theme Tab", menuPath: ["Tabs"]),
+        LunaCommandDescriptor(id: "luna.demo.tab.close", title: "Close Tab", menuPath: ["Tabs"]),
     ]
 
     public static let demoQuickPanelItems: [LunaQuickPanelItem] = demoCommandDescriptors.map(LunaQuickPanelItem.init(command:))
@@ -1167,6 +1384,8 @@ public struct LunaCPUDemoScene {
                 LunaMenuItem.separator(id: "view.sep.0"),
                 LunaMenuItem.command(id: "view.top", title: "Scroll Text View to Top", command: "luna.demo.scroll.top"),
                 LunaMenuItem.command(id: "view.end", title: "Scroll Text View to End", command: "luna.demo.scroll.end"),
+                LunaMenuItem.separator(id: "view.sep.1"),
+                LunaMenuItem.command(id: "view.sidebar", title: "Toggle Sidebar", command: "luna.demo.sidebar.toggle"),
             ]),
             LunaMenuDefinition(id: "theme", title: "Theme", items: [
                 LunaMenuItem.command(id: "theme.blue", title: "Luna Demo Blue", command: "luna.demo.theme.blue", isChecked: isBlue),
@@ -1182,7 +1401,7 @@ public struct LunaCPUDemoScene {
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
     public static let demoText = """
-    // Phase 4B: Generic Find / Replace Panel Foundation
+    // Phase 4D: Tabs / Sidebar / Status Bar Shell
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
     // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace.
     struct LunaProof {
@@ -1194,7 +1413,7 @@ public struct LunaCPUDemoScene {
     // Phase 3A added the static accessible text surface.
     // Phase 3B added caret geometry and static selection.
     // Phase 3C added logical-line scrolling and viewport metrics.
-    // Phase 3D adds a tiny editable model before ropes, undo, IME, or clipboard.
+    // Phase 3D adds editable text; Phase 4D frames it in reusable editor shell chrome.
 
     let phase3d_editing = "insert text, newline, backspace, delete"
     let phase3d_input = "host text-input events, not guessed printable keycodes"
@@ -1657,37 +1876,111 @@ private func drawActiveModalOverlay(
 private func drawDemoChrome(into fb: inout LunaFramebuffer, layout: LunaCPUDemoSceneLayout, theme: LunaTheme) {
     fillRectColor(into: &fb, x: layout.hudBounds.x, y: layout.hudBounds.y, w: layout.hudBounds.w, h: layout.hudBounds.h, color: theme.ui.hudBackground)
     strokeRectColor(into: &fb, x: 0, y: layout.hudBounds.y + layout.hudBounds.h - 1, w: fb.width, h: 1, thickness: 1, color: theme.ui.panelBorder)
+}
 
-    if !layout.proofPanelBounds.isEmpty {
-        fillRectColor(
-            into: &fb,
-            x: layout.proofPanelBounds.x,
-            y: layout.proofPanelBounds.y,
-            w: layout.proofPanelBounds.w,
-            h: layout.proofPanelBounds.h,
-            color: theme.ui.panelBackground
-        )
-        strokeRectColor(
-            into: &fb,
-            x: layout.proofPanelBounds.x,
-            y: layout.proofPanelBounds.y,
-            w: layout.proofPanelBounds.w,
-            h: layout.proofPanelBounds.h,
-            thickness: 1,
-            color: theme.ui.panelBorder
-        )
-        drawText5x7Color(
-            into: &fb,
-            x: layout.proofPanelBounds.x + 12,
-            y: layout.proofPanelBounds.y + 12,
-            text: "Proof Panel",
-            scale: 1,
-            color: theme.ui.panel.mutedForeground
-        )
+private func drawProofPanelChrome(into fb: inout LunaFramebuffer, layout: LunaCPUDemoSceneLayout, theme: LunaTheme) {
+    guard !layout.proofPanelBounds.isEmpty else { return }
+    fillRectColor(
+        into: &fb,
+        x: layout.proofPanelBounds.x,
+        y: layout.proofPanelBounds.y,
+        w: layout.proofPanelBounds.w,
+        h: layout.proofPanelBounds.h,
+        color: theme.ui.panelBackground
+    )
+    strokeRectColor(
+        into: &fb,
+        x: layout.proofPanelBounds.x,
+        y: layout.proofPanelBounds.y,
+        w: layout.proofPanelBounds.w,
+        h: layout.proofPanelBounds.h,
+        thickness: 1,
+        color: theme.ui.panelBorder
+    )
+    drawText5x7Color(
+        into: &fb,
+        x: layout.proofPanelBounds.x + 12,
+        y: layout.proofPanelBounds.y + 12,
+        text: "Proof Panel",
+        scale: 1,
+        color: theme.ui.panel.mutedForeground
+    )
+}
+
+/// Draw the Phase 4D editor shell chrome and visible labels. The reusable shell
+/// widget owns geometry/display-list rectangles; this demo-owned CPU text path
+/// draws debug-font titles until LunaDisplayList grows text-run commands.
+private func drawEditorShellOverlay(into fb: inout LunaFramebuffer, shell: LunaEditorShell, theme: LunaTheme) {
+    var displayList = LunaDisplayList()
+    shell.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let layout = shell.layout()
+    let metrics = shell.metrics.glyphMetrics
+
+    for tab in layout.tabFrames {
+        let isActive = shell.state.tabStrip.activeTabID == tab.tab.id
+        let color = isActive ? theme.ui.tabs.activeForeground : theme.ui.tabs.inactiveForeground
+        if let line = LunaBoundedTextLayout.layout(tab.tab.title, in: tab.titleBounds, metrics: metrics, overflow: .ellipsizeTail).firstLine {
+            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: color)
+        }
+        if let close = tab.closeButtonBounds {
+            let textBounds = LunaRectI(x: close.x + 3, y: close.y + 2, w: max(1, close.w - 3), h: metrics.lineHeight)
+            if let line = LunaBoundedTextLayout.layout("x", in: textBounds, metrics: metrics, overflow: .clip).firstLine {
+                drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: theme.ui.tabs.activeBackground)
+            }
+        }
     }
 
-    fillRectColor(into: &fb, x: layout.statusBounds.x, y: layout.statusBounds.y, w: layout.statusBounds.w, h: layout.statusBounds.h, color: theme.ui.statusBar.background)
-    strokeRectColor(into: &fb, x: 0, y: layout.statusBounds.y, w: fb.width, h: 1, thickness: 1, color: theme.ui.statusBar.border)
+    if !layout.sidebarBounds.isEmpty {
+        let headerBounds = LunaRectI(
+            x: layout.sidebarHeaderBounds.x + 10,
+            y: layout.sidebarHeaderBounds.y + max(0, (layout.sidebarHeaderBounds.h - metrics.glyphHeight) / 2),
+            w: max(1, layout.sidebarHeaderBounds.w - 20),
+            h: metrics.lineHeight
+        )
+        if let line = LunaBoundedTextLayout.layout(shell.sidebarTitle.uppercased(), in: headerBounds, metrics: metrics, overflow: .ellipsizeTail).firstLine {
+            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: theme.ui.sidebar.sectionForeground)
+        }
+
+        for row in layout.sidebarRows {
+            let isSelected = shell.state.sidebar.selectedItemID == row.item.id
+            let fg: LunaColor
+            if isSelected {
+                fg = theme.ui.sidebar.rowSelectedForeground
+            } else if row.item.kind == .section {
+                fg = theme.ui.sidebar.sectionForeground
+            } else if row.item.isEnabled {
+                fg = theme.ui.sidebar.rowForeground
+            } else {
+                fg = theme.ui.sidebar.rowMutedForeground
+            }
+
+            if let disclosure = row.disclosureBounds {
+                let marker = shell.state.sidebar.isExpanded(row.item.id) ? "v" : ">"
+                let markerBounds = LunaRectI(x: disclosure.x + 1, y: row.titleBounds.y, w: disclosure.w, h: metrics.lineHeight)
+                if let line = LunaBoundedTextLayout.layout(marker, in: markerBounds, metrics: metrics, overflow: .clip).firstLine {
+                    drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: theme.ui.sidebar.disclosureForeground)
+                }
+            }
+
+            if let line = LunaBoundedTextLayout.layout(row.item.title, in: row.titleBounds, metrics: metrics, overflow: .ellipsizeTail).firstLine {
+                drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: fg)
+            }
+        }
+    }
+
+    for segment in layout.statusSegments {
+        let color: LunaColor
+        switch segment.segment.emphasis {
+        case .normal: color = theme.ui.statusBar.foreground
+        case .muted: color = theme.ui.statusBar.mutedForeground
+        case .accent: color = theme.ui.statusBar.accent
+        }
+        if let line = LunaBoundedTextLayout.layout(segment.segment.visibleText, in: segment.textBounds, metrics: metrics, overflow: .ellipsizeTail).firstLine {
+            drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: shell.metrics.textScale, color: color)
+        }
+    }
 }
 
 /// Draw the always-visible top menu bar. Dropdowns are drawn later as an overlay
@@ -1781,16 +2074,16 @@ private func drawHUD(
 
     let title = "Luna-UI Test App"
     let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
-    let keys = "Menu bar: File/Edit/Selection/Find/View/Theme/Help   Ctrl+P palette/theme   Ctrl+F find   Ctrl+A select all"
+    let keys = "Phase 4D shell: tabs/sidebar/status   Menu bar   Ctrl+P palette/theme   Ctrl+F find   Ctrl+A select all"
 
-    drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 31, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
+    drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
 
-    let infoBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 53, w: max(1, bounds.w - 20), h: 9)
+    let infoBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 31, w: max(1, bounds.w - 20), h: 9)
     if let line = LunaBoundedTextLayout.layout(info, in: infoBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
         drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.statusBar.foreground)
     }
 
-    let keyBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 66, w: max(1, bounds.w - 20), h: 9)
+    let keyBounds = LunaRectI(x: bounds.x + 10, y: bounds.y + 44, w: max(1, bounds.w - 20), h: 9)
     if let line = LunaBoundedTextLayout.layout(keys, in: keyBounds, metrics: LunaDebugTextMetrics(scale: 1), overflow: .ellipsizeTail).firstLine {
         drawText5x7Color(into: &fb, x: line.bounds.x, y: line.bounds.y, text: line.text, scale: 1, color: theme.ui.panel.mutedForeground)
     }
