@@ -999,16 +999,33 @@ menus/palette/find/modal overlays retain input ownership above the shell
 
 ### Phase 4E — Context Menu
 
-Scope:
+Status: complete.
 
-- right-click / secondary-click menu presentation;
-- reuse Phase 4C menu-row/dropdown machinery where possible;
-- compact rows;
-- separators;
-- disabled states;
-- first-pass submenus;
-- shortcut display;
-- context-menu routing from editor, sidebar rows, tabs, and status segments.
+Phase 4E adds product-neutral floating context-menu infrastructure on top of the Phase 4C menu item/dropdown-row model. Luna owns context menu definition shape, open/close state, anchored layout, bounds clamping, hit testing, pointer/keyboard routing, theme-driven dropdown geometry, and accessibility semantics. Applications own which menu appears for a given surface and what commands do.
+
+Completed scope:
+
+- reusable `LunaContextMenuDefinition`, `LunaContextMenuState`, `LunaContextMenuLayout`, and `LunaContextMenu` primitives;
+- right-click / secondary-click opening from demo editor text/content, tabs, sidebar rows, and status-bar segments;
+- reuse of `LunaMenuItem`, `LunaMenuItemPath`, `LunaMenuRowFrame`, `LunaMenuDropdownFrame`, and menu shortcut display formatting;
+- compact floating dropdown rows with separators, disabled states, checked states, shortcut display, and first-pass submenus;
+- viewport clamping so context menus do not render off-screen at window edges;
+- pointer routing for hover, disabled-row consumption, command activation, submenu opening, outside-click dismissal, and secondary-button interaction;
+- keyboard routing for Escape, Up/Down, Left/Right submenu traversal, Enter, and Space;
+- accessibility root menu and menuitem nodes, focused row state, disabled state, checked labels, shortcut/submenu values, and press/focus actions;
+- demo command dispatch for editor paste/select/find, tab/sidebar/status contexts, theme submenu checks, and context-menu info notices.
+
+Phase 4E demo proof:
+
+```text
+right-click editor -> editor context menu
+right-click tab -> tab context menu
+right-click sidebar row -> sidebar context menu
+right-click status segment -> status context menu
+hover/click/keyboard navigation work on each menu
+outside click and Escape dismiss without leaking input underneath
+Theme submenu check marks follow the active demo theme
+```
 
 ### Phase 4F — Completion Popup
 
@@ -1025,7 +1042,7 @@ Scope:
 
 ## Phase 5 — Editor Surface Deepening
 
-The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/4D: menu bar, tabs, sidebar, and status-bar primitives now exist as reusable LunaUI surfaces. Phase 5 is now the deeper editor/content pass that can rely on that shell.
+The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/4D/4E: menu bar, tabs, sidebar, status-bar, and context-menu primitives now exist as reusable LunaUI surfaces. Phase 5 is now the deeper editor/content pass that can rely on that shell.
 
 ### Phase 5A — Real Document / Buffer Integration
 

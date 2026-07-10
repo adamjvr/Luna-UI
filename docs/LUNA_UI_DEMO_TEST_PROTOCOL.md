@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 4D tabs / sidebar / status bar shell.
+This protocol is the standing manual regression checklist for the demo app after Phase 4E context menus.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -15,7 +15,7 @@ The demo is an integration harness for Luna UI. It may show the Moth Obsidian pa
 | `Ctrl+P` | Open the command palette / quick panel. |
 | `Ctrl+F` | Open the generic find / replace panel. |
 | `Ctrl+A` | Select all text in the editor when no overlay owns input. |
-| `Escape` | Close the active modal/palette/find panel/menu before the editor sees it. |
+| `Escape` | Close the active modal/palette/find panel/menu/context menu before the editor sees it. |
 | Window resize | Header, menu bar, tab strip, sidebar, editor content, proof panel, overlays, and status bar reflow cleanly. |
 
 Retired behavior:
@@ -24,6 +24,62 @@ Retired behavior:
 Bare 1 / 2 / 3 are no longer theme hotkeys.
 They should insert text when the editor has focus.
 Theme switching is command-palette-only.
+```
+
+---
+
+
+## Context Menu Protocol
+
+The Phase 4E context menu is a product-neutral Luna floating-menu proof. The demo chooses different context definitions for editor text/content, tabs, sidebar rows, and status-bar segments; LunaUI supplies positioned layout, row geometry, hit testing, pointer/keyboard routing, and accessibility.
+
+Open with:
+
+```text
+secondary-click / right-click
+```
+
+Surfaces to test:
+
+```text
+editor text/content area
+tabs and tab close areas
+sidebar file/folder rows
+status-bar segments
+```
+
+| Action | Expected reaction |
+|---|---|
+| Right-click editor text/content | Opens an editor context menu with Copy/Cut/Paste Sample, Select All, Clear Selection, Find, Theme, and Info rows. |
+| Right-click a tab | Opens a tab context menu with Activate, Close, checked Pinned state where applicable, Reveal, Theme, and Info rows. |
+| Right-click a sidebar row | Opens a sidebar context menu with Open/Reveal/Rename, disabled New File, Toggle Sidebar, Theme, and Info rows. |
+| Right-click a status segment | Opens a status context menu with Toggle Sidebar, scroll commands, Theme, and Info rows. |
+| Hover a context row | Row highlight changes using menu theme tokens. |
+| Click enabled row | Command runs and context menu closes. |
+| Click disabled row | Context menu consumes the click, does not run a command, and remains open. |
+| Click outside an open context menu | Context menu closes; underlying editor/shell does not accidentally activate. |
+| `Escape` with context menu open | Context menu closes. |
+| `Up` / `Down` with context menu open | Moves highlighted row, skipping separators and disabled rows. |
+| `Right` on a submenu row | Opens the submenu. |
+| `Left` inside a submenu | Returns to parent row; at root it dismisses the context menu. |
+| `Enter` / `Space` | Activates the highlighted command or opens the highlighted submenu. |
+
+Context command checks:
+
+| Context path | Expected reaction |
+|---|---|
+| `Editor > Paste Sample Text` | Inserts `context-menu` at the caret or replaces selection. |
+| `Editor > Select All` | Selects the entire editor document. |
+| `Editor > Find / Replace…` | Opens the find panel. |
+| `Theme` submenu | Shows the active theme check mark and can switch themes. |
+| `Context Menu Info` | Opens a modal notice explaining the context-menu primitive. |
+| Disabled rows such as `Cut`, `New File`, or `Close Other Tabs` | Remain visible but inactive. |
+
+Input ownership rule:
+
+```text
+When a context menu is open, keyboard/pointer/text input belongs to it until it closes.
+No context-menu navigation key or click should leak into the editor or shell underneath.
 ```
 
 ---

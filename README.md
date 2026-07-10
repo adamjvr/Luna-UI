@@ -272,16 +272,17 @@ The current checkpoint has:
 - demo theme switching now routes through command palette/menu commands instead of bare number hotkeys, proving Luna widgets/modals/text surfaces draw from active theme variables while the editor can type numbers normally;
 - Phase 4C product-neutral menu bar/dropdown foundation implemented with top menus, dropdown rows, disabled/checked states, shortcut display, first-pass submenus, pointer/keyboard interaction, theme-driven rendering, accessibility nodes, and demo command dispatch;
 - Phase 4D product-neutral editor shell foundation implemented with reusable tab strip, sidebar tree/list, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, and accessibility nodes;
+- Phase 4E product-neutral context menu foundation implemented with secondary-click floating menus, reused menu items/dropdown rows, editor/tab/sidebar/status context definitions, disabled/checked/separator/submenu states, pointer/keyboard routing, accessibility nodes, and demo command dispatch;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 4E — Context Menu
+Phase 4F — Completion Popup
 ```
 
-Phase 4D is complete. The next step is to reuse the menu/dropdown row machinery for product-neutral context menus that can be opened from editor/sidebar/tab surfaces without baking application policy into LunaUI.
+Phase 4E is complete. The next step is to add a product-neutral anchored completion popup for editor suggestions, quick insertion choices, and future Moth Text completion providers.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -332,6 +333,12 @@ swift build --target LunaUIPhase4ATests
 swift test --filter LunaUIPhase4ATests
 swift build --target LunaUIPhase4BTests
 swift test --filter LunaUIPhase4BTests
+swift build --target LunaUIPhase4CTests
+swift test --filter LunaUIPhase4CTests
+swift build --target LunaUIPhase4DTests
+swift test --filter LunaUIPhase4DTests
+swift build --target LunaUIPhase4ETests
+swift test --filter LunaUIPhase4ETests
 ```
 
 Full Linux check:

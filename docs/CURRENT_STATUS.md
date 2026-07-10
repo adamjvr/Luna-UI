@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4D tabs / sidebar / status bar shell.
+This document is the working checkpoint after Phase 4E context menus.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4D**.
+Luna UI is through **Phase 4E**.
 
 The engine now has:
 
@@ -35,7 +35,8 @@ The engine now has:
 - Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
 - tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
 - a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch;
-- a product-neutral editor shell foundation with reusable tab strip, sidebar tree/list rows, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, accessibility nodes, and demo integration that frames the editable text view.
+- a product-neutral editor shell foundation with reusable tab strip, sidebar tree/list rows, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, accessibility nodes, and demo integration that frames the editable text view;
+- a product-neutral context menu foundation with secondary-click floating menu presentation, reusable Luna menu items/dropdown rows, editor/tab/sidebar/status demo contexts, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer and keyboard routing, theme-driven visible labels, accessibility menu/menuitem nodes, and demo command dispatch.
 
 ---
 
@@ -131,6 +132,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4B.2 — Demo Command Routing and Text Input Focus Cleanup: complete.
 - Phase 4C — Menu Bar and Dropdown Menus: complete.
 - Phase 4D — Tabs / Sidebar / Status Bar Shell: complete.
+- Phase 4E — Context Menu: complete.
 
 ---
 
@@ -138,7 +140,6 @@ The blue highlight is now visible for real user text selection, focused fields, 
 
 Luna does not yet have:
 
-- context menus;
 - completion popup;
 - minimap rendering;
 - real project/document/tab persistence;
@@ -149,7 +150,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4E — Context Menu
+Phase 4F — Completion Popup
 ```
 
-Phase 4E should reuse the menu/dropdown row machinery for product-neutral context menus that can be opened from editor, sidebar, tab, and status surfaces. Applications should supply menu contents and command handlers without baking product naming into Luna's reusable API.
+Phase 4F should add a product-neutral anchored completion popup with list rows, keyboard and pointer selection, command/result dispatch, theme-driven geometry, and accessibility list/list-item semantics. Applications should supply suggestions and completion policy without baking product naming into Luna's reusable API.
