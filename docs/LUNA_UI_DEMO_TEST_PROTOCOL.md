@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 4F completion popup.
+This protocol is the standing manual regression checklist for the demo app after Phase 5A real document / buffer integration.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -30,6 +30,38 @@ Theme switching is command-palette-only.
 ---
 
 
+
+
+## Document / Buffer Protocol
+
+Phase 5A is the first real multi-document proof. The demo still uses in-memory fixture documents, not file I/O, but tabs and open-document state now route through product-neutral `LunaDocumentStore` buffers.
+
+Open documents to test:
+
+```text
+Overview.swift
+EditorSurface.swift
+Theme.json
+```
+
+| Action | Expected reaction |
+|---|---|
+| Click `Overview.swift` tab | The active tab changes and the editor text changes to the overview buffer. |
+| Click `EditorSurface.swift` tab | The active tab changes and the editor text changes back to the editor-surface buffer. |
+| Click `Theme.json` tab | The active tab changes and the editor text changes to JSON fixture text. |
+| Type in the active tab | Only that document buffer changes. The active tab gains a dirty/modified indicator. |
+| Switch away and back | The typed text, caret/selection, and logical scroll state for that document are preserved. |
+| Click open-document rows in the sidebar | The corresponding document becomes active, matching tab and editor text. |
+| Status bar after tab switch | Document title, syntax, revision, dirty/saved state, scroll, and caret position reflect the active document. |
+
+Boundary rule:
+
+```text
+Phase 5A does not do file I/O or Moth project policy.
+It proves product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
+```
+
+---
 
 ## Completion Popup Protocol
 

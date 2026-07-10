@@ -118,23 +118,17 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Ready. Click/type editor, Ctrl+P opens palette, Ctrl+F opens find/replace."
+    private var lastInteractionStatus: String = "Ready. Phase 5A documents are active; click tabs to switch buffers, type to dirty the active tab."
 
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
     private var modalManager = LunaModalOverlayManager()
 
-    /// Phase 3D editable editor-surface proof. Rendering still goes through the
-    /// LunaStaticTextView line snapshot, while mutation is owned by this small
-    /// editable document/state wrapper.
-    private var editableTextState = LunaEditableTextState(
-        text: LunaCPUDemoScene.demoText,
-        caret: LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 1, utf8Column: 0))
-    )
+    /// Phase 5A open document/buffer proof. LunaUI supplies product-neutral
+    /// document descriptors, editable buffer state, dirty tracking, and shell-tab
+    /// projection; the demo supplies fake documents instead of real file I/O.
+    private var documentStore = LunaCPUDemoScene.demoDocumentStore
 
-    /// Phase 3C scroll state. This remains a logical line viewport offset;
-    /// pixel-fractional scrolling comes later.
-    private var staticTextScroll = LunaStaticTextScrollState(scrollTopLine: 0)
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
     /// supplies the generic widget/model, while the demo supplies its commands.
@@ -178,6 +172,16 @@ public struct LunaCPUDemoScene {
     /// typed after the command still reaches the editor.
     private var pendingShortcutTextInputSuppression: String? = nil
 
+    private var editableTextState: LunaEditableTextState {
+        get { documentStore.activeTextState ?? LunaEditableTextState(text: "") }
+        set { documentStore.replaceActiveTextState(newValue) }
+    }
+
+    private var staticTextScroll: LunaStaticTextScrollState {
+        get { documentStore.activeScrollState ?? LunaStaticTextScrollState() }
+        set { documentStore.replaceActiveScrollState(newValue) }
+    }
+
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
     }
@@ -190,6 +194,10 @@ public struct LunaCPUDemoScene {
     private var staticTextSelection: LunaStaticTextSelection? {
         get { editableTextState.selection }
         set { editableTextState.selection = newValue }
+    }
+
+    private var activeDocumentDescriptor: LunaDocumentDescriptor? {
+        documentStore.activeDescriptor
     }
 
     /// Create a new demo scene.
@@ -272,6 +280,7 @@ public struct LunaCPUDemoScene {
                 for: LunaSizeI(width: fb.width, height: fb.height),
                 state: editorShellState,
                 theme: renderTheme,
+                tabs: demoShellTabs(),
                 statusSegments: demoStatusSegments()
             ),
             theme: renderTheme
@@ -552,6 +561,7 @@ public struct LunaCPUDemoScene {
                 for: framebufferSize,
                 state: state,
                 theme: theme,
+                tabs: demoShellTabs(),
                 statusSegments: demoStatusSegments()
             )
             let result = shell.handlePointerEvent(event, state: &state)
@@ -1047,6 +1057,7 @@ public struct LunaCPUDemoScene {
             for: framebufferSize,
             state: editorShellState,
             theme: renderTheme,
+            tabs: demoShellTabs(),
             statusSegments: demoStatusSegments()
         )
         let shellLayout = shell.layout()
@@ -1227,6 +1238,25 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Edit: Select All selected \(selectedBytes) UTF-8 bytes"
     }
 
+
+    private mutating func activateDocument(_ id: LunaDocumentID, framebufferSize: LunaSizeI, reason: String) {
+        guard documentStore.activate(id) else {
+            lastInteractionStatus = "Phase 5A document missing: \(id.rawValue)"
+            return
+        }
+        documentStore.syncShellState(&editorShellState)
+        completionPopupState.close()
+        activeTextSelectionAnchor = nil
+        if var find = findPanelState {
+            find.refreshResults(in: staticTextDocument, preservingSelectionNear: staticTextCaret.location)
+            findPanelState = find
+            syncSelectionToFindMatch(framebufferSize: framebufferSize)
+        }
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+        let title = activeDocumentDescriptor?.title ?? id.rawValue
+        lastInteractionStatus = "Phase 5A active document: \(title) (\(reason))"
+    }
+
     private mutating func performDemoCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
         contextMenuState.close()
         completionPopupState.close()
@@ -1283,16 +1313,13 @@ public struct LunaCPUDemoScene {
             editorShellState.isSidebarVisible.toggle()
             lastInteractionStatus = editorShellState.isSidebarVisible ? "Phase 4D sidebar shown" : "Phase 4D sidebar hidden"
         case "luna.demo.tab.overview":
-            editorShellState.tabStrip.activeTabID = "overview"
-            lastInteractionStatus = "Phase 4D tab: Overview.swift"
+            activateDocument("overview", framebufferSize: framebufferSize, reason: "tab/sidebar command")
         case "luna.demo.tab.editor":
-            editorShellState.tabStrip.activeTabID = "editor"
-            lastInteractionStatus = "Phase 4D tab: EditorSurface.swift"
+            activateDocument("editor", framebufferSize: framebufferSize, reason: "tab/sidebar command")
         case "luna.demo.tab.theme":
-            editorShellState.tabStrip.activeTabID = "theme"
-            lastInteractionStatus = "Phase 4D tab: Theme.json"
+            activateDocument("theme", framebufferSize: framebufferSize, reason: "tab/sidebar command")
         case "luna.demo.tab.close":
-            lastInteractionStatus = "Phase 4D close-tab command requested; demo tabs are static fixtures"
+            lastInteractionStatus = "Phase 5A close-tab command requested; demo document buffers remain open"
         case "luna.demo.context.copy":
             lastInteractionStatus = "Phase 4E context command: Copy requested from demo fixture"
         case "luna.demo.context.cut":
@@ -1316,12 +1343,12 @@ public struct LunaCPUDemoScene {
             )
             modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
             lastInteractionStatus = "Phase 4E context info opened"
-        case "luna.demo.sidebar.editorShell",
-             "luna.demo.sidebar.menu",
-             "luna.demo.sidebar.find",
-             "luna.demo.sidebar.phase4dTests",
+        case "luna.demo.sidebar.documentBuffer",
+             "luna.demo.sidebar.editorShell",
+             "luna.demo.sidebar.completionPopup",
+             "luna.demo.sidebar.phase5aTests",
              "luna.demo.sidebar.roadmap":
-            lastInteractionStatus = "Phase 4D sidebar command: \(command.rawValue)"
+            lastInteractionStatus = "Phase 5A sidebar command: \(command.rawValue)"
         default:
             lastInteractionStatus = "Demo command: \(command.rawValue)"
         }
@@ -1495,29 +1522,14 @@ public struct LunaCPUDemoScene {
     }
 
     private func demoStatusSegments() -> [LunaStatusSegment] {
-        Self.demoStatusSegmentsSnapshot(
-            status: lastInteractionStatus,
-            caret: staticTextCaret,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            lineCount: staticTextDocument.lineCount,
-            editRevision: editableTextState.editRevision
-        )
+        documentStore.statusSegments(status: lastInteractionStatus, syntaxFallback: "Swift")
     }
 
     public static func demoStatusSegmentsSnapshot(
         status: String = "Ready",
-        caret: LunaStaticTextCaret = LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 0, utf8Column: 0)),
-        scrollTopLine: Int = 0,
-        lineCount: Int = 1,
-        editRevision: Int = 0
+        store: LunaDocumentStore = LunaCPUDemoScene.demoDocumentStore
     ) -> [LunaStatusSegment] {
-        [
-            LunaStatusSegment(id: "status", title: "Status:", value: status, placement: .leading),
-            LunaStatusSegment(id: "revision", title: "Rev", value: "\(editRevision)", placement: .leading, emphasis: .muted),
-            LunaStatusSegment(id: "syntax", title: "Swift", placement: .trailing),
-            LunaStatusSegment(id: "scroll", title: "Top", value: "\(scrollTopLine + 1)/\(max(1, lineCount))", placement: .trailing, emphasis: .muted),
-            LunaStatusSegment(id: "position", title: "Ln", value: "\(caret.location.lineIndex + 1), Col \(caret.location.utf8Column)", placement: .trailing),
-        ]
+        store.statusSegments(status: status, syntaxFallback: "Swift")
     }
 
     /// Build the Phase 4D product-neutral editor shell proof. The shell contents
@@ -1527,15 +1539,17 @@ public struct LunaCPUDemoScene {
         for framebufferSize: LunaSizeI,
         state: LunaEditorShellState,
         theme: LunaTheme = MothDemoTheme.theme,
+        tabs: [LunaShellTab] = LunaCPUDemoScene.demoShellTabs,
+        sidebarItems: [LunaSidebarItem] = LunaCPUDemoScene.demoSidebarItems,
         statusSegments: [LunaStatusSegment] = LunaCPUDemoScene.demoStatusSegmentsSnapshot()
     ) -> LunaEditorShell {
         let layout = Self.layout(for: framebufferSize)
         return LunaEditorShell(
             id: LunaCPUDemoSceneLayout.editorShellID,
             bounds: layout.editorShellBounds,
-            tabs: demoShellTabs,
+            tabs: tabs,
             sidebarTitle: "Project",
-            sidebarItems: demoSidebarItems,
+            sidebarItems: sidebarItems,
             statusSegments: statusSegments,
             state: state,
             theme: theme,
@@ -1656,32 +1670,28 @@ public struct LunaCPUDemoScene {
         )
     }
 
-    public static let demoShellTabs: [LunaShellTab] = [
-        LunaShellTab(
-            id: "overview",
-            title: "Overview.swift",
-            detail: "Demo/Overview.swift",
-            isDirty: false,
-            isClosable: false,
-            activateCommand: "luna.demo.tab.overview"
-        ),
-        LunaShellTab(
-            id: "editor",
-            title: "EditorSurface.swift",
-            detail: "Sources/LunaUI/LunaStaticTextView.swift",
-            isDirty: true,
-            activateCommand: "luna.demo.tab.editor",
-            closeCommand: "luna.demo.tab.close"
-        ),
-        LunaShellTab(
-            id: "theme",
-            title: "Theme.json",
-            detail: "Demo theme tokens",
-            isPinned: true,
-            activateCommand: "luna.demo.tab.theme",
-            closeCommand: "luna.demo.tab.close"
-        ),
-    ]
+
+    private func demoShellTabs() -> [LunaShellTab] {
+        documentStore.shellTabs(
+            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.tab.\(id.rawValue)") },
+            closeCommand: { id in
+                documentStore.document(with: id)?.descriptor.isClosable == true
+                    ? LunaCommandID(rawValue: "luna.demo.tab.close")
+                    : nil
+            }
+        )
+    }
+
+    public static var demoShellTabs: [LunaShellTab] {
+        demoDocumentStore.shellTabs(
+            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.tab.\(id.rawValue)") },
+            closeCommand: { id in
+                demoDocumentStore.document(with: id)?.descriptor.isClosable == true
+                    ? LunaCommandID(rawValue: "luna.demo.tab.close")
+                    : nil
+            }
+        )
+    }
 
     public static let demoSidebarItems: [LunaSidebarItem] = [
         LunaSidebarItem(
@@ -1690,21 +1700,32 @@ public struct LunaCPUDemoScene {
             kind: .folder,
             children: [
                 LunaSidebarItem(
+                    id: "open-documents",
+                    title: "Open Documents",
+                    kind: .folder,
+                    children: [
+                        LunaSidebarItem(id: "overview", title: "Overview.swift", kind: .file, activateCommand: "luna.demo.tab.overview"),
+                        LunaSidebarItem(id: "editor", title: "EditorSurface.swift", kind: .file, activateCommand: "luna.demo.tab.editor"),
+                        LunaSidebarItem(id: "theme", title: "Theme.json", kind: .file, activateCommand: "luna.demo.tab.theme"),
+                    ],
+                    isSelectable: false
+                ),
+                LunaSidebarItem(
                     id: "sources",
                     title: "Sources",
                     kind: .folder,
                     children: [
                         LunaSidebarItem(id: "luna-ui", title: "LunaUI", kind: .folder, children: [
+                            LunaSidebarItem(id: "document-buffer", title: "LunaDocumentBuffer.swift", kind: .file, activateCommand: "luna.demo.sidebar.documentBuffer"),
                             LunaSidebarItem(id: "editor-shell", title: "LunaEditorShell.swift", kind: .file, activateCommand: "luna.demo.sidebar.editorShell"),
-                            LunaSidebarItem(id: "menu", title: "LunaMenu.swift", kind: .file, activateCommand: "luna.demo.sidebar.menu"),
-                            LunaSidebarItem(id: "find", title: "LunaFindPanel.swift", kind: .file, activateCommand: "luna.demo.sidebar.find"),
+                            LunaSidebarItem(id: "completion-popup", title: "LunaCompletionPopup.swift", kind: .file, activateCommand: "luna.demo.sidebar.completionPopup"),
                         ], isSelectable: false),
                         LunaSidebarItem(id: "test-app", title: "LunaUITestApp", kind: .folder, isSelectable: false),
                     ],
                     isSelectable: false
                 ),
                 LunaSidebarItem(id: "tests", title: "Tests", kind: .folder, children: [
-                    LunaSidebarItem(id: "phase4d-tests", title: "LunaUIPhase4DTests.swift", kind: .file, activateCommand: "luna.demo.sidebar.phase4dTests"),
+                    LunaSidebarItem(id: "phase5a-tests", title: "LunaUIPhase5ATests.swift", kind: .file, activateCommand: "luna.demo.sidebar.phase5aTests"),
                 ], isSelectable: false),
                 LunaSidebarItem(id: "roadmap", title: "LUNA_UI_ROADMAP.md", kind: .file, activateCommand: "luna.demo.sidebar.roadmap"),
             ],
@@ -1715,11 +1736,49 @@ public struct LunaCPUDemoScene {
     public static let demoEditorShellState = LunaEditorShellState(
         tabStrip: LunaTabStripState(activeTabID: "editor"),
         sidebar: LunaSidebarState(
-            selectedItemID: "editor-shell",
-            expandedItemIDs: ["workspace", "sources", "luna-ui", "tests"]
+            selectedItemID: "editor",
+            expandedItemIDs: ["workspace", "open-documents", "sources", "luna-ui", "tests"]
         ),
         isSidebarVisible: true,
         sidebarWidth: 236
+    )
+
+    public static let demoDocumentStore = LunaDocumentStore(
+        openDocuments: [
+            LunaDocumentBuffer(
+                descriptor: LunaDocumentDescriptor(
+                    id: "overview",
+                    title: "Overview.swift",
+                    displayPath: "Demo/Overview.swift",
+                    syntaxName: "Swift",
+                    isClosable: false
+                ),
+                text: demoOverviewText,
+                caret: LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 1, utf8Column: 0))
+            ),
+            LunaDocumentBuffer(
+                descriptor: LunaDocumentDescriptor(
+                    id: "editor",
+                    title: "EditorSurface.swift",
+                    displayPath: "Sources/LunaUI/LunaStaticTextView.swift",
+                    syntaxName: "Swift"
+                ),
+                text: demoText,
+                caret: LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 1, utf8Column: 0))
+            ),
+            LunaDocumentBuffer(
+                descriptor: LunaDocumentDescriptor(
+                    id: "theme",
+                    title: "Theme.json",
+                    displayPath: "Demo/Theme.json",
+                    syntaxName: "JSON",
+                    isPinned: true
+                ),
+                text: demoThemeDocumentText,
+                caret: LunaStaticTextCaret(location: LunaTextLocation(lineIndex: 0, utf8Column: 0))
+            ),
+        ],
+        activeDocumentID: "editor"
     )
 
     public static let demoCompletionItems: [LunaCompletionItem] = [
@@ -1747,6 +1806,11 @@ public struct LunaCPUDemoScene {
         LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
         LunaCommandDescriptor(id: "luna.demo.completion.open", title: "Open Completion Popup", defaultKey: LunaKeyEquivalent("Ctrl+Space"), menuPath: ["Edit", "Completion"]),
         LunaCommandDescriptor(id: "luna.demo.completion.info", title: "Completion: Show Info", menuPath: ["Completion"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.documentBuffer", title: "Sidebar: LunaDocumentBuffer.swift", menuPath: ["Sidebar"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.editorShell", title: "Sidebar: LunaEditorShell.swift", menuPath: ["Sidebar"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.completionPopup", title: "Sidebar: LunaCompletionPopup.swift", menuPath: ["Sidebar"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.phase5aTests", title: "Sidebar: LunaUIPhase5ATests.swift", menuPath: ["Sidebar"]),
+        LunaCommandDescriptor(id: "luna.demo.sidebar.roadmap", title: "Sidebar: LUNA_UI_ROADMAP.md", menuPath: ["Sidebar"]),
         LunaCommandDescriptor(id: "luna.demo.context.copy", title: "Context: Copy", menuPath: ["Context"]),
         LunaCommandDescriptor(id: "luna.demo.context.paste", title: "Context: Paste Sample", menuPath: ["Context"]),
         LunaCommandDescriptor(id: "luna.demo.context.reveal", title: "Context: Reveal", menuPath: ["Context"]),
@@ -1809,10 +1873,42 @@ public struct LunaCPUDemoScene {
         ]
     }
 
-    /// Sample static document for Phase 3A. This is demo data, not editor
-    /// policy; the LunaStaticTextView itself accepts any app-supplied text.
+    /// Sample documents for Phase 5A. They are still demo fixtures, but they now
+    /// travel through `LunaDocumentStore` as app-supplied document descriptors and
+    /// independent editable buffers instead of one global text fixture.
+    public static let demoOverviewText = """
+    // Phase 5A: Document / Buffer Integration
+    // This is a separate Overview.swift buffer. Clicking tabs now switches the
+    // actual editable text state instead of only changing shell chrome.
+
+    struct DocumentOverview {
+        let primitive = "LunaDocumentID"
+        let descriptor = "LunaDocumentDescriptor"
+        let store = "LunaDocumentStore"
+    }
+
+    // Try this:
+    // 1. Type into this tab and watch its dirty marker appear.
+    // 2. Switch to EditorSurface.swift and confirm this text is preserved.
+    // 3. Switch back and confirm caret/selection state is still document-local.
+    """
+
+    public static let demoThemeDocumentText = """
+    {
+      "phase": "5A",
+      "document": "Theme.json",
+      "syntax": "JSON",
+      "purpose": "prove tab switching changes the real active buffer",
+      "tokens": {
+        "editor.background": "theme.ui.editor.background",
+        "menu.background": "theme.ui.menu.background",
+        "status.foreground": "theme.ui.statusBar.foreground"
+      }
+    }
+    """
+
     public static let demoText = """
-    // Phase 4F: Anchored Completion Popup
+    // Phase 5A: Real Document / Buffer Integration
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
     // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace; Ctrl+Space opens completions.
     struct LunaProof {
@@ -1824,7 +1920,7 @@ public struct LunaCPUDemoScene {
     // Phase 3A added the static accessible text surface.
     // Phase 3B added caret geometry and static selection.
     // Phase 3C added logical-line scrolling and viewport metrics.
-    // Phase 3D adds editable text; Phase 4D frames it in reusable editor shell chrome; Phase 4F anchors completions near the caret.
+    // Phase 5A connects tabs to real active document buffers; Phase 4F anchors completions near the caret.
 
     let phase3d_editing = "insert text, newline, backspace, delete"
     let phase3d_input = "host text-input events, not guessed printable keycodes"

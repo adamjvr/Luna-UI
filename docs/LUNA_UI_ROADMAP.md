@@ -1064,12 +1064,31 @@ The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/
 
 ### Phase 5A — Real Document / Buffer Integration
 
-Scope:
+Status: complete.
 
-- replace demo-only editable text fixtures with app-supplied document descriptors;
-- connect shell tab state to real document identity;
-- surface dirty state from document edits instead of static demo flags;
-- keep LunaUI product-neutral while allowing Moth Text to provide file/project policy later.
+Phase 5A moves the demo/editor surface from a single global editable text fixture to product-neutral open-document/buffer identity. Luna owns descriptor/store shapes, active-document routing, dirty-state derivation, and shell-tab projection helpers. Applications still own file I/O, project policy, save policy, and real Moth Text behavior.
+
+Completed scope:
+
+- reusable `LunaDocumentID`, `LunaDocumentDescriptor`, `LunaDocumentBuffer`, and `LunaDocumentStore` primitives;
+- open-buffer storage around the existing `LunaEditableTextState` mutation foundation;
+- per-document caret, selection, edit revision, and logical scroll preservation;
+- dirty/modified state derived from editable text revisions rather than static demo tab flags;
+- document-to-shell tab projection with app-supplied activate/close commands;
+- active document synchronization into `LunaEditorShellState` tab and sidebar selection;
+- document-aware status segments for active title, dirty/saved state, syntax, revision, scroll, and caret location;
+- demo tabs/sidebar rows that switch the actual editor text buffer while preserving input ownership rules from Phase 4.
+
+Phase 5A demo proof:
+
+```text
+click tab -> active document changes
+editor text swaps to that document buffer
+type -> active document becomes dirty and tab/status update
+switch away/back -> document-local text, caret/selection, and scroll are preserved
+sidebar open-document rows activate the same document IDs
+find/replace/completion/context/menu operations target the active document
+```
 
 ### Phase 5B — Sidebar Data Adapters
 
@@ -1154,7 +1173,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 4A — Command Palette / Quick Panel
+Phase 5B — Sidebar Data Adapters
 ```
 
-Phase 3A, 3B, 3C, and 3D are complete. The next implementation target is the first Sublime-style command palette / quick panel surface layered on top of the modal, bounded text, theme, keyboard, and text-input foundation.
+Phase 5A is complete. Phase 5B should add product-neutral adapter helpers that map app/project trees into `LunaSidebarItem` values while preserving expanded/selected row state across refreshes. Real file I/O and Moth-specific project policy still belong above Luna.

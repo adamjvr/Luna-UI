@@ -274,16 +274,17 @@ The current checkpoint has:
 - Phase 4D product-neutral editor shell foundation implemented with reusable tab strip, sidebar tree/list, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, and accessibility nodes;
 - Phase 4E product-neutral context menu foundation implemented with secondary-click floating menus, reused menu items/dropdown rows, editor/tab/sidebar/status context definitions, disabled/checked/separator/submenu states, pointer/keyboard routing, accessibility nodes, and demo command dispatch;
 - Phase 4F product-neutral completion popup foundation implemented with caret/anchor positioning, app-supplied completion items, selected rows, detail text, keyboard/pointer activation, insertion/command payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes;
+- Phase 5A real document / buffer integration implemented with product-neutral document descriptors, open buffer storage, active-document routing, per-document caret/selection/scroll preservation, dirty tracking from editable text revisions, shell-tab projection, and demo tabs/sidebar rows that switch the actual editor buffer;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 5A — Real Document / Buffer Integration
+Phase 5B — Sidebar Data Adapters
 ```
 
-Phase 4F is complete. The next step is to move from demo-only editable text fixtures toward app-supplied document descriptors and buffer identity while preserving Luna's product-neutral UI/runtime boundary.
+Phase 5A is complete. The next step is to add product-neutral sidebar data adapters that can map app/project trees into Luna sidebar rows while preserving expanded and selected state across refreshes.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -342,6 +343,13 @@ swift build --target LunaUIPhase4ETests
 swift test --filter LunaUIPhase4ETests
 swift build --target LunaUIPhase4FTests
 swift test --filter LunaUIPhase4FTests
+```
+
+Phase 5 editor-surface deepening tests:
+
+```bash
+swift build --target LunaUIPhase5ATests
+swift test --filter LunaUIPhase5ATests
 ```
 
 Full Linux check:

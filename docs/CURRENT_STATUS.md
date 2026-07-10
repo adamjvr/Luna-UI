@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4F completion popup.
+This document is the working checkpoint after Phase 5A real document / buffer integration.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4F**.
+Luna UI is through **Phase 5A**.
 
 The engine now has:
 
@@ -37,7 +37,8 @@ The engine now has:
 - a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch;
 - a product-neutral editor shell foundation with reusable tab strip, sidebar tree/list rows, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, accessibility nodes, and demo integration that frames the editable text view;
 - a product-neutral context menu foundation with secondary-click floating menu presentation, reusable Luna menu items/dropdown rows, editor/tab/sidebar/status demo contexts, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer and keyboard routing, theme-driven visible labels, accessibility menu/menuitem nodes, and demo command dispatch;
-- a product-neutral anchored completion popup foundation with app-supplied completion items, caret/anchor positioning, viewport clamping, selected rows, completion details, keyboard and pointer activation, insertion/command result payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes.
+- a product-neutral anchored completion popup foundation with app-supplied completion items, caret/anchor positioning, viewport clamping, selected rows, completion details, keyboard and pointer activation, insertion/command result payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes;
+- a product-neutral document/buffer identity layer with document descriptors, open-buffer storage, active-document routing, per-document caret/selection/scroll state, dirty tracking from editable text revisions, shell-tab projection, and demo tabs that switch the actual editable buffer.
 
 ---
 
@@ -135,6 +136,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4D — Tabs / Sidebar / Status Bar Shell: complete.
 - Phase 4E — Context Menu: complete.
 - Phase 4F — Completion Popup: complete.
+- Phase 5A — Real Document / Buffer Integration: complete.
 
 ---
 
@@ -144,6 +146,7 @@ Luna does not yet have:
 
 - minimap rendering;
 - real project/document/tab persistence;
+- sidebar data adapters for real project trees;
 - the actual Moth Text application target.
 
 ---
@@ -151,7 +154,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5A — Real Document / Buffer Integration
+Phase 5B — Sidebar Data Adapters
 ```
 
-Phase 5A should move beyond demo-only editable text fixtures by introducing app-supplied document descriptors/buffer identity around the existing product-neutral editor shell. Luna should remain the reusable UI/runtime layer while future Moth Text code supplies real file/project policy.
+Phase 5B should build product-neutral adapter helpers that map app/project trees into `LunaSidebarItem` values while preserving expanded/selected row state across refreshes. Luna should still avoid real file I/O and Moth-specific project policy.
