@@ -543,12 +543,13 @@ public struct LunaCPUDemoScene {
         // input until activation or dismissal, so clicks do not leak into tabs,
         // sidebar rows, status segments, or the editor underneath.
         if contextMenuState.isOpen {
+            let commandContextAttributes = contextMenuState.definition?.commandContextAttributes ?? [:]
             var state = contextMenuState
             let contextMenu = Self.contextMenu(for: framebufferSize, state: state, theme: theme)
             let result = contextMenu.handlePointerEvent(event, state: &state)
             contextMenuState = state
             if let command = result.requestedCommand {
-                performDemoCommand(command, framebufferSize: framebufferSize)
+                performDemoCommand(command, framebufferSize: framebufferSize, source: "context-menu", attributes: commandContextAttributes)
                 lastInteractionStatus = "Phase 4E context menu ran command: \(result.activatedTitle ?? command.rawValue)"
             } else if result.didDismiss {
                 lastInteractionStatus = "Phase 4E context menu dismissed"
@@ -653,7 +654,13 @@ public struct LunaCPUDemoScene {
             let result = shell.handlePointerEvent(event, state: &state)
             editorShellState = state
             if let command = result.requestedCommand {
-                performDemoCommand(command, framebufferSize: framebufferSize)
+                let attributes = result.closedTabID.map { shellTabID in
+                    [
+                        LunaCommandContextAttributeKey.targetDocumentID: shellTabID.rawValue,
+                        LunaCommandContextAttributeKey.targetShellTabID: shellTabID.rawValue,
+                    ]
+                } ?? [:]
+                performDemoCommand(command, framebufferSize: framebufferSize, source: "editor-shell", attributes: attributes)
             } else if let tab = result.selectedTabID {
                 lastInteractionStatus = "Phase 4D selected tab: \(tab.rawValue)"
             } else if let tab = result.closedTabID {
@@ -911,12 +918,13 @@ public struct LunaCPUDemoScene {
         }
 
         if contextMenuState.isOpen {
+            let commandContextAttributes = contextMenuState.definition?.commandContextAttributes ?? [:]
             var state = contextMenuState
             let contextMenu = Self.contextMenu(for: framebufferSize, state: state, theme: theme)
             let result = contextMenu.handleKeyboardEvent(event, state: &state)
             contextMenuState = state
             if let command = result.requestedCommand {
-                performDemoCommand(command, framebufferSize: framebufferSize)
+                performDemoCommand(command, framebufferSize: framebufferSize, source: "context-menu", attributes: commandContextAttributes)
                 lastInteractionStatus = "Phase 4E context menu ran command: \(result.activatedTitle ?? command.rawValue)"
             } else if result.didDismiss {
                 lastInteractionStatus = "Phase 4E context menu dismissed"
@@ -1221,9 +1229,16 @@ public struct LunaCPUDemoScene {
             return LunaContextMenuDefinition(
                 id: "tab-\(tab.tab.id.rawValue)",
                 title: "Tab: \(tab.tab.title)",
-                items: resolvedMenuItems(items, context: commandContext),
+                items: resolvedMenuItems(items, context: commandContext.withAttributes([
+                    LunaCommandContextAttributeKey.targetDocumentID: tab.tab.id.rawValue,
+                    LunaCommandContextAttributeKey.targetShellTabID: tab.tab.id.rawValue,
+                ])),
                 sourceNodeID: tab.nodeID,
-                accessibilityLabel: "Tab Context Menu"
+                accessibilityLabel: "Tab Context Menu",
+                commandContextAttributes: [
+                    LunaCommandContextAttributeKey.targetDocumentID: tab.tab.id.rawValue,
+                    LunaCommandContextAttributeKey.targetShellTabID: tab.tab.id.rawValue,
+                ]
             )
         }
 
@@ -1351,10 +1366,7 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 5A document missing: \(id.rawValue)"
             return
         }
-        workspaceState.syncFromActiveDocument(documentStore)
-        documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
-            workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
-        })
+        syncWorkspaceAndShellStateToActiveDocument()
         completionPopupState.close()
         activeTextSelectionAnchor = nil
         if var find = findPanelState {
@@ -1365,6 +1377,13 @@ public struct LunaCPUDemoScene {
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         let title = activeDocumentDescriptor?.title ?? id.rawValue
         lastInteractionStatus = "Phase 5A active document: \(title) (\(reason))"
+    }
+
+    private mutating func syncWorkspaceAndShellStateToActiveDocument() {
+        workspaceState.syncFromActiveDocument(documentStore)
+        documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
+            workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
+        })
     }
 
     private mutating func openWorkspaceFile(_ fileID: LunaFileID, framebufferSize: LunaSizeI, source: String) {
@@ -1382,9 +1401,7 @@ public struct LunaCPUDemoScene {
         workspaceState.registerFile(file)
         _ = workspaceState.open(fileID: file.id)
         let documentID = documentStore.openOrActivate(file: file, text: text)
-        documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
-            workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
-        })
+        syncWorkspaceAndShellStateToActiveDocument()
         completionPopupState.close()
         activeTextSelectionAnchor = nil
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
@@ -1420,26 +1437,39 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Phase 5C save all: saved \(savedCount) document(s) through workspace adapter"
     }
 
-    private mutating func closeActiveDocumentUsingWorkspacePolicy() {
-        guard let activeID = documentStore.activeDocumentID, let request = documentStore.closeRequest(for: activeID) else {
-            lastInteractionStatus = "Phase 5C close skipped: no active document"
+    private mutating func closeDocumentUsingWorkspacePolicy(_ documentID: LunaDocumentID) {
+        guard let request = documentStore.closeRequest(for: documentID) else {
+            lastInteractionStatus = "Phase 5C.2.1 close skipped: document not open (\(documentID.rawValue))"
             return
         }
         let resolution = LunaDirtyDocumentClosePolicy(promptsForDirtyDocuments: true).resolve(request)
         switch resolution.decision {
         case .closeNow:
-            _ = documentStore.close(activeID)
-            _ = workspaceState.close(fileID: LunaFileID(rawValue: activeID.rawValue))
-            workspaceState.syncFromActiveDocument(documentStore)
-            documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
-                workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
-            })
+            _ = documentStore.close(documentID)
+            _ = workspaceState.close(fileID: LunaFileID(rawValue: documentID.rawValue))
+            syncWorkspaceAndShellStateToActiveDocument()
             lastInteractionStatus = resolution.statusMessage ?? "Closed \(request.title)"
         case .requestSave:
             lastInteractionStatus = resolution.statusMessage ?? "Save changes before closing \(request.title)"
         case .cancel:
             lastInteractionStatus = resolution.statusMessage ?? "Close cancelled"
         }
+    }
+
+    private mutating func closeActiveDocumentUsingWorkspacePolicy() {
+        guard let activeID = documentStore.activeDocumentID else {
+            lastInteractionStatus = "Phase 5C.2.1 close skipped: no active document"
+            return
+        }
+        closeDocumentUsingWorkspacePolicy(activeID)
+    }
+
+    private mutating func closeDocumentUsingCommandContext(_ context: LunaCommandContext) {
+        guard let rawID = context.targetOrActiveDocumentID else {
+            lastInteractionStatus = "Phase 5C.2.1 close skipped: no target document"
+            return
+        }
+        closeDocumentUsingWorkspacePolicy(LunaDocumentID(rawValue: rawID))
     }
 
     private func demoCommandAvailability(for command: LunaCommandID, context: LunaCommandContext) -> LunaCommandAvailability {
@@ -1467,8 +1497,9 @@ public struct LunaCPUDemoScene {
             let hasDirty = !documentStore.dirtyDocumentIDs().isEmpty
             return LunaCommandAvailability(isEnabled: hasDirty, disabledReason: hasDirty ? nil : "No dirty documents")
         case "luna.demo.file.close":
-            let canClose = documentStore.activeDocument?.descriptor.isClosable ?? false
-            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Active document is not closable")
+            let documentID = context.targetOrActiveDocumentID.map(LunaDocumentID.init(rawValue:))
+            let canClose = documentID.flatMap { documentStore.document(with: $0)?.descriptor.isClosable } ?? false
+            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Target document is not closable")
         case "luna.demo.edit.selectAll":
             return LunaCommandAvailability(isEnabled: !staticTextDocument.lines.isEmpty)
         case "luna.demo.selection.clear":
@@ -1484,8 +1515,9 @@ public struct LunaCPUDemoScene {
         case "luna.demo.tab.theme":
             return LunaCommandAvailability(isChecked: documentStore.activeDocumentID == "theme")
         case "luna.demo.tab.close":
-            let canClose = documentStore.activeDocument?.descriptor.isClosable ?? false
-            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Active document is not closable in this demo")
+            let documentID = context.targetOrActiveDocumentID.map(LunaDocumentID.init(rawValue:))
+            let canClose = documentID.flatMap { documentStore.document(with: $0)?.descriptor.isClosable } ?? false
+            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Target tab is not closable in this demo")
         case "luna.demo.scroll.top":
             return LunaCommandAvailability(isEnabled: staticTextScroll.scrollTopLine > 0, disabledReason: staticTextScroll.scrollTopLine > 0 ? nil : "Already at top")
         case "luna.demo.scroll.end":
@@ -1495,29 +1527,46 @@ public struct LunaCPUDemoScene {
         }
     }
 
-    private mutating func performDemoCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
+    private mutating func performDemoCommand(
+        _ command: LunaCommandID,
+        framebufferSize: LunaSizeI,
+        source: String = "demo",
+        attributes additionalAttributes: [String: String] = [:]
+    ) {
         contextMenuState.close()
         completionPopupState.close()
-        let context = demoCommandContext(framebufferSize: framebufferSize, source: "demo")
+        let context = demoCommandContext(
+            framebufferSize: framebufferSize,
+            source: source,
+            attributes: additionalAttributes
+        )
         let result = Self.demoCommandRuntime.execute(command, host: &self, context: context)
         if !result.didHandle, let status = result.statusMessage {
             lastInteractionStatus = status
         }
     }
 
-    private func demoCommandContext(framebufferSize: LunaSizeI, source: String? = nil) -> LunaCommandContext {
-        LunaCommandContext(
+    private func demoCommandContext(
+        framebufferSize: LunaSizeI,
+        source: String? = nil,
+        attributes additionalAttributes: [String: String] = [:]
+    ) -> LunaCommandContext {
+        var attributes = [
+            "framebuffer.width": String(framebufferSize.width),
+            "framebuffer.height": String(framebufferSize.height),
+        ]
+        for (key, value) in additionalAttributes {
+            attributes[key] = value
+        }
+        return LunaCommandContext(
             focusedSurface: "editor",
             activeDocumentID: activeDocumentDescriptor?.id.rawValue,
             source: source,
-            attributes: [
-                "framebuffer.width": String(framebufferSize.width),
-                "framebuffer.height": String(framebufferSize.height),
-            ]
+            attributes: attributes
         )
     }
 
-    private mutating func performDemoCommandBody(_ command: LunaCommandID, framebufferSize: LunaSizeI) -> LunaCommandExecutionResult {
+    private mutating func performDemoCommandBody(_ command: LunaCommandID, framebufferSize: LunaSizeI, context: LunaCommandContext) -> LunaCommandExecutionResult {
         if let fileID = command.rawValue.lunaDemoOpenFileID {
             openWorkspaceFile(fileID, framebufferSize: framebufferSize, source: "command runtime")
             return .handled(lastInteractionStatus)
@@ -1549,7 +1598,7 @@ public struct LunaCPUDemoScene {
         case "luna.demo.file.saveAll":
             saveAllDirtyDocumentsThroughWorkspaceAdapter()
         case "luna.demo.file.close":
-            closeActiveDocumentUsingWorkspacePolicy()
+            closeDocumentUsingCommandContext(context)
         case "luna.demo.scroll.top":
             setStaticTextScrollTopLine(0, framebufferSize: framebufferSize, reason: "quick panel top")
         case "luna.demo.scroll.end":
@@ -1588,7 +1637,7 @@ public struct LunaCPUDemoScene {
         case "luna.demo.tab.theme":
             activateDocument("theme", framebufferSize: framebufferSize, reason: "tab/sidebar command")
         case "luna.demo.tab.close":
-            lastInteractionStatus = "Phase 5A close-tab command requested; demo document buffers remain open"
+            closeDocumentUsingCommandContext(context)
         case "luna.demo.context.copy":
             lastInteractionStatus = "Phase 4E context command: Copy requested from demo fixture"
         case "luna.demo.context.cut":
@@ -2195,7 +2244,7 @@ public struct LunaCPUDemoScene {
                     width: context.integerValue(for: "framebuffer.width") ?? 1024,
                     height: context.integerValue(for: "framebuffer.height") ?? 768
                 )
-                return scene.performDemoCommandBody(command, framebufferSize: size)
+                return scene.performDemoCommandBody(command, framebufferSize: size, context: context)
             },
             availability: { command, scene, context in
                 scene.demoCommandAvailability(for: command, context: context)

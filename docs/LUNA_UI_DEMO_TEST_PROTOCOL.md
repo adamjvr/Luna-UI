@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5C.2 editor harness split and input coalescing.
+This protocol is the standing manual regression checklist for the demo app after Phase 5C.2.1 targeted tab/document close routing.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -32,6 +32,31 @@ Theme switching is command-palette-only.
 
 
 
+
+## Targeted Tab / Document Close Protocol
+
+Phase 5C.2.1 wires tab close affordances into document/workspace close policy. Closing a tab should target the clicked or right-clicked tab, not blindly close whatever document is active.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Click the close affordance on a clean active tab | The document closes, the tab disappears, workspace open-file state updates, and a sensible neighboring document becomes active. |
+| Click the close affordance on a clean inactive tab | The clicked inactive document closes while the current active document remains active. |
+| Right-click a tab and choose `Close Tab` | The right-clicked tab/document is the close target. |
+| Keyboard-activate `Close Tab` from a tab context menu | The context menu still uses the tab that opened the menu as the close target. |
+| `File > Close Document` | Closes the active document because the command has no explicit target. |
+| Close dirty document/tab | Demo reports the dirty close/save-prompt decision instead of silently discarding edits. |
+| Close non-closable tab | Command is disabled or reports non-closable target. |
+
+Boundary rule:
+
+```text
+The tab strip detects close intent; document/workspace command policy decides what actually closes.
+Commands stay generic and receive target document identity through LunaCommandContext metadata.
+```
+
+---
 
 ## Editor Harness / Proof Gallery Protocol
 

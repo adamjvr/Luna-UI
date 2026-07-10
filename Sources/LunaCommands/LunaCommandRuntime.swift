@@ -45,6 +45,44 @@ public struct LunaCommandContext: Hashable, Sendable {
     public func integerValue(for key: String) -> Int? {
         attributes[key].flatMap(Int.init)
     }
+
+    public func withAttributes(_ additionalAttributes: [String: String]) -> LunaCommandContext {
+        var copy = self
+        for (key, value) in additionalAttributes {
+            copy.attributes[key] = value
+        }
+        return copy
+    }
+}
+
+public enum LunaCommandContextAttributeKey {
+    /// Optional target document for commands that conceptually operate on a
+    /// document other than the currently active document. Tab-close commands are
+    /// the motivating case: clicking a close button should close the clicked tab,
+    /// not whatever document happens to be active by the time the command runs.
+    public static let targetDocumentID = "luna.target.documentID"
+
+    /// Optional target file for workspace/project commands. This remains a plain
+    /// string so LunaCommands does not depend on LunaUI workspace types.
+    public static let targetFileID = "luna.target.fileID"
+
+    /// Optional target shell tab ID for UI-shell commands that need to preserve
+    /// the exact tab frame that initiated the action.
+    public static let targetShellTabID = "luna.target.shellTabID"
+}
+
+public extension LunaCommandContext {
+    /// Prefer an explicit target document when a command was invoked from a
+    /// target-bearing UI surface such as a tab close button; otherwise fall back
+    /// to the active document. Command handlers can use this to stay
+    /// context-driven instead of baking per-document command IDs into menus.
+    var targetOrActiveDocumentID: String? {
+        attributes[LunaCommandContextAttributeKey.targetDocumentID] ?? activeDocumentID
+    }
+
+    var explicitTargetDocumentID: String? {
+        attributes[LunaCommandContextAttributeKey.targetDocumentID]
+    }
 }
 
 // MARK: - Availability and execution results

@@ -128,6 +128,24 @@ final class LunaUIPhase5CTests: XCTestCase {
         XCTAssertTrue(save.didSave)
         XCTAssertEqual(adapter.texts["main"], "print(2)")
     }
+    func testWorkspaceStateSyncClearsActiveFileWhenDocumentStoreIsEmpty() {
+        var workspace = LunaWorkspaceState(
+            snapshot: makeSnapshot(),
+            fileDescriptors: makeFiles(),
+            openFileIDs: ["main"],
+            activeFileID: "main",
+            selectedNodeID: "node.main",
+            expandedNodeIDs: ["root", "sources"]
+        )
+        let documentStore = LunaDocumentStore(openDocuments: [])
+
+        workspace.syncFromActiveDocument(documentStore)
+
+        XCTAssertNil(workspace.activeFileID)
+        XCTAssertNil(workspace.selectedNodeID)
+        XCTAssertEqual(workspace.openFileIDs, ["main"])
+    }
+
 }
 
 private struct InMemoryWorkspaceAdapter: LunaWorkspaceAdapter {
@@ -159,4 +177,5 @@ private struct InMemoryWorkspaceAdapter: LunaWorkspaceAdapter {
         texts[fileID] = request.text
         return .saved(request, file: file)
     }
+
 }

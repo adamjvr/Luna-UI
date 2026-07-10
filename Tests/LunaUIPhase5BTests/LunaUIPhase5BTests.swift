@@ -114,4 +114,20 @@ final class LunaUIPhase5BTests: XCTestCase {
 
         XCTAssertTrue(legacy.matches(stroke))
     }
+
+    func testCommandContextTargetDocumentFallsBackToActiveDocument() {
+        let activeOnly = LunaCommandContext(activeDocumentID: "active")
+        XCTAssertEqual(activeOnly.targetOrActiveDocumentID, "active")
+        XCTAssertNil(activeOnly.explicitTargetDocumentID)
+
+        let targeted = activeOnly.withAttributes([
+            LunaCommandContextAttributeKey.targetDocumentID: "clicked-tab",
+            LunaCommandContextAttributeKey.targetShellTabID: "clicked-tab",
+        ])
+        XCTAssertEqual(targeted.activeDocumentID, "active")
+        XCTAssertEqual(targeted.explicitTargetDocumentID, "clicked-tab")
+        XCTAssertEqual(targeted.targetOrActiveDocumentID, "clicked-tab")
+        XCTAssertEqual(targeted.value(for: LunaCommandContextAttributeKey.targetShellTabID), "clicked-tab")
+    }
+
 }

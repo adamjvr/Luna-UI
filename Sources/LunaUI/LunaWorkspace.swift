@@ -424,7 +424,11 @@ public struct LunaWorkspaceState: Hashable, Sendable {
     }
 
     public mutating func syncFromActiveDocument(_ documentStore: LunaDocumentStore) {
-        guard let documentID = documentStore.activeDocumentID else { return }
+        guard let documentID = documentStore.activeDocumentID else {
+            activeFileID = nil
+            selectedNodeID = nil
+            return
+        }
         let fileID = LunaFileID(rawValue: documentID.rawValue)
         if filesByID[fileID] != nil {
             _ = open(fileID: fileID)

@@ -25,12 +25,19 @@ public struct LunaContextMenuDefinition: Hashable, Sendable {
     public var sourceNodeID: LunaNodeID?
     public var accessibilityLabel: String
 
+    /// Product-neutral command-context metadata captured at the point the menu
+    /// was opened. This lets host apps keep commands generic while still routing
+    /// target-specific invocations correctly; for example, a tab context menu can
+    /// close the right-clicked tab without minting one command ID per document.
+    public var commandContextAttributes: [String: String]
+
     public init(
         id: String,
         title: String = "Context Menu",
         items: [LunaMenuItem],
         sourceNodeID: LunaNodeID? = nil,
-        accessibilityLabel: String? = nil
+        accessibilityLabel: String? = nil,
+        commandContextAttributes: [String: String] = [:]
     ) {
         precondition(!id.isEmpty, "LunaContextMenuDefinition id cannot be empty")
         self.id = id
@@ -38,6 +45,7 @@ public struct LunaContextMenuDefinition: Hashable, Sendable {
         self.items = items
         self.sourceNodeID = sourceNodeID
         self.accessibilityLabel = accessibilityLabel ?? title
+        self.commandContextAttributes = commandContextAttributes
     }
 }
 

@@ -1205,6 +1205,33 @@ Proof-gallery mode stays first-class for visual/stress regression coverage.
 Pointer motion can be coalesced; button/key/text/resize/quit semantics cannot be dropped.
 ```
 
+### Phase 5C.2.1 — Targeted Tab / Document Close Routing
+
+Status: complete.
+
+Phase 5C.2.1 wires the tab strip close affordance and tab context-menu close command into the document/workspace close policy added in Phase 5C. It keeps `luna.demo.tab.close` generic and product-neutral by carrying the clicked tab/document as command-context metadata rather than minting one command ID per document.
+
+Completed scope:
+
+- `LunaCommandContextAttributeKey.targetDocumentID` and related target metadata keys;
+- `LunaCommandContext.targetOrActiveDocumentID` fallback helper so command handlers can prefer explicit targets while still supporting active-document commands;
+- `LunaContextMenuDefinition.commandContextAttributes` so context menus can preserve the source tab/document that opened them;
+- tab close-button clicks pass the clicked `LunaShellTabID` as a target document to the generic close command;
+- tab context-menu Close Tab carries the right-clicked tab as command context for pointer and keyboard activation;
+- File > Close Document still closes the active document because it has no explicit target;
+- tab close and File > Close Document both reuse `LunaDirtyDocumentClosePolicy` instead of mutating tab arrays directly;
+- closing a clean document updates `LunaDocumentStore`, `LunaWorkspaceState.openFileIDs`, active document selection, sidebar selection, and shell active tab state;
+- dirty close still reports the save-prompt decision until a real Save / Discard / Cancel modal is implemented;
+- tests cover command-context target fallback, context-menu command attributes, and workspace state synchronization when the document store becomes empty.
+
+Architecture rule:
+
+```text
+Tab close is document policy, not tab-strip paint policy.
+The shell emits the target tab/document; the app command handler decides whether close is allowed.
+Dirty documents still require a product/app prompt before destructive close behavior.
+```
+
 ### Phase 5D — Real File I/O Proof
 
 Scope:
@@ -1283,4 +1310,4 @@ The next implementation target is:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5C.2 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, and editor-harness boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
+Phase 5C.2.1 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, editor-harness, and targeted-close boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.

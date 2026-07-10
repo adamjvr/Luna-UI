@@ -157,4 +157,25 @@ final class LunaUIPhase4ETests: XCTestCase {
         XCTAssertTrue(children.contains { $0.role == .menuItem && $0.label == "Copy" })
         XCTAssertTrue(children.contains { $0.role == .menuItem && $0.label == "Checked, Lower Case" && $0.isFocused })
     }
+
+    func testDefinitionCarriesCommandContextAttributes() {
+        let definition = LunaContextMenuDefinition(
+            id: "tab-main",
+            title: "Tab: Main.swift",
+            items: [
+                .command(id: "close", title: "Close Tab", command: "demo.tab.close"),
+            ],
+            sourceNodeID: "tab.main",
+            commandContextAttributes: [
+                LunaCommandContextAttributeKey.targetDocumentID: "main",
+                LunaCommandContextAttributeKey.targetShellTabID: "main",
+            ]
+        )
+        var state = LunaContextMenuState()
+        state.open(definition, at: LunaPointI(x: 10, y: 20))
+
+        XCTAssertEqual(state.definition?.commandContextAttributes[LunaCommandContextAttributeKey.targetDocumentID], "main")
+        XCTAssertEqual(state.definition?.commandContextAttributes[LunaCommandContextAttributeKey.targetShellTabID], "main")
+    }
+
 }

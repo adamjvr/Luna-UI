@@ -279,7 +279,7 @@ The current checkpoint has:
 - Phase 5C file/project adapter boundary implemented with product-neutral file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save contracts, dirty-close policy, and an in-memory demo adapter proving file/project seams without real Moth policy;
 - Phase 5C.1 frame pacing/invalidation runtime boundary implemented with host timing stats, frame requests, invalidation reasons, frame pacing helpers, SDL vsync/delay cleanup, and runtime diagnostics;
 - Phase 5C.2 editor harness split and input coalescing implemented with default editor mode, optional proof-gallery mode, host pointer-motion coalescing, state-change pointer invalidation, quiet command logging by default, and input/event diagnostics;
-- Phase 5C.1 frame pacing, invalidation, and runtime boundary implemented with host-core frame timing stats, invalidation reasons, frame requests, a frame pacer, runtime tick snapshots, SDL vsync/delay cleanup, and a demo status readout proving Luna UI state remains single-lane while hosts/services handle scheduling;
+- Phase 5C.2.1 targeted tab/document close routing implemented with context-carried target document IDs, tab-close command routing through dirty-close policy, context-menu command attributes, active/workspace/shell state synchronization after close, and regression coverage for command-context targeting;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -289,7 +289,7 @@ The next implementation target is:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5C.1 is complete. The next step is to put a narrow real-file proof behind the adapter/runtime boundary while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
+Phase 5C.2.1 is complete. The next step is to put a narrow real-file proof behind the adapter/runtime/targeted-close boundaries while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
