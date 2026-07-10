@@ -46,6 +46,7 @@ public struct LunaCPUDemoSceneLayout: Sendable {
     public static let quickPanelID: LunaNodeID = "demo.phase4a.quick-panel"
     public static let findPanelID: LunaNodeID = "demo.phase4b.find-panel"
     public static let contextMenuID: LunaNodeID = "demo.phase4e.context-menu"
+    public static let completionPopupID: LunaNodeID = "demo.phase4f.completion-popup"
 
     public var viewport: LunaViewport
     public var frames: LunaLayoutResult
@@ -149,6 +150,11 @@ public struct LunaCPUDemoScene {
     /// contents based on the clicked surface.
     private var contextMenuState = LunaContextMenuState()
 
+    /// Phase 4F product-neutral completion-popup state. LunaUI owns anchored
+    /// popup layout/input/accessibility; the demo supplies static completion
+    /// candidates and applies the selected insertion text.
+    private var completionPopupState = LunaCompletionPopupState()
+
     /// Phase 4D product-neutral editor shell state. Tabs/sidebar/status are
     /// LunaUI primitives; the demo supplies fake documents/project/status data.
     private var editorShellState = LunaCPUDemoScene.demoEditorShellState
@@ -230,6 +236,7 @@ public struct LunaCPUDemoScene {
         modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
         menuBarState.close()
         contextMenuState.close()
+        completionPopupState.close()
         modalManager.reflow(viewportSize: framebufferSize)
         lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Use Ctrl+P and run a Theme command to switch themes."
     }
@@ -305,6 +312,11 @@ public struct LunaCPUDemoScene {
         drawContextMenuOverlay(
             into: &fb,
             contextMenu: Self.contextMenu(for: LunaSizeI(width: fb.width, height: fb.height), state: contextMenuState, theme: renderTheme),
+            theme: renderTheme
+        )
+        drawCompletionPopupOverlay(
+            into: &fb,
+            completionPopup: Self.completionPopup(for: LunaSizeI(width: fb.width, height: fb.height), state: completionPopupState, theme: renderTheme),
             theme: renderTheme
         )
         drawActiveFindPanelOverlay(
@@ -463,6 +475,32 @@ public struct LunaCPUDemoScene {
             }
         }
 
+        // Phase 4F completion popup routing. The anchored popup owns pointer
+        // events until activation/dismissal so row clicks do not also move the
+        // editor caret underneath. Secondary/context clicks are consumed while
+        // open; the user can right-click again after the popup closes.
+        if completionPopupState.isOpen {
+            var state = completionPopupState
+            let completionPopup = Self.completionPopup(for: framebufferSize, state: state, theme: theme)
+            let result = completionPopup.handlePointerEvent(event, state: &state)
+            completionPopupState = state
+            if let item = result.selectedItem {
+                applyCompletionSelection(item, insertionText: result.insertionText, framebufferSize: framebufferSize)
+            } else if result.didDismiss {
+                lastInteractionStatus = "Phase 4F completion popup dismissed"
+            } else if result.didChangeState, let hit = result.hitNodeID {
+                lastInteractionStatus = "Phase 4F completion popup hit: \(hit.rawValue)"
+            }
+            if result.didConsumeEvent {
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: result.hitNodeID,
+                    requestedCommand: result.requestedCommand,
+                    announcementTexts: result.selectedItem == nil ? [] : ["Completion accepted"]
+                )
+            }
+        }
+
         // Phase 4C menu routing. Menus sit below modal/palette/find overlays but
         // above the editor surface. When a menu is open, outside clicks close it
         // and are consumed so they do not accidentally edit text underneath.
@@ -493,6 +531,7 @@ public struct LunaCPUDemoScene {
            let definition = demoContextMenuDefinition(at: event.location, framebufferSize: framebufferSize) {
             contextMenuState.open(definition, at: event.location)
             menuBarState.close()
+            completionPopupState.close()
             activeTextSelectionAnchor = nil
             lastInteractionStatus = "Phase 4E context menu opened: \(definition.title)"
             return LunaPointerActivationResult(
@@ -683,6 +722,10 @@ public struct LunaCPUDemoScene {
             return true
         }
 
+        if completionPopupState.isOpen {
+            completionPopupState.close()
+        }
+
         activeTextSelectionAnchor = nil
         let result = editableTextState.insertText(event.text)
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
@@ -769,6 +812,22 @@ public struct LunaCPUDemoScene {
             return result.didConsumeEvent
         }
 
+        if completionPopupState.isOpen {
+            var state = completionPopupState
+            let completionPopup = Self.completionPopup(for: framebufferSize, state: state, theme: theme)
+            let result = completionPopup.handleKeyboardEvent(event, state: &state)
+            completionPopupState = state
+            if let item = result.selectedItem {
+                applyCompletionSelection(item, insertionText: result.insertionText, framebufferSize: framebufferSize)
+                lastInteractionStatus = "Phase 4F accepted completion: \(item.title)"
+            } else if result.didDismiss {
+                lastInteractionStatus = "Phase 4F completion popup dismissed"
+            } else if result.didChangeState {
+                lastInteractionStatus = "Phase 4F completion popup keyboard navigation"
+            }
+            if result.didConsumeEvent { return true }
+        }
+
         if menuBarState.isOpen {
             var state = menuBarState
             let menu = Self.menuBar(for: framebufferSize, state: state, theme: theme)
@@ -803,6 +862,11 @@ public struct LunaCPUDemoScene {
         if isSelectAllShortcut(event) {
             suppressShortcutTextInput("a")
             selectAllEditableText(framebufferSize: framebufferSize)
+            return true
+        }
+
+        if isCompletionShortcut(event) {
+            openCompletionPopup(framebufferSize: framebufferSize)
             return true
         }
 
@@ -892,6 +956,10 @@ public struct LunaCPUDemoScene {
         }
     }
 
+    private func isCompletionShortcut(_ event: LunaKeyboardEvent) -> Bool {
+        event.key == .space && (event.modifiers.control || event.modifiers.command)
+    }
+
     private mutating func suppressShortcutTextInput(_ text: String) {
         pendingShortcutTextInputSuppression = text.lowercased()
     }
@@ -899,6 +967,7 @@ public struct LunaCPUDemoScene {
     private mutating func openQuickPanel() {
         menuBarState.close()
         contextMenuState.close()
+        completionPopupState.close()
         findPanelState = nil
         quickPanelState = LunaQuickPanelState(items: Self.demoQuickPanelItems)
     }
@@ -911,6 +980,7 @@ public struct LunaCPUDemoScene {
     private mutating func openFindPanel(framebufferSize: LunaSizeI) {
         menuBarState.close()
         contextMenuState.close()
+        completionPopupState.close()
         quickPanelState = nil
         var state = findPanelState ?? LunaFindPanelState()
         state.refreshResults(in: staticTextDocument, preservingSelectionNear: staticTextCaret.location)
@@ -922,6 +992,52 @@ public struct LunaCPUDemoScene {
     private func activeFindPanel(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaFindPanel? {
         guard let state = findPanelState else { return nil }
         return Self.findPanel(for: framebufferSize, state: state, theme: theme)
+    }
+
+
+    private mutating func openCompletionPopup(framebufferSize: LunaSizeI) {
+        menuBarState.close()
+        contextMenuState.close()
+        quickPanelState = nil
+        findPanelState = nil
+        activeTextSelectionAnchor = nil
+
+        let anchor = completionAnchorRect(framebufferSize: framebufferSize)
+        completionPopupState.open(items: Self.demoCompletionItems, anchorRect: anchor)
+        lastInteractionStatus = "Phase 4F completion popup opened; arrows navigate, Enter/Tab accepts, Esc closes"
+    }
+
+    private func activeCompletionPopup(framebufferSize: LunaSizeI, theme: LunaTheme) -> LunaCompletionPopup? {
+        guard completionPopupState.isOpen else { return nil }
+        return Self.completionPopup(for: framebufferSize, state: completionPopupState, theme: theme)
+    }
+
+    private func completionAnchorRect(framebufferSize: LunaSizeI) -> LunaRectI {
+        let textView = Self.staticTextView(
+            for: framebufferSize,
+            document: staticTextDocument,
+            scrollTopLine: staticTextScroll.scrollTopLine,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            theme: theme
+        )
+        if let caretRect = textView.layout().caretRect {
+            return caretRect
+        }
+        let layout = Self.layout(for: framebufferSize)
+        return LunaRectI(x: layout.textViewBounds.x + 72, y: layout.textViewBounds.y + 24, w: 2, h: 18)
+    }
+
+    private mutating func applyCompletionSelection(_ item: LunaCompletionItem, insertionText: String?, framebufferSize: LunaSizeI) {
+        completionPopupState.close()
+        if let command = item.command {
+            performDemoCommand(command, framebufferSize: framebufferSize)
+            return
+        }
+        let text = insertionText ?? item.insertText ?? item.title
+        let result = editableTextState.insertText(text)
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+        lastInteractionStatus = "Phase 4F inserted completion \(item.title.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column)"
     }
 
 
@@ -956,6 +1072,7 @@ public struct LunaCPUDemoScene {
             LunaMenuItem.command(id: "editor.clearSelection", title: "Clear Selection", command: "luna.demo.selection.clear", isEnabled: hasSelection),
             LunaMenuItem.separator(id: "editor.sep.1"),
             LunaMenuItem.command(id: "editor.find", title: "Find / Replace…", command: "luna.demo.find.open", keyEquivalent: LunaKeyEquivalent("F", modifiers: [.primary])),
+            LunaMenuItem.command(id: "editor.completions", title: "Show Completions", command: "luna.demo.completion.open", keyEquivalent: LunaKeyEquivalent("Space", modifiers: [.primary])),
             LunaMenuItem.submenu(id: "editor.theme", title: "Theme", children: themeItems),
             LunaMenuItem.separator(id: "editor.sep.2"),
             LunaMenuItem.command(id: "editor.info", title: "Context Menu Info", command: "luna.demo.context.info"),
@@ -1112,6 +1229,7 @@ public struct LunaCPUDemoScene {
 
     private mutating func performDemoCommand(_ command: LunaCommandID, framebufferSize: LunaSizeI) {
         contextMenuState.close()
+        completionPopupState.close()
         switch command.rawValue {
         case "luna.demo.theme.blue":
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
@@ -1143,6 +1261,19 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 4A inserted sample text; caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column)"
         case "luna.demo.find.open":
             openFindPanel(framebufferSize: framebufferSize)
+        case "luna.demo.completion.open":
+            openCompletionPopup(framebufferSize: framebufferSize)
+        case "luna.demo.completion.info":
+            var context = LunaUIContext()
+            context.openNotice(
+                LunaNoticeRequest(
+                    id: "demo.phase4f.completion-info",
+                    title: "Phase 4F Completion Popup",
+                    message: "The anchored completion popup is a product-neutral Luna primitive. The demo supplies static suggestions and applies insertion text; real completion sources come later."
+                )
+            )
+            modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
+            lastInteractionStatus = "Phase 4F completion info opened"
         case "luna.demo.edit.selectAll":
             selectAllEditableText(framebufferSize: framebufferSize)
         case "luna.demo.selection.clear":
@@ -1493,6 +1624,21 @@ public struct LunaCPUDemoScene {
         )
     }
 
+    /// Build the Phase 4F product-neutral anchored completion-popup proof.
+    public static func completionPopup(
+        for framebufferSize: LunaSizeI,
+        state: LunaCompletionPopupState,
+        theme: LunaTheme = MothDemoTheme.theme
+    ) -> LunaCompletionPopup {
+        LunaCompletionPopup(
+            id: LunaCPUDemoSceneLayout.completionPopupID,
+            bounds: LunaRectI(x: 0, y: 0, w: framebufferSize.width, h: framebufferSize.height),
+            state: state,
+            theme: theme,
+            metrics: .demo
+        )
+    }
+
     /// Build the Phase 4A command-palette / quick-panel proof.
     public static func quickPanel(
         for framebufferSize: LunaSizeI,
@@ -1576,6 +1722,16 @@ public struct LunaCPUDemoScene {
         sidebarWidth: 236
     )
 
+    public static let demoCompletionItems: [LunaCompletionItem] = [
+        LunaCompletionItem(id: "let", title: "let", annotation: "keyword", detail: "Create an immutable binding.", insertText: "let "),
+        LunaCompletionItem(id: "var", title: "var", annotation: "keyword", detail: "Create a mutable binding.", insertText: "var "),
+        LunaCompletionItem(id: "struct", title: "struct", annotation: "keyword", detail: "Declare a new Swift type.", insertText: "struct "),
+        LunaCompletionItem(id: "luna-theme", title: "LunaTheme", annotation: "type", detail: "Theme object carrying editor and UI token sets.", insertText: "LunaTheme"),
+        LunaCompletionItem(id: "luna-menu", title: "LunaMenuItem", annotation: "type", detail: "Product-neutral menu item shared by menu bars and context menus.", insertText: "LunaMenuItem"),
+        LunaCompletionItem(id: "completion-popup", title: "LunaCompletionPopup", annotation: "type", detail: "Anchored completion surface introduced in Phase 4F.", insertText: "LunaCompletionPopup"),
+        LunaCompletionItem(id: "notice", title: "Show Completion Info", annotation: "command", detail: "Routes through LunaCommandID instead of inserting text.", command: "luna.demo.completion.info"),
+    ]
+
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
         LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("Ctrl+P"), menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
@@ -1589,6 +1745,8 @@ public struct LunaCPUDemoScene {
         LunaCommandDescriptor(id: "luna.demo.edit.selectAll", title: "Select All", defaultKey: LunaKeyEquivalent("Ctrl+A"), menuPath: ["Edit"]),
         LunaCommandDescriptor(id: "luna.demo.selection.clear", title: "Clear Selection", menuPath: ["Selection"]),
         LunaCommandDescriptor(id: "luna.demo.find.open", title: "Open Find / Replace Panel", defaultKey: LunaKeyEquivalent("Ctrl+F"), menuPath: ["Find"]),
+        LunaCommandDescriptor(id: "luna.demo.completion.open", title: "Open Completion Popup", defaultKey: LunaKeyEquivalent("Ctrl+Space"), menuPath: ["Edit", "Completion"]),
+        LunaCommandDescriptor(id: "luna.demo.completion.info", title: "Completion: Show Info", menuPath: ["Completion"]),
         LunaCommandDescriptor(id: "luna.demo.context.copy", title: "Context: Copy", menuPath: ["Context"]),
         LunaCommandDescriptor(id: "luna.demo.context.paste", title: "Context: Paste Sample", menuPath: ["Context"]),
         LunaCommandDescriptor(id: "luna.demo.context.reveal", title: "Context: Reveal", menuPath: ["Context"]),
@@ -1622,6 +1780,8 @@ public struct LunaCPUDemoScene {
                 LunaMenuItem.separator(id: "edit.sep.0"),
                 LunaMenuItem.command(id: "edit.selectAll", title: "Select All", command: "luna.demo.edit.selectAll", keyEquivalent: LunaKeyEquivalent("A", modifiers: [.primary])),
                 LunaMenuItem.command(id: "edit.insertSample", title: "Insert Sample Text", command: "luna.demo.insert.sample"),
+                LunaMenuItem.separator(id: "edit.sep.1"),
+                LunaMenuItem.command(id: "edit.completions", title: "Show Completions", command: "luna.demo.completion.open", keyEquivalent: LunaKeyEquivalent("Space", modifiers: [.primary])),
             ]),
             LunaMenuDefinition(id: "selection", title: "Selection", items: [
                 LunaMenuItem.command(id: "selection.selectAll", title: "Select All", command: "luna.demo.edit.selectAll", keyEquivalent: LunaKeyEquivalent("A", modifiers: [.primary])),
@@ -1652,9 +1812,9 @@ public struct LunaCPUDemoScene {
     /// Sample static document for Phase 3A. This is demo data, not editor
     /// policy; the LunaStaticTextView itself accepts any app-supplied text.
     public static let demoText = """
-    // Phase 4D: Tabs / Sidebar / Status Bar Shell
+    // Phase 4F: Anchored Completion Popup
     // Click in this editor surface and type. Enter, Backspace, Delete, Left,
-    // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace.
+    // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace; Ctrl+Space opens completions.
     struct LunaProof {
         let background = "theme.ui.editor.background"
         let gutter = "theme.ui.editor.gutterBackground"
@@ -1664,7 +1824,7 @@ public struct LunaCPUDemoScene {
     // Phase 3A added the static accessible text surface.
     // Phase 3B added caret geometry and static selection.
     // Phase 3C added logical-line scrolling and viewport metrics.
-    // Phase 3D adds editable text; Phase 4D frames it in reusable editor shell chrome.
+    // Phase 3D adds editable text; Phase 4D frames it in reusable editor shell chrome; Phase 4F anchors completions near the caret.
 
     let phase3d_editing = "insert text, newline, backspace, delete"
     let phase3d_input = "host text-input events, not guessed printable keycodes"
@@ -2359,6 +2519,61 @@ private func drawContextMenuOverlay(into fb: inout LunaFramebuffer, contextMenu:
     }
 }
 
+/// Draw the active Phase 4F completion popup plus row/detail text.
+private func drawCompletionPopupOverlay(into fb: inout LunaFramebuffer, completionPopup: LunaCompletionPopup, theme: LunaTheme) {
+    guard completionPopup.state.isOpen else { return }
+
+    var displayList = LunaDisplayList()
+    completionPopup.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    let text = completionPopup.textLayout()
+    for row in text.rows {
+        let titleColor = row.isSelected ? theme.ui.menu.rowHoveredForeground : theme.ui.menu.rowForeground
+        let annotationColor = row.isSelected ? theme.ui.menu.rowHoveredForeground : theme.ui.menu.rowMutedForeground
+        drawText5x7Color(
+            into: &fb,
+            x: row.title.bounds.x,
+            y: row.title.bounds.y,
+            text: row.title.text,
+            scale: completionPopup.metrics.textScale,
+            color: titleColor
+        )
+        if let annotation = row.annotation {
+            drawText5x7Color(
+                into: &fb,
+                x: annotation.bounds.x,
+                y: annotation.bounds.y,
+                text: annotation.text,
+                scale: completionPopup.metrics.textScale,
+                color: annotationColor
+            )
+        }
+    }
+
+    if let detail = text.detail {
+        drawText5x7Color(
+            into: &fb,
+            x: detail.bounds.x,
+            y: detail.bounds.y,
+            text: detail.text,
+            scale: completionPopup.metrics.textScale,
+            color: theme.ui.panel.bodyForeground
+        )
+    }
+
+    if let status = text.status {
+        drawText5x7Color(
+            into: &fb,
+            x: status.bounds.x,
+            y: status.bounds.y,
+            text: status.text,
+            scale: completionPopup.metrics.textScale,
+            color: theme.ui.panel.mutedForeground
+        )
+    }
+}
+
 /// Heads-up display: title, current theme, and compact key help.
 private func drawHUD(
     into fb: inout LunaFramebuffer,
@@ -2372,7 +2587,7 @@ private func drawHUD(
 
     let title = "Luna-UI Test App"
     let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
-    let keys = "Phase 4E: right-click context menus   tabs/sidebar/status   Menu bar   Ctrl+P palette/theme   Ctrl+F find"
+    let keys = "Phase 4F: Ctrl+Space completions   right-click context menus   Menu bar   Ctrl+P palette/theme   Ctrl+F find"
 
     drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)
 

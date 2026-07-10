@@ -273,16 +273,17 @@ The current checkpoint has:
 - Phase 4C product-neutral menu bar/dropdown foundation implemented with top menus, dropdown rows, disabled/checked states, shortcut display, first-pass submenus, pointer/keyboard interaction, theme-driven rendering, accessibility nodes, and demo command dispatch;
 - Phase 4D product-neutral editor shell foundation implemented with reusable tab strip, sidebar tree/list, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, and accessibility nodes;
 - Phase 4E product-neutral context menu foundation implemented with secondary-click floating menus, reused menu items/dropdown rows, editor/tab/sidebar/status context definitions, disabled/checked/separator/submenu states, pointer/keyboard routing, accessibility nodes, and demo command dispatch;
+- Phase 4F product-neutral completion popup foundation implemented with caret/anchor positioning, app-supplied completion items, selected rows, detail text, keyboard/pointer activation, insertion/command payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 4F — Completion Popup
+Phase 5A — Real Document / Buffer Integration
 ```
 
-Phase 4E is complete. The next step is to add a product-neutral anchored completion popup for editor suggestions, quick insertion choices, and future Moth Text completion providers.
+Phase 4F is complete. The next step is to move from demo-only editable text fixtures toward app-supplied document descriptors and buffer identity while preserving Luna's product-neutral UI/runtime boundary.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -339,6 +340,8 @@ swift build --target LunaUIPhase4DTests
 swift test --filter LunaUIPhase4DTests
 swift build --target LunaUIPhase4ETests
 swift test --filter LunaUIPhase4ETests
+swift build --target LunaUIPhase4FTests
+swift test --filter LunaUIPhase4FTests
 ```
 
 Full Linux check:

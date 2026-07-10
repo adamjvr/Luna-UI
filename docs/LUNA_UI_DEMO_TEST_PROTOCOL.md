@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 4E context menus.
+This protocol is the standing manual regression checklist for the demo app after Phase 4F completion popup.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -15,7 +15,8 @@ The demo is an integration harness for Luna UI. It may show the Moth Obsidian pa
 | `Ctrl+P` | Open the command palette / quick panel. |
 | `Ctrl+F` | Open the generic find / replace panel. |
 | `Ctrl+A` | Select all text in the editor when no overlay owns input. |
-| `Escape` | Close the active modal/palette/find panel/menu/context menu before the editor sees it. |
+| `Ctrl+Space` | Open the anchored completion popup near the text caret. |
+| `Escape` | Close the active modal/palette/find panel/menu/context menu/completion popup before the editor sees it. |
 | Window resize | Header, menu bar, tab strip, sidebar, editor content, proof panel, overlays, and status bar reflow cleanly. |
 
 Retired behavior:
@@ -28,6 +29,47 @@ Theme switching is command-palette-only.
 
 ---
 
+
+
+## Completion Popup Protocol
+
+The Phase 4F completion popup is a product-neutral Luna anchored-popup proof. The demo supplies static editor-like suggestions; LunaUI supplies item/state shape, anchor-relative layout, row geometry, hit testing, pointer/keyboard routing, theme-driven display-list geometry, and accessibility.
+
+Open with:
+
+```text
+Ctrl+Space
+```
+
+| Action | Expected reaction |
+|---|---|
+| `Ctrl+Space` with editor focused | Completion popup opens near the visible caret. |
+| Move caret near lower/right viewport edge, then open | Popup clamps inside the window and flips above the anchor when needed. |
+| `Up` / `Down` | Moves selected suggestion. |
+| `PageUp` / `PageDown` | Jumps selection by the visible row count. |
+| `Home` / `End` | Moves to first/last enabled suggestion. |
+| Hover a suggestion row | Highlight follows the hovered row. |
+| Click an enabled suggestion | Inserts its demo insertion text or routes its command, then closes. |
+| `Enter` / `Tab` | Accepts the selected suggestion. |
+| `Escape` | Dismisses the popup. |
+| Click outside the popup | Dismisses without moving the editor caret underneath. |
+
+Completion demo checks:
+
+| Suggestion | Expected reaction |
+|---|---|
+| `let`, `var`, `struct` | Inserts keyword text at caret or replaces selection. |
+| `LunaTheme`, `LunaMenuItem`, `LunaCompletionPopup` | Inserts the selected type name. |
+| `Show Completion Info` | Routes through `LunaCommandID` and opens a modal notice instead of inserting text. |
+
+Input ownership rule:
+
+```text
+The completion popup owns navigation, Enter, Tab, Escape, hover, and click activation.
+Unhandled normal text input still belongs to the editor/application policy path.
+```
+
+---
 
 ## Context Menu Protocol
 

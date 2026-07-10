@@ -1029,20 +1029,38 @@ Theme submenu check marks follow the active demo theme
 
 ### Phase 4F — Completion Popup
 
-Scope:
+Status: complete.
 
-- anchored popup;
-- selected row;
-- completion detail;
-- keyboard navigation;
-- mouse activation;
-- accessibility list/item roles.
+Phase 4F adds a product-neutral anchored completion surface. Luna owns completion item/state shape, anchor-relative layout, viewport clamping, selected-row behavior, keyboard/pointer routing, theme-driven popup geometry, and accessibility semantics. Applications own completion sources, filtering/ranking policy, insertion behavior, and document/language semantics.
+
+Completed scope:
+
+- reusable `LunaCompletionItem`, `LunaCompletionPopupState`, `LunaCompletionPopupLayout`, and `LunaCompletionPopup` primitives;
+- app-supplied anchor rectangle, demonstrated from the editable text caret;
+- below/above placement and viewport-edge clamping;
+- selected rows with optional annotation and detail text;
+- keyboard navigation for Up/Down, PageUp/PageDown, Home/End, Escape, Enter, and Tab;
+- pointer hover, pointer activation, disabled-row consumption, and outside-click dismissal;
+- completion result payloads carrying selected item, optional command ID, and insertion text without mutating documents inside LunaUI;
+- accessibility list/list-item/status nodes with focused row state and press/focus actions;
+- demo integration through `Ctrl+Space`, menu/context-menu commands, and static app-owned suggestions.
+
+Phase 4F demo proof:
+
+```text
+Ctrl+Space -> completion popup opens near the caret
+Up/Down/Page/Home/End navigate suggestions
+Enter/Tab inserts the selected suggestion or routes its command
+Escape and outside click dismiss
+Typing normal text after the popup closes still edits the document
+visible row titles, annotations, and detail text come from theme-aware bounded layout
+```
 
 ---
 
 ## Phase 5 — Editor Surface Deepening
 
-The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/4D/4E: menu bar, tabs, sidebar, status-bar, and context-menu primitives now exist as reusable LunaUI surfaces. Phase 5 is now the deeper editor/content pass that can rely on that shell.
+The original Phase 5 chrome-shell outline has been pulled forward into Phase 4C/4D/4E/4F: menu bar, tabs, sidebar, status-bar, context-menu, and completion-popup primitives now exist as reusable LunaUI surfaces. Phase 5 is now the deeper editor/content pass that can rely on that shell.
 
 ### Phase 5A — Real Document / Buffer Integration
 

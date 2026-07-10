@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 4E context menus.
+This document is the working checkpoint after Phase 4F completion popup.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 4E**.
+Luna UI is through **Phase 4F**.
 
 The engine now has:
 
@@ -36,7 +36,8 @@ The engine now has:
 - tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
 - a product-neutral menu bar/dropdown foundation with top-level menus, dropdown rows, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer activation, keyboard navigation, theme-driven visible menu labels/shortcuts/checkmarks, accessibility menu/menuitem nodes, and demo command dispatch;
 - a product-neutral editor shell foundation with reusable tab strip, sidebar tree/list rows, editor content frame, status-bar segments, pointer interaction, theme-driven geometry, visible demo labels, accessibility nodes, and demo integration that frames the editable text view;
-- a product-neutral context menu foundation with secondary-click floating menu presentation, reusable Luna menu items/dropdown rows, editor/tab/sidebar/status demo contexts, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer and keyboard routing, theme-driven visible labels, accessibility menu/menuitem nodes, and demo command dispatch.
+- a product-neutral context menu foundation with secondary-click floating menu presentation, reusable Luna menu items/dropdown rows, editor/tab/sidebar/status demo contexts, separators, disabled items, checked items, shortcut display, first-pass submenus, pointer and keyboard routing, theme-driven visible labels, accessibility menu/menuitem nodes, and demo command dispatch;
+- a product-neutral anchored completion popup foundation with app-supplied completion items, caret/anchor positioning, viewport clamping, selected rows, completion details, keyboard and pointer activation, insertion/command result payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes.
 
 ---
 
@@ -133,6 +134,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 4C — Menu Bar and Dropdown Menus: complete.
 - Phase 4D — Tabs / Sidebar / Status Bar Shell: complete.
 - Phase 4E — Context Menu: complete.
+- Phase 4F — Completion Popup: complete.
 
 ---
 
@@ -140,7 +142,6 @@ The blue highlight is now visible for real user text selection, focused fields, 
 
 Luna does not yet have:
 
-- completion popup;
 - minimap rendering;
 - real project/document/tab persistence;
 - the actual Moth Text application target.
@@ -150,7 +151,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 4F — Completion Popup
+Phase 5A — Real Document / Buffer Integration
 ```
 
-Phase 4F should add a product-neutral anchored completion popup with list rows, keyboard and pointer selection, command/result dispatch, theme-driven geometry, and accessibility list/list-item semantics. Applications should supply suggestions and completion policy without baking product naming into Luna's reusable API.
+Phase 5A should move beyond demo-only editable text fixtures by introducing app-supplied document descriptors/buffer identity around the existing product-neutral editor shell. Luna should remain the reusable UI/runtime layer while future Moth Text code supplies real file/project policy.
