@@ -21,6 +21,7 @@ import LunaCore
 import LunaInput
 import LunaRender
 import LunaTheme
+import LunaHostCore
 import LunaHostSDL
 import LunaUI
 
@@ -64,12 +65,18 @@ func runLinuxDemo() {
     // Shared demo scene (pure Luna, no platform event decoding).
     var demo = LunaCPUDemoScene(theme: MothDemoTheme.theme)
 
-    let targetFPS: UInt32 = 60
-    let targetFrameMS: UInt32 = 1000 / targetFPS
+    var framePacer = LunaFramePacer(targetFramesPerSecond: 60, usesExternalVSync: presenter.usesVSync)
+    var frameStats = LunaFrameTimingStats()
+    var pendingInvalidations = LunaFrameInvalidationSet(.initial)
+    var frameIndex: UInt64 = 0
 
     var running = true
     while running {
+        let inputStart = LunaMonotonicClock.nowNanoseconds()
+        var didReceiveEvent = false
+
         for event in inputTranslator.pollEvents() {
+            didReceiveEvent = true
             switch event {
             case .quit:
                 running = false
@@ -78,6 +85,7 @@ func runLinuxDemo() {
                 if size.width != fb.width || size.height != fb.height {
                     fb = LunaFramebuffer(width: size.width, height: size.height)
                     demo.handleWindowResize(size)
+                    pendingInvalidations.insert(.windowResized)
                 }
 
             case .pointer(let pointerEvent):
@@ -85,7 +93,17 @@ func runLinuxDemo() {
                     pointerEvent,
                     framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                 )
+
+                // Do not redraw continuously just because the pointer moved over
+                // the window. Pointer motion only needs a frame when it changes
+                // visible state, hits interactive UI, or activates a command.
+                let pointerNeedsFrame = pointerEvent.phase != .moved || result.didHit || result.didRequestCommand
+                if pointerNeedsFrame {
+                    pendingInvalidations.insert(.input)
+                }
+
                 if let command = result.requestedCommand {
+                    pendingInvalidations.insert(.commandExecuted)
                     print("Luna demo requested command: \(command.rawValue)")
                 }
 
@@ -94,19 +112,73 @@ func runLinuxDemo() {
                     keyboardEvent,
                     framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                 )
+                pendingInvalidations.insert(.input)
 
             case .textInput(let textInputEvent):
                 _ = demo.handleTextInput(
                     textInputEvent,
                     framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                 )
+                pendingInvalidations.insert(.textInput)
+                pendingInvalidations.insert(.documentChanged)
             }
         }
 
+        let inputEnd = LunaMonotonicClock.nowNanoseconds()
+        let inputNanoseconds = inputEnd >= inputStart ? inputEnd - inputStart : 0
+
+        if !running {
+            break
+        }
+
+        let frameRequest = LunaFrameRequest(
+            invalidations: pendingInvalidations,
+            wantsContinuousFrames: demo.wantsContinuousRendering
+        )
+
+        guard frameRequest.shouldRender else {
+            SDL_Delay(didReceiveEvent ? 1 : framePacer.sleepMillisecondsWhenIdle())
+            continue
+        }
+
+        let invalidationsForFrame = pendingInvalidations
+        pendingInvalidations.removeAll()
+
+        frameIndex &+= 1
+        let frameStart = LunaMonotonicClock.nowNanoseconds()
+        demo.updateFrameRuntimeDiagnostics(timingStats: frameStats, invalidations: invalidationsForFrame)
+
+        let renderStart = LunaMonotonicClock.nowNanoseconds()
         demo.render(into: &fb)
+        let renderEnd = LunaMonotonicClock.nowNanoseconds()
+
+        let presentStart = LunaMonotonicClock.nowNanoseconds()
         presenter.present(framebuffer: fb)
-        SDL_Delay(targetFrameMS)
+        let presentEnd = LunaMonotonicClock.nowNanoseconds()
+
+        let totalNanoseconds = presentEnd >= frameStart ? presentEnd - frameStart : 0
+        let renderNanoseconds = renderEnd >= renderStart ? renderEnd - renderStart : 0
+        let presentNanoseconds = presentEnd >= presentStart ? presentEnd - presentStart : 0
+
+        frameStats.record(
+            LunaFrameTimingSample(
+                frameIndex: frameIndex,
+                startedAtNanoseconds: frameStart,
+                inputNanoseconds: inputNanoseconds,
+                renderNanoseconds: renderNanoseconds,
+                presentNanoseconds: presentNanoseconds,
+                totalNanoseconds: totalNanoseconds,
+                invalidations: invalidationsForFrame
+            )
+        )
+
+        framePacer.markFrameEnded(atNanoseconds: presentEnd)
+        let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
+        if sleepMilliseconds > 0 {
+            SDL_Delay(sleepMilliseconds)
+        }
     }
 }
+
 
 #endif

@@ -22,6 +22,7 @@ import Foundation
 import LunaCommands
 import LunaCore
 import LunaLayout
+import LunaHostCore
 import LunaRender
 import LunaTheme
 import LunaUI
@@ -118,7 +119,7 @@ public struct LunaCPUDemoScene {
     public private(set) var semanticActivationCount: Int = 0
 
     /// Last interaction string displayed in the demo status area.
-    private var lastInteractionStatus: String = "Ready. Phase 5A documents are active; click tabs to switch buffers, type to dirty the active tab."
+    private var lastInteractionStatus: String = "Ready. Phase 5C.1 frame pacing active; UI state remains single-lane and deterministic."
 
     /// Phase 2 modal manager.  The demo owns a manager so we can prove a host
     /// click routes through: modal first, semantic widget second.
@@ -136,6 +137,11 @@ public struct LunaCPUDemoScene {
     /// adapter with the same seam.
     private var workspaceState = LunaCPUDemoScene.demoWorkspaceState
     private var workspaceAdapter = LunaCPUDemoWorkspaceAdapter.demo
+
+    /// Phase 5C.1 runtime/frame diagnostics supplied by the host loop. Widgets
+    /// stay synchronous; the host records timing and invalidation reasons.
+    private var frameTimingStats = LunaFrameTimingStats()
+    private var latestFrameInvalidations = LunaFrameInvalidationSet(.initial)
 
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
@@ -255,6 +261,18 @@ public struct LunaCPUDemoScene {
         completionPopupState.close()
         modalManager.reflow(viewportSize: framebufferSize)
         lastInteractionStatus = "Theme: \(resolvedTheme.name) bg=\(resolvedTheme.ui.windowBackground.hexRGBA). Use Ctrl+P and run a Theme command to switch themes."
+    }
+
+    public mutating func updateFrameRuntimeDiagnostics(
+        timingStats: LunaFrameTimingStats,
+        invalidations: LunaFrameInvalidationSet
+    ) {
+        frameTimingStats = timingStats
+        latestFrameInvalidations = invalidations
+    }
+
+    public var wantsContinuousRendering: Bool {
+        false
     }
 
     /// Render one frame into the provided framebuffer.
@@ -1696,11 +1714,30 @@ public struct LunaCPUDemoScene {
     }
 
     private func demoStatusSegments() -> [LunaStatusSegment] {
-        Self.workspaceStatusSegments(
+        var segments = Self.workspaceStatusSegments(
             status: lastInteractionStatus,
             store: documentStore,
             projectTitle: workspaceState.snapshot.projects.first?.title ?? "Workspace"
         )
+        segments.append(
+            LunaStatusSegment(
+                id: "frameTiming",
+                title: "Frame",
+                value: frameTimingStats.statusText,
+                placement: .trailing,
+                emphasis: .muted
+            )
+        )
+        segments.append(
+            LunaStatusSegment(
+                id: "invalidations",
+                title: "Invalid",
+                value: latestFrameInvalidations.description,
+                placement: .trailing,
+                emphasis: latestFrameInvalidations.isEmpty ? .muted : .accent
+            )
+        )
+        return segments
     }
 
     public static func demoStatusSegmentsSnapshot(
@@ -2313,22 +2350,17 @@ private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
     let w = fb.width
     let h = fb.height
 
-    // Capture outside the pixel closure to avoid Swift's inout exclusivity
-    // complaints (reading `fb` inside the closure can overlap the `inout`).
-    let bpr = fb.bytesPerRow
-
-    fb.withUnsafeMutablePixelBytes { base, byteCount in
-        // Defensive: expected size = bytesPerRow * height.
-        // If this ever differs, avoid writing out of bounds.
-        let expected = bpr * h
-        let n = min(byteCount, expected)
-        if n <= 0 { return }
+    fb.withUnsafeMutablePixelBytes { base, strideBytes in
+        // `withUnsafeMutablePixelBytes` returns row stride, not total byte count.
+        // Compute the usable storage length from stride * height.
+        let expected = strideBytes * h
+        if expected <= 0 { return }
 
         let color = theme.ui.windowBackground
 
         // We will write row-by-row.
         for y in 0..<h {
-            let row = base.advanced(by: y * bpr)
+            let row = base.advanced(by: y * strideBytes)
             for x in 0..<w {
                 let p = row.advanced(by: x * 4)
                 p[0] = color.b         // B
@@ -3116,15 +3148,15 @@ private func fillRectBGRA(
 
     let width = x1 - x0
     let height = y1 - y0
-    let bpr = fb.bytesPerRow
-
-    fb.withUnsafeMutablePixelBytes { base, byteCount in
-        let expected = bpr * fbH
-        let n = min(byteCount, expected)
+    fb.withUnsafeMutablePixelBytes { base, strideBytes in
+        // `withUnsafeMutablePixelBytes` passes row stride as the second argument.
+        // Earlier hotfixes treated that as total byte count, clipping all writes
+        // after the first scanline. Bounds and row math must use the stride.
+        let n = strideBytes * fbH
         if n <= 0 { return }
 
         for yy in 0..<height {
-            let row = base.advanced(by: (y0 + yy) * bpr)
+            let row = base.advanced(by: (y0 + yy) * strideBytes)
             var p = row.advanced(by: x0 * 4)
             for _ in 0..<width {
                 p[0] = b
@@ -3182,44 +3214,103 @@ private func drawText5x7BGRA(
     a: UInt8
 ) {
     let s = max(1, scale)
-    var penX = x
+    let fbW = fb.width
+    let fbH = fb.height
+    if fbW <= 0 || fbH <= 0 { return }
 
-    for scalar in text.unicodeScalars {
-        let code = Int(scalar.value)
+    // Hot-path note:
+    // The first demo renderer drew every lit glyph pixel by calling
+    // `fillRectBGRA`, which re-entered `withUnsafeMutablePixelBytes` once per
+    // tiny font pixel. A normal editor frame can draw thousands of glyph pixels,
+    // so that accidentally turned text into the dominant render cost. Keep one
+    // framebuffer borrow for the full string and write clipped glyph pixels
+    // directly instead.
+    fb.withUnsafeMutablePixelBytes { base, strideBytes in
+        // The closure provides row stride, not total byte count. Use stride *
+        // height for bounds checks so text can draw below the first row.
+        let safeByteCount = strideBytes * fbH
+        guard safeByteCount > 0 else { return }
 
-        // Newline support (simple).
-        if code == 10 { // '\n'
-            penX = x
-            continue
+        @inline(__always)
+        func writePixel(px: Int, py: Int) {
+            guard px >= 0, py >= 0, px < fbW, py < fbH else { return }
+            let offset = py * strideBytes + px * 4
+            guard offset >= 0, offset + 3 < safeByteCount else { return }
+            let p = base.advanced(by: offset)
+            p[0] = b
+            p[1] = g
+            p[2] = r
+            p[3] = a
         }
 
-        if code < 32 || code > 127 {
-            penX += (6 * s)
-            continue
-        }
+        @inline(__always)
+        func fillGlyphPixel(x px: Int, y py: Int) {
+            if s == 1 {
+                writePixel(px: px, py: py)
+                return
+            }
 
-        let glyphIndex = code - 32
-        let glyphBase = glyphIndex * 5
+            let x0 = max(0, px)
+            let y0 = max(0, py)
+            let x1 = min(fbW, px + s)
+            let y1 = min(fbH, py + s)
+            guard x1 > x0, y1 > y0 else { return }
 
-        // Each glyph is 5 columns.
-        for col in 0..<5 {
-            let columnBits = font5x7[glyphBase + col]
-            for row in 0..<7 {
-                let bit = (columnBits >> row) & 1
-                if bit == 0 { continue }
-
-                // Draw a scaled pixel as a filled rect.
-                let px = penX + col * s
-                // Framebuffer coordinates are top-left origin, and the 5x7
-                // font data is authored with row 0 at the top of the glyph.
-                // Do not flip here; doing so mirrors text vertically.
-                let py = y + row * s
-                fillRectBGRA(into: &fb, x: px, y: py, w: s, h: s, b: b, g: g, r: r, a: a)
+            for yy in y0..<y1 {
+                var p = base.advanced(by: yy * strideBytes + x0 * 4)
+                for _ in x0..<x1 {
+                    p[0] = b
+                    p[1] = g
+                    p[2] = r
+                    p[3] = a
+                    p = p.advanced(by: 4)
+                }
             }
         }
 
-        // 1 column spacing.
-        penX += (6 * s)
+        var penX = x
+        for scalar in text.unicodeScalars {
+            let code = Int(scalar.value)
+
+            // Newline support (simple).
+            if code == 10 { // '\n'
+                penX = x
+                continue
+            }
+
+            if code < 32 || code > 127 {
+                penX += (6 * s)
+                continue
+            }
+
+            // Whole glyph is left/right clipped out; skip without touching the
+            // font bitmap loops. Vertical clipping is handled per pixel because
+            // text often straddles a panel edge.
+            if penX >= fbW {
+                penX += (6 * s)
+                continue
+            }
+            if penX + (5 * s) <= 0 {
+                penX += (6 * s)
+                continue
+            }
+
+            let glyphBase = (code - 32) * 5
+            for col in 0..<5 {
+                let columnBits = font5x7[glyphBase + col]
+                if columnBits == 0 { continue }
+
+                let px = penX + col * s
+                for row in 0..<7 {
+                    let bit = (columnBits >> row) & 1
+                    if bit == 0 { continue }
+                    fillGlyphPixel(x: px, y: y + row * s)
+                }
+            }
+
+            // 1 column spacing.
+            penX += (6 * s)
+        }
     }
 }
 
