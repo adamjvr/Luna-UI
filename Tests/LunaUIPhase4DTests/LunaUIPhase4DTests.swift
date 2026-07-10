@@ -205,6 +205,29 @@ final class LunaUIPhase4DTests: XCTestCase {
         })
     }
 
+    func testShellDisplayListCanOmitEditorContentBackgroundForHostOwnedEditorSurface() {
+        let shell = makeShell()
+        let layout = shell.layout()
+        var defaultDisplayList = LunaDisplayList()
+        var chromeOnlyDisplayList = LunaDisplayList()
+
+        shell.buildDisplayList(into: &defaultDisplayList)
+        shell.buildDisplayList(into: &chromeOnlyDisplayList, includesEditorContentBackground: false)
+
+        let editorBackgroundCommand = LunaDrawCommand.rect(
+            layout.editorContentBounds,
+            LunaTheme.lunaDefaultDark.ui.editor.background.asRenderColor
+        )
+        XCTAssertTrue(defaultDisplayList.commands.contains(editorBackgroundCommand))
+        XCTAssertFalse(chromeOnlyDisplayList.commands.contains(editorBackgroundCommand))
+
+        let fullShellBorderFill = LunaDrawCommand.rect(
+            shell.bounds,
+            LunaTheme.lunaDefaultDark.ui.chrome.windowBorder.asRenderColor
+        )
+        XCTAssertFalse(defaultDisplayList.commands.contains(fullShellBorderFill))
+    }
+
     func testTextBoundsProduceVisibleLinesForDemoRenderer() throws {
         let shell = makeShell()
         let layout = shell.layout()

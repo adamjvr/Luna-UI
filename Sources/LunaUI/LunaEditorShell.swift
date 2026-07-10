@@ -514,6 +514,19 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
     }
 
     public func buildDisplayList(into displayList: inout LunaDisplayList) {
+        buildDisplayList(into: &displayList, includesEditorContentBackground: true)
+    }
+
+    /// Build shell chrome rectangles.
+    ///
+    /// The editor content widget often paints its own background. Passing
+    /// `false` for `includesEditorContentBackground` lets a host avoid painting
+    /// a large editor rect that will immediately be covered by the editor view,
+    /// without changing the reusable shell's default behavior.
+    public func buildDisplayList(
+        into displayList: inout LunaDisplayList,
+        includesEditorContentBackground: Bool
+    ) {
         let layout = layout()
         let tabsStyle = theme.ui.tabs
         let sidebarStyle = theme.ui.sidebar
@@ -521,10 +534,14 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
         let chrome = theme.ui.chrome
         let editorStyle = theme.ui.editor
 
-        displayList.append(.rect(bounds, chrome.windowBorder.asRenderColor))
+        if metrics.shellBorderWidth > 0 {
+            appendRectStroke(bounds, thickness: metrics.shellBorderWidth, color: chrome.windowBorder.asRenderColor, into: &displayList)
+        }
         displayList.append(.rect(layout.tabStripBounds, tabsStyle.stripBackground.asRenderColor))
         displayList.append(.rect(layout.statusBarBounds, statusStyle.background.asRenderColor))
-        displayList.append(.rect(layout.editorContentBounds, editorStyle.background.asRenderColor))
+        if includesEditorContentBackground {
+            displayList.append(.rect(layout.editorContentBounds, editorStyle.background.asRenderColor))
+        }
 
         if !layout.sidebarBounds.isEmpty {
             displayList.append(.rect(layout.sidebarBounds, sidebarStyle.background.asRenderColor))
@@ -957,6 +974,21 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
 
     private func statusSegmentWidth(_ segment: LunaStatusSegment) -> Int {
         max(32, metrics.glyphMetrics.visualWidth(of: segment.visibleText) + 14)
+    }
+
+
+    private func appendRectStroke(
+        _ rect: LunaRectI,
+        thickness: Int,
+        color: LunaRender.LunaRGBA8,
+        into displayList: inout LunaDisplayList
+    ) {
+        let t = max(1, thickness)
+        guard !rect.isEmpty else { return }
+        displayList.append(.rect(LunaRectI(x: rect.x, y: rect.y, w: rect.w, h: min(t, rect.h)), color))
+        displayList.append(.rect(LunaRectI(x: rect.x, y: rect.y + max(0, rect.h - t), w: rect.w, h: min(t, rect.h)), color))
+        displayList.append(.rect(LunaRectI(x: rect.x, y: rect.y, w: min(t, rect.w), h: rect.h), color))
+        displayList.append(.rect(LunaRectI(x: rect.x + max(0, rect.w - t), y: rect.y, w: min(t, rect.w), h: rect.h), color))
     }
 
     private func stableComponent(_ value: String) -> String {

@@ -100,9 +100,7 @@ extension LunaFramebuffer {
         withUnsafeMutablePixelBytes { raw, _ in
             // Convert raw bytes to a typed UInt32 view.
             raw.withMemoryRebound(to: UInt32.self, capacity: countU32) { u32 in
-                for i in 0..<countU32 {
-                    u32[i] = px
-                }
+                UnsafeMutableBufferPointer(start: u32, count: countU32).update(repeating: px)
             }
         }
     }
@@ -129,9 +127,7 @@ extension LunaFramebuffer {
 
                 // Treat this scanline as UInt32 pixels.
                 rowBytes.withMemoryRebound(to: UInt32.self, capacity: localWidth) { rowU32 in
-                    for x in x0..<x1 {
-                        rowU32[x] = px
-                    }
+                    UnsafeMutableBufferPointer(start: rowU32.advanced(by: x0), count: x1 - x0).update(repeating: px)
                 }
             }
         }

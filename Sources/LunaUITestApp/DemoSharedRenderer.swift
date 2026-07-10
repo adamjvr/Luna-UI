@@ -292,18 +292,20 @@ public struct LunaCPUDemoScene {
         // named as the Moth demo, all visible pixels resolve through the demo-only
         // Moth palette before any drawing happens.
         let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
-        let renderLayout = Self.layout(for: LunaSizeI(width: fb.width, height: fb.height))
+        let frameSize = LunaSizeI(width: fb.width, height: fb.height)
+        let renderLayout = Self.layout(for: frameSize)
+        let activeMenuBar = demoMenuBar(for: frameSize, state: menuBarState, theme: renderTheme)
         drawBackground(into: &fb, theme: renderTheme)
         drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         drawMenuBarOverlay(
             into: &fb,
-            menuBar: demoMenuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
+            menuBar: activeMenuBar,
             theme: renderTheme
         )
         drawEditorShellOverlay(
             into: &fb,
             shell: Self.editorShell(
-                for: LunaSizeI(width: fb.width, height: fb.height),
+                for: frameSize,
                 state: editorShellState,
                 theme: renderTheme,
                 tabs: demoShellTabs(),
@@ -339,29 +341,31 @@ public struct LunaCPUDemoScene {
             frameIndex: frameIndex,
             theme: renderTheme
         )
-        drawMenuDropdownOverlay(
-            into: &fb,
-            menuBar: demoMenuBar(for: LunaSizeI(width: fb.width, height: fb.height), state: menuBarState, theme: renderTheme),
-            theme: renderTheme
-        )
+        if activeMenuBar.state.isOpen {
+            drawMenuDropdownOverlay(
+                into: &fb,
+                menuBar: activeMenuBar,
+                theme: renderTheme
+            )
+        }
         drawContextMenuOverlay(
             into: &fb,
-            contextMenu: Self.contextMenu(for: LunaSizeI(width: fb.width, height: fb.height), state: contextMenuState, theme: renderTheme),
+            contextMenu: Self.contextMenu(for: frameSize, state: contextMenuState, theme: renderTheme),
             theme: renderTheme
         )
         drawCompletionPopupOverlay(
             into: &fb,
-            completionPopup: Self.completionPopup(for: LunaSizeI(width: fb.width, height: fb.height), state: completionPopupState, theme: renderTheme),
+            completionPopup: Self.completionPopup(for: frameSize, state: completionPopupState, theme: renderTheme),
             theme: renderTheme
         )
         drawActiveFindPanelOverlay(
             into: &fb,
-            findPanel: activeFindPanel(framebufferSize: LunaSizeI(width: fb.width, height: fb.height), theme: renderTheme),
+            findPanel: activeFindPanel(framebufferSize: frameSize, theme: renderTheme),
             theme: renderTheme
         )
         drawActiveQuickPanelOverlay(
             into: &fb,
-            quickPanel: activeQuickPanel(framebufferSize: LunaSizeI(width: fb.width, height: fb.height), theme: renderTheme),
+            quickPanel: activeQuickPanel(framebufferSize: frameSize, theme: renderTheme),
             theme: renderTheme
         )
         drawActiveModalOverlay(into: &fb, manager: modalManager)
@@ -2775,7 +2779,7 @@ private func drawProofPanelChrome(into fb: inout LunaFramebuffer, layout: LunaCP
 /// draws debug-font titles until LunaDisplayList grows text-run commands.
 private func drawEditorShellOverlay(into fb: inout LunaFramebuffer, shell: LunaEditorShell, theme: LunaTheme) {
     var displayList = LunaDisplayList()
-    shell.buildDisplayList(into: &displayList)
+    shell.buildDisplayList(into: &displayList, includesEditorContentBackground: false)
     LunaCPURenderer().render(displayList: displayList, into: &fb)
 
     let layout = shell.layout()
@@ -3216,26 +3220,17 @@ private func drawText5x7BGRA(
     let s = max(1, scale)
     let fbW = fb.width
     let fbH = fb.height
-    if fbW <= 0 || fbH <= 0 { return }
+    if fbW <= 0 || fbH <= 0 || text.isEmpty { return }
 
-    // Hot-path note:
-    // The first demo renderer drew every lit glyph pixel by calling
-    // `fillRectBGRA`, which re-entered `withUnsafeMutablePixelBytes` once per
-    // tiny font pixel. A normal editor frame can draw thousands of glyph pixels,
-    // so that accidentally turned text into the dominant render cost. Keep one
-    // framebuffer borrow for the full string and write clipped glyph pixels
-    // directly instead.
     fb.withUnsafeMutablePixelBytes { base, strideBytes in
-        // The closure provides row stride, not total byte count. Use stride *
-        // height for bounds checks so text can draw below the first row.
         let safeByteCount = strideBytes * fbH
         guard safeByteCount > 0 else { return }
 
         @inline(__always)
-        func writePixel(px: Int, py: Int) {
-            guard px >= 0, py >= 0, px < fbW, py < fbH else { return }
+        func writePixel(_ px: Int, _ py: Int) {
+            if px < 0 || py < 0 || px >= fbW || py >= fbH { return }
             let offset = py * strideBytes + px * 4
-            guard offset >= 0, offset + 3 < safeByteCount else { return }
+            if offset < 0 || offset + 3 >= safeByteCount { return }
             let p = base.advanced(by: offset)
             p[0] = b
             p[1] = g
@@ -3244,72 +3239,51 @@ private func drawText5x7BGRA(
         }
 
         @inline(__always)
-        func fillGlyphPixel(x px: Int, y py: Int) {
-            if s == 1 {
-                writePixel(px: px, py: py)
-                return
-            }
-
-            let x0 = max(0, px)
-            let y0 = max(0, py)
-            let x1 = min(fbW, px + s)
-            let y1 = min(fbH, py + s)
-            guard x1 > x0, y1 > y0 else { return }
-
-            for yy in y0..<y1 {
-                var p = base.advanced(by: yy * strideBytes + x0 * 4)
-                for _ in x0..<x1 {
-                    p[0] = b
-                    p[1] = g
-                    p[2] = r
-                    p[3] = a
-                    p = p.advanced(by: 4)
-                }
+        func fillSpan(rowY: Int, x0: Int, x1: Int) {
+            if rowY < 0 || rowY >= fbH { return }
+            let clippedX0 = max(0, x0)
+            let clippedX1 = min(fbW, x1)
+            if clippedX1 <= clippedX0 { return }
+            var p = base.advanced(by: rowY * strideBytes + clippedX0 * 4)
+            for _ in clippedX0..<clippedX1 {
+                p[0] = b
+                p[1] = g
+                p[2] = r
+                p[3] = a
+                p = p.advanced(by: 4)
             }
         }
 
         var penX = x
         for scalar in text.unicodeScalars {
             let code = Int(scalar.value)
-
-            // Newline support (simple).
-            if code == 10 { // '\n'
+            if code == 10 {
                 penX = x
                 continue
             }
-
-            if code < 32 || code > 127 {
-                penX += (6 * s)
-                continue
-            }
-
-            // Whole glyph is left/right clipped out; skip without touching the
-            // font bitmap loops. Vertical clipping is handled per pixel because
-            // text often straddles a panel edge.
-            if penX >= fbW {
-                penX += (6 * s)
-                continue
-            }
-            if penX + (5 * s) <= 0 {
-                penX += (6 * s)
-                continue
-            }
+            let advance = 6 * s
+            defer { penX += advance }
+            if code < 32 || code > 127 { continue }
+            if penX >= fbW || penX + 5 * s <= 0 { continue }
+            if y >= fbH || y + 7 * s <= 0 { continue }
 
             let glyphBase = (code - 32) * 5
             for col in 0..<5 {
                 let columnBits = font5x7[glyphBase + col]
                 if columnBits == 0 { continue }
-
-                let px = penX + col * s
-                for row in 0..<7 {
-                    let bit = (columnBits >> row) & 1
-                    if bit == 0 { continue }
-                    fillGlyphPixel(x: px, y: y + row * s)
+                let px0 = penX + col * s
+                if px0 >= fbW || px0 + s <= 0 { continue }
+                for row in 0..<7 where ((columnBits >> row) & 1) != 0 {
+                    let py0 = y + row * s
+                    if s == 1 {
+                        writePixel(px0, py0)
+                    } else {
+                        for yy in py0..<(py0 + s) {
+                            fillSpan(rowY: yy, x0: px0, x1: px0 + s)
+                        }
+                    }
                 }
             }
-
-            // 1 column spacing.
-            penX += (6 * s)
         }
     }
 }
