@@ -34,6 +34,37 @@ import LunaUI
 ///
 /// Phase 2D uses this as the integration proof that drawing, hit testing, and
 /// future accessibility bounds are derived from the same reflowed geometry.
+public enum LunaDemoMode: String, Hashable, Sendable, CaseIterable, CustomStringConvertible {
+    case editor
+    case proofGallery
+
+    public var description: String { rawValue }
+
+    public var usesProofGallerySurfaces: Bool { self == .proofGallery }
+
+    public static func parse(arguments: [String], environment: [String: String]) -> LunaDemoMode {
+        let normalizedArguments = Set(arguments.map { $0.lowercased() })
+        if normalizedArguments.contains("--proof-gallery") || normalizedArguments.contains("--proof") {
+            return .proofGallery
+        }
+        if normalizedArguments.contains("--editor") {
+            return .editor
+        }
+
+        if let value = environment["LUNA_DEMO_MODE"]?.lowercased() {
+            switch value {
+            case "proof", "proof-gallery", "proofgallery", "gallery":
+                return .proofGallery
+            case "editor", "moth", "default":
+                return .editor
+            default:
+                break
+            }
+        }
+        return .editor
+    }
+}
+
 public struct LunaCPUDemoSceneLayout: Sendable {
     public static let semanticWidgetID: LunaNodeID = "demo.phase1.semantic-widget"
     public static let textViewID: LunaNodeID = "demo.phase3a.static-text-view"
@@ -114,6 +145,11 @@ public struct LunaCPUDemoScene {
     /// Monotonic frame counter (increments each render).
     public private(set) var frameIndex: UInt64 = 0
 
+    /// Demo harness mode. The default editor mode is the Moth-like performance
+    /// baseline; proofGallery keeps old phase/stress surfaces available without
+    /// putting them on the hot path for ordinary editor testing.
+    public var demoMode: LunaDemoMode
+
     /// Number of successful semantic widget activations received through the
     /// platform-neutral Luna pointer routing path.
     public private(set) var semanticActivationCount: Int = 0
@@ -142,6 +178,7 @@ public struct LunaCPUDemoScene {
     /// stay synchronous; the host records timing and invalidation reasons.
     private var frameTimingStats = LunaFrameTimingStats()
     private var latestFrameInvalidations = LunaFrameInvalidationSet(.initial)
+    private var latestInputCoalescingStats = LunaInputCoalescingStats()
 
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
@@ -217,11 +254,14 @@ public struct LunaCPUDemoScene {
     /// Create a new demo scene.
     public init(
         theme: LunaTheme = MothDemoTheme.theme,
+        mode: LunaDemoMode = .editor,
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: theme)
         self.startTime = startTimeNanoseconds
         self.theme = resolvedTheme
+        self.demoMode = mode
+        self.lastInteractionStatus = "Ready. Mode=\(mode.rawValue). Luna UI state remains single-lane and deterministic."
         self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: resolvedTheme))
     }
 
@@ -239,7 +279,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
             .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
@@ -265,14 +306,16 @@ public struct LunaCPUDemoScene {
 
     public mutating func updateFrameRuntimeDiagnostics(
         timingStats: LunaFrameTimingStats,
-        invalidations: LunaFrameInvalidationSet
+        invalidations: LunaFrameInvalidationSet,
+        inputCoalescingStats: LunaInputCoalescingStats = LunaInputCoalescingStats()
     ) {
         frameTimingStats = timingStats
         latestFrameInvalidations = invalidations
+        latestInputCoalescingStats = inputCoalescingStats
     }
 
     public var wantsContinuousRendering: Bool {
-        false
+        demoMode.usesProofGallerySurfaces
     }
 
     /// Render one frame into the provided framebuffer.
@@ -293,7 +336,7 @@ public struct LunaCPUDemoScene {
         // Moth palette before any drawing happens.
         let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
         let frameSize = LunaSizeI(width: fb.width, height: fb.height)
-        let renderLayout = Self.layout(for: frameSize)
+        let renderLayout = Self.layout(for: frameSize, mode: demoMode)
         let activeMenuBar = demoMenuBar(for: frameSize, state: menuBarState, theme: renderTheme)
         drawBackground(into: &fb, theme: renderTheme)
         drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
@@ -309,11 +352,14 @@ public struct LunaCPUDemoScene {
                 state: editorShellState,
                 theme: renderTheme,
                 tabs: demoShellTabs(),
-                statusSegments: demoStatusSegments()
+                statusSegments: demoStatusSegments(),
+                mode: demoMode
             ),
             theme: renderTheme
         )
-        drawProofPanelChrome(into: &fb, layout: renderLayout, theme: renderTheme)
+        if demoMode.usesProofGallerySurfaces {
+            drawProofPanelChrome(into: &fb, layout: renderLayout, theme: renderTheme)
+        }
         drawStaticTextViewProof(
             into: &fb,
             document: staticTextDocument,
@@ -321,26 +367,29 @@ public struct LunaCPUDemoScene {
             caret: staticTextCaret,
             selection: staticTextSelection,
             highlights: findHighlights(theme: renderTheme),
-            theme: renderTheme
+            theme: renderTheme,
+            mode: demoMode
         )
-        drawMovingBlock(
-            into: &fb,
-            timeSeconds: t,
-            bounds: renderLayout.proofPanelBounds,
-            theme: renderTheme
-        )
-        drawSemanticWidgetProof(
-            into: &fb,
-            activationCount: semanticActivationCount,
-            theme: renderTheme
-        )
-        drawHUD(
-            into: &fb,
-            layout: renderLayout,
-            timeSeconds: t,
-            frameIndex: frameIndex,
-            theme: renderTheme
-        )
+        if demoMode.usesProofGallerySurfaces {
+            drawMovingBlock(
+                into: &fb,
+                timeSeconds: t,
+                bounds: renderLayout.proofPanelBounds,
+                theme: renderTheme
+            )
+            drawSemanticWidgetProof(
+                into: &fb,
+                activationCount: semanticActivationCount,
+                theme: renderTheme
+            )
+            drawHUD(
+                into: &fb,
+                layout: renderLayout,
+                timeSeconds: t,
+                frameIndex: frameIndex,
+                theme: renderTheme
+            )
+        }
         if activeMenuBar.state.isOpen {
             drawMenuDropdownOverlay(
                 into: &fb,
@@ -403,7 +452,8 @@ public struct LunaCPUDemoScene {
                     event: event,
                     hitNodeID: modalResult.hitNodeID,
                     requestedCommand: modalResult.requestedCommand,
-                    announcementTexts: context.announcements.map(\.text)
+                    announcementTexts: context.announcements.map(\.text),
+                    didChangeVisualState: modalResult.didChangeVisualState || modalResult.didDismiss || modalResult.requestedCommand != nil
                 )
             }
         }
@@ -427,14 +477,15 @@ public struct LunaCPUDemoScene {
                         event: event,
                         hitNodeID: hit,
                         requestedCommand: result.requestedCommand,
-                        announcementTexts: ["Command palette selected"]
+                        announcementTexts: ["Command palette selected"],
+                        didChangeVisualState: true
                     )
                 }
 
                 // The quick panel consumes backdrop/panel clicks while active.
                 quickPanelState = hit == panel.id ? nil : state
                 lastInteractionStatus = hit == panel.id ? "Phase 4A command palette dismissed" : "Phase 4A command palette pointer hit: \(hit.rawValue)"
-                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
+                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil, didChangeVisualState: true)
             }
         }
 
@@ -484,7 +535,7 @@ public struct LunaCPUDemoScene {
                     findPanelState = state
                     lastInteractionStatus = "Phase 4B find panel pointer hit: \(hit.rawValue)"
                 }
-                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil)
+                return LunaPointerActivationResult(event: event, hitNodeID: hit, requestedCommand: nil, didChangeVisualState: true)
             }
         }
 
@@ -509,7 +560,8 @@ public struct LunaCPUDemoScene {
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: result.requestedCommand,
-                    announcementTexts: result.requestedCommand == nil ? [] : ["Context menu command activated"]
+                    announcementTexts: result.requestedCommand == nil ? [] : ["Context menu command activated"],
+                    didChangeVisualState: result.didChangeState || result.didDismiss || result.requestedCommand != nil
                 )
             }
         }
@@ -535,7 +587,8 @@ public struct LunaCPUDemoScene {
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: result.requestedCommand,
-                    announcementTexts: result.selectedItem == nil ? [] : ["Completion accepted"]
+                    announcementTexts: result.selectedItem == nil ? [] : ["Completion accepted"],
+                    didChangeVisualState: result.didChangeState || result.didDismiss || result.selectedItem != nil
                 )
             }
         }
@@ -561,7 +614,8 @@ public struct LunaCPUDemoScene {
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: result.requestedCommand,
-                    announcementTexts: result.requestedCommand == nil ? [] : ["Menu command activated"]
+                    announcementTexts: result.requestedCommand == nil ? [] : ["Menu command activated"],
+                    didChangeVisualState: result.didChangeState || result.didDismiss || result.requestedCommand != nil
                 )
             }
         }
@@ -577,7 +631,8 @@ public struct LunaCPUDemoScene {
                 event: event,
                 hitNodeID: definition.sourceNodeID,
                 requestedCommand: nil,
-                announcementTexts: ["Context menu opened"]
+                announcementTexts: ["Context menu opened"],
+                didChangeVisualState: true
             )
         }
 
@@ -592,7 +647,8 @@ public struct LunaCPUDemoScene {
                 state: state,
                 theme: theme,
                 tabs: demoShellTabs(),
-                statusSegments: demoStatusSegments()
+                statusSegments: demoStatusSegments(),
+                mode: demoMode
             )
             let result = shell.handlePointerEvent(event, state: &state)
             editorShellState = state
@@ -614,7 +670,8 @@ public struct LunaCPUDemoScene {
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: result.requestedCommand,
-                    announcementTexts: result.requestedCommand == nil ? [] : ["Shell command activated"]
+                    announcementTexts: result.requestedCommand == nil ? [] : ["Shell command activated"],
+                    didChangeVisualState: result.didChangeState || result.requestedCommand != nil
                 )
             }
         }
@@ -630,7 +687,8 @@ public struct LunaCPUDemoScene {
                 scrollTopLine: staticTextScroll.scrollTopLine,
                 caret: staticTextCaret,
                 selection: staticTextSelection,
-                theme: theme
+                theme: theme,
+                mode: demoMode
             )
 
             switch event.phase {
@@ -650,7 +708,8 @@ public struct LunaCPUDemoScene {
                         event: event,
                         hitNodeID: hit.nodeID,
                         requestedCommand: nil,
-                        announcementTexts: ["Text caret/selection updated at line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"]
+                        announcementTexts: ["Text caret/selection updated at line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"],
+                        didChangeVisualState: true
                     )
                 }
                 activeTextSelectionAnchor = nil
@@ -665,7 +724,8 @@ public struct LunaCPUDemoScene {
                         event: event,
                         hitNodeID: hit.nodeID,
                         requestedCommand: nil,
-                        announcementTexts: ["Text selection extended"]
+                        announcementTexts: ["Text selection extended"],
+                        didChangeVisualState: true
                     )
                 }
 
@@ -683,38 +743,52 @@ public struct LunaCPUDemoScene {
                             event: event,
                             hitNodeID: hit.nodeID,
                             requestedCommand: nil,
-                            announcementTexts: [selected > 0 ? "Text selected" : "Caret placed"]
+                            announcementTexts: [selected > 0 ? "Text selected" : "Caret placed"],
+                            didChangeVisualState: true
                         )
                     }
                 }
             }
         }
 
-        // The background semantic widget still uses the Phase 1B activation rule:
-        // primary pointer-down activates. Hover support for ordinary widgets will
-        // come after the modal/control-state model is proven.
-        var widget = Self.semanticWidget(for: framebufferSize, isFocused: true, theme: theme)
-        var context = LunaUIContext()
-        let result = widget.handlePointerEvent(event, context: &context)
+        if demoMode.usesProofGallerySurfaces {
+            // The background semantic widget still uses the Phase 1B activation rule:
+            // primary pointer-down activates. Hover support for ordinary widgets will
+            // come after the modal/control-state model is proven.
+            var widget = Self.semanticWidget(for: framebufferSize, isFocused: true, theme: theme, mode: demoMode)
+            var context = LunaUIContext()
+            let result = widget.handlePointerEvent(event, context: &context)
 
-        if let command = result.requestedCommand {
-            semanticActivationCount += 1
-            lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount); opened Phase 2B notice"
-            context.openNotice(
-                LunaNoticeRequest(
-                    id: "demo.phase2.notice",
-                    title: "Phase 2B Overlay",
-                    message: "Hover OK, hold mouse down to see pressed state, release to dismiss. Enter activates OK; Escape dismisses."
+            if let command = result.requestedCommand {
+                semanticActivationCount += 1
+                lastInteractionStatus = "Clicked: \(command.rawValue)  count=\(semanticActivationCount); opened Phase 2B notice"
+                context.openNotice(
+                    LunaNoticeRequest(
+                        id: "demo.phase2.notice",
+                        title: "Phase 2B Overlay",
+                        message: "Hover OK, hold mouse down to see pressed state, release to dismiss. Enter activates OK; Escape dismisses."
+                    )
                 )
-            )
-            modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
-        } else if result.didHit {
-            lastInteractionStatus = "Hit semantic widget, but no command was requested"
-        } else if event.phase == .down {
-            lastInteractionStatus = "Missed semantic widget at x=\(event.location.x), y=\(event.location.y)"
+                modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: result.hitNodeID,
+                    requestedCommand: result.requestedCommand,
+                    announcementTexts: result.announcementTexts,
+                    didChangeVisualState: true
+                )
+            } else if result.didHit {
+                lastInteractionStatus = "Hit semantic widget, but no command was requested"
+                return LunaPointerActivationResult(event: event, hitNodeID: result.hitNodeID, requestedCommand: nil, didChangeVisualState: true)
+            } else if event.phase == .down {
+                lastInteractionStatus = "Missed semantic widget at x=\(event.location.x), y=\(event.location.y)"
+                return LunaPointerActivationResult(event: event, hitNodeID: nil, requestedCommand: nil, didChangeVisualState: true)
+            }
+
+            return result
         }
 
-        return result
+        return LunaPointerActivationResult(event: event, hitNodeID: nil, requestedCommand: nil)
     }
 
     /// Backward-compatible helper kept for the Linux/macOS demo hosts while the
@@ -998,7 +1072,8 @@ public struct LunaCPUDemoScene {
             for: framebufferSize,
             state: state,
             theme: theme,
-            menus: resolvedDemoMenus(for: theme, framebufferSize: framebufferSize)
+            menus: resolvedDemoMenus(for: theme, framebufferSize: framebufferSize),
+            mode: demoMode
         )
     }
 
@@ -1057,12 +1132,13 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         if let caretRect = textView.layout().caretRect {
             return caretRect
         }
-        let layout = Self.layout(for: framebufferSize)
+        let layout = Self.layout(for: framebufferSize, mode: demoMode)
         return LunaRectI(x: layout.textViewBounds.x + 72, y: layout.textViewBounds.y + 24, w: 2, h: 18)
     }
 
@@ -1086,7 +1162,8 @@ public struct LunaCPUDemoScene {
             state: editorShellState,
             theme: renderTheme,
             tabs: demoShellTabs(),
-            statusSegments: demoStatusSegments()
+            statusSegments: demoStatusSegments(),
+            mode: demoMode
         )
         let shellLayout = shell.layout()
         let shellHit = shell.hitTest(point)
@@ -1096,7 +1173,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: renderTheme
+            theme: renderTheme,
+            mode: demoMode
         )
         let textHit = textView.textHitTest(point)
 
@@ -1557,7 +1635,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         return max(1, view.layout().maxVisibleLineCount - 1)
     }
@@ -1569,7 +1648,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         let layout = view.layout()
         staticTextScroll = staticTextScroll.scrolled(
@@ -1587,7 +1667,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         staticTextScroll = LunaStaticTextScrollState(scrollTopLine: line)
             .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
@@ -1601,7 +1682,8 @@ public struct LunaCPUDemoScene {
             scrollTopLine: staticTextScroll.scrollTopLine,
             caret: staticTextCaret,
             selection: staticTextSelection,
-            theme: theme
+            theme: theme,
+            mode: demoMode
         )
         staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
             .ensuringVisible(
@@ -1619,15 +1701,15 @@ public struct LunaCPUDemoScene {
     /// validated without relying on screenshots. Phase 4D routes the editor area
     /// through the product-neutral LunaEditorShell layout before assigning the
     /// demo text/proof panels inside the shell content frame.
-    public static func layout(for framebufferSize: LunaSizeI) -> LunaCPUDemoSceneLayout {
+    public static func layout(for framebufferSize: LunaSizeI, mode: LunaDemoMode = .editor) -> LunaCPUDemoSceneLayout {
         let viewport = LunaViewport(size: framebufferSize)
         var result = LunaLayoutResult()
 
         let menuHeight = 24
         let margin = viewport.size.width >= 700 ? 18 : 10
         let gap = 12
-        let hudHeight = max(58, min(72, viewport.size.height / 8))
-        let shellTop = menuHeight + hudHeight + gap
+        let hudHeight = mode.usesProofGallerySurfaces ? max(58, min(72, viewport.size.height / 8)) : 0
+        let shellTop = menuHeight + (hudHeight > 0 ? hudHeight + gap : 0)
         let shellBottom = max(shellTop + 1, viewport.size.height - margin)
         let shellBounds = LunaRectI(
             x: margin,
@@ -1664,7 +1746,7 @@ public struct LunaCPUDemoScene {
         result.set(id: LunaCPUDemoSceneLayout.statusID, bounds: shellLayout.statusBarBounds)
 
         let content = shellLayout.editorContentBounds
-        let usesProofPanel = content.w >= 700 && content.h >= 180
+        let usesProofPanel = mode.usesProofGallerySurfaces && content.w >= 700 && content.h >= 180
         if usesProofPanel {
             let panelW = min(300, max(236, content.w / 3))
             let panelX = max(content.x, content.x + content.w - panelW)
@@ -1692,24 +1774,15 @@ public struct LunaCPUDemoScene {
                 )
             )
         } else {
-            let semanticHeight = content.h >= 240 ? 62 : 50
-            let semantic = LunaRectI(
-                x: content.x + 8,
-                y: content.y + 8,
-                w: max(1, content.w - 16),
-                h: min(semanticHeight, max(1, content.h / 3))
-            )
-            result.set(id: LunaCPUDemoSceneLayout.semanticWidgetID, bounds: semantic)
+            result.set(id: LunaCPUDemoSceneLayout.semanticWidgetID, bounds: LunaRectI(x: 0, y: 0, w: 0, h: 0))
             result.set(id: LunaCPUDemoSceneLayout.proofPanelID, bounds: LunaRectI(x: 0, y: 0, w: 0, h: 0))
-
-            let textY = semantic.y + semantic.h + gap
             result.set(
                 id: LunaCPUDemoSceneLayout.textViewID,
                 bounds: LunaRectI(
-                    x: content.x + 8,
-                    y: textY,
-                    w: max(1, content.w - 16),
-                    h: max(1, content.y + content.h - textY - 8)
+                    x: content.x,
+                    y: content.y,
+                    w: max(1, content.w),
+                    h: max(1, content.h)
                 )
             )
         }
@@ -1722,6 +1795,24 @@ public struct LunaCPUDemoScene {
             status: lastInteractionStatus,
             store: documentStore,
             projectTitle: workspaceState.snapshot.projects.first?.title ?? "Workspace"
+        )
+        segments.append(
+            LunaStatusSegment(
+                id: "demoMode",
+                title: "Mode",
+                value: demoMode.rawValue,
+                placement: .trailing,
+                emphasis: demoMode == .editor ? .muted : .accent
+            )
+        )
+        segments.append(
+            LunaStatusSegment(
+                id: "inputStats",
+                title: "Input",
+                value: latestInputCoalescingStats.statusText,
+                placement: .trailing,
+                emphasis: latestInputCoalescingStats.coalescedPointerMotionCount > 0 ? .accent : .muted
+            )
         )
         segments.append(
             LunaStatusSegment(
@@ -1769,9 +1860,10 @@ public struct LunaCPUDemoScene {
         theme: LunaTheme = MothDemoTheme.theme,
         tabs: [LunaShellTab] = LunaCPUDemoScene.demoShellTabs,
         sidebarItems: [LunaSidebarItem] = LunaCPUDemoScene.demoSidebarItems,
-        statusSegments: [LunaStatusSegment] = LunaCPUDemoScene.demoStatusSegmentsSnapshot()
+        statusSegments: [LunaStatusSegment] = LunaCPUDemoScene.demoStatusSegmentsSnapshot(),
+        mode: LunaDemoMode = .editor
     ) -> LunaEditorShell {
-        let layout = Self.layout(for: framebufferSize)
+        let layout = Self.layout(for: framebufferSize, mode: mode)
         return LunaEditorShell(
             id: LunaCPUDemoSceneLayout.editorShellID,
             bounds: layout.editorShellBounds,
@@ -1793,9 +1885,10 @@ public struct LunaCPUDemoScene {
         caret: LunaStaticTextCaret? = nil,
         selection: LunaStaticTextSelection? = nil,
         highlights: [LunaStaticTextHighlight] = [],
-        theme: LunaTheme = MothDemoTheme.theme
+        theme: LunaTheme = MothDemoTheme.theme,
+        mode: LunaDemoMode = .editor
     ) -> LunaStaticTextView {
-        let layout = Self.layout(for: framebufferSize)
+        let layout = Self.layout(for: framebufferSize, mode: mode)
         return LunaStaticTextView(
             id: LunaCPUDemoSceneLayout.textViewID,
             bounds: layout.textViewBounds,
@@ -1837,9 +1930,10 @@ public struct LunaCPUDemoScene {
         for framebufferSize: LunaSizeI,
         state: LunaMenuBarState,
         theme: LunaTheme = MothDemoTheme.theme,
-        menus: [LunaMenuDefinition]? = nil
+        menus: [LunaMenuDefinition]? = nil,
+        mode: LunaDemoMode = .editor
     ) -> LunaMenuBar {
-        let layout = Self.layout(for: framebufferSize)
+        let layout = Self.layout(for: framebufferSize, mode: mode)
         return LunaMenuBar(
             id: LunaCPUDemoSceneLayout.menuBarID,
             bounds: layout.menuBarBounds,
@@ -2259,9 +2353,10 @@ public struct LunaCPUDemoScene {
     public static func semanticWidget(
         for framebufferSize: LunaSizeI,
         isFocused: Bool,
-        theme: LunaTheme = MothDemoTheme.theme
+        theme: LunaTheme = MothDemoTheme.theme,
+        mode: LunaDemoMode = .proofGallery
     ) -> LunaSemanticActionWidget {
-        let layout = Self.layout(for: framebufferSize)
+        let layout = Self.layout(for: framebufferSize, mode: mode)
 
         return LunaSemanticActionWidget(
             id: LunaCPUDemoSceneLayout.semanticWidgetID,
@@ -2350,30 +2445,7 @@ private extension String {
 /// `theme.ui.windowBackground`. Key 1 should be blue because its root token is
 /// blue; key 2 should be black because the Moth demo root token is #070709.
 private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
-    // Capture these *outside* the pixel closure to avoid overlapping-access traps.
-    let w = fb.width
-    let h = fb.height
-
-    fb.withUnsafeMutablePixelBytes { base, strideBytes in
-        // `withUnsafeMutablePixelBytes` returns row stride, not total byte count.
-        // Compute the usable storage length from stride * height.
-        let expected = strideBytes * h
-        if expected <= 0 { return }
-
-        let color = theme.ui.windowBackground
-
-        // We will write row-by-row.
-        for y in 0..<h {
-            let row = base.advanced(by: y * strideBytes)
-            for x in 0..<w {
-                let p = row.advanced(by: x * 4)
-                p[0] = color.b         // B
-                p[1] = color.g         // G
-                p[2] = color.r         // R
-                p[3] = color.a         // A
-            }
-        }
-    }
+    fb.clear(theme.ui.windowBackground.asRenderColor)
 }
 
 /// Draw the Phase 3A static text-view proof through Luna's text-view widget.
@@ -2388,7 +2460,8 @@ private func drawStaticTextViewProof(
     caret: LunaStaticTextCaret?,
     selection: LunaStaticTextSelection?,
     highlights: [LunaStaticTextHighlight],
-    theme: LunaTheme
+    theme: LunaTheme,
+    mode: LunaDemoMode = .editor
 ) {
     let view = LunaCPUDemoScene.staticTextView(
         for: LunaSizeI(width: fb.width, height: fb.height),
@@ -2397,7 +2470,8 @@ private func drawStaticTextViewProof(
         caret: caret,
         selection: selection,
         highlights: highlights,
-        theme: theme
+        theme: theme,
+        mode: mode
     )
     guard !view.bounds.isEmpty else { return }
 

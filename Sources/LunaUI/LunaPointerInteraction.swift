@@ -15,16 +15,25 @@ public struct LunaPointerActivationResult: Hashable, Sendable {
     public var requestedCommand: LunaCommandID?
     public var announcementTexts: [String]
 
+    /// True when routing this event changed visible/transient UI state such as
+    /// hover, press, overlay open/close, selection, caret position, or document
+    /// content. Host runtimes should invalidate/redraw on state changes, not on
+    /// mere geometric hits. This keeps pointer motion over stable chrome from
+    /// becoming accidental continuous rendering.
+    public var didChangeVisualState: Bool
+
     public init(
         event: LunaPointerEvent,
         hitNodeID: LunaNodeID?,
         requestedCommand: LunaCommandID?,
-        announcementTexts: [String] = []
+        announcementTexts: [String] = [],
+        didChangeVisualState: Bool = false
     ) {
         self.event = event
         self.hitNodeID = hitNodeID
         self.requestedCommand = requestedCommand
         self.announcementTexts = announcementTexts
+        self.didChangeVisualState = didChangeVisualState
     }
 
     public var didHit: Bool { hitNodeID != nil }

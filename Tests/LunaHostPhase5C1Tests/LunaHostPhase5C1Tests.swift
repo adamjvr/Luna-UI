@@ -1,5 +1,7 @@
 import XCTest
 import LunaRender
+import LunaCore
+import LunaInput
 @testable import LunaHostCore
 
 final class LunaHostPhase5C1Tests: XCTestCase {
@@ -100,4 +102,52 @@ final class LunaHostPhase5C1Tests: XCTestCase {
         XCTAssertEqual(tick.timestampNanoseconds, 42)
         XCTAssertTrue(tick.invalidations.reasons.contains(.asyncResult))
     }
+    func testInputCoalescerKeepsOnlyLatestContiguousPointerMotion() {
+        let coalescer = LunaHostInputCoalescer()
+        let batch = coalescer.coalesce([
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 1, y: 1))),
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 2, y: 2))),
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 3, y: 3))),
+        ])
+
+        XCTAssertEqual(batch.events.count, 1)
+        if case .pointer(let pointer)? = batch.events.first {
+            XCTAssertEqual(pointer.location, LunaPointI(x: 3, y: 3))
+        } else {
+            XCTFail("Expected latest pointer motion")
+        }
+        XCTAssertEqual(batch.stats.receivedEventCount, 3)
+        XCTAssertEqual(batch.stats.emittedEventCount, 1)
+        XCTAssertEqual(batch.stats.coalescedPointerMotionCount, 2)
+    }
+
+    func testInputCoalescerPreservesButtonAndKeyboardBoundaries() {
+        let coalescer = LunaHostInputCoalescer()
+        let batch = coalescer.coalesce([
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 1, y: 1))),
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 2, y: 2))),
+            .pointer(LunaPointerEvent(phase: .down, location: LunaPointI(x: 2, y: 2))),
+            .pointer(LunaPointerEvent(phase: .moved, location: LunaPointI(x: 8, y: 8))),
+            .pointer(LunaPointerEvent(phase: .up, location: LunaPointI(x: 8, y: 8))),
+            .keyboard(LunaKeyboardEvent(key: .escape)),
+        ])
+
+        XCTAssertEqual(batch.events.count, 5)
+        XCTAssertEqual(batch.stats.coalescedPointerMotionCount, 1)
+
+        if case .pointer(let first)? = batch.events.first {
+            XCTAssertEqual(first.phase, .moved)
+            XCTAssertEqual(first.location, LunaPointI(x: 2, y: 2))
+        } else {
+            XCTFail("Expected flushed latest pre-click motion")
+        }
+
+        if case .pointer(let drag) = batch.events[2] {
+            XCTAssertEqual(drag.phase, .moved)
+            XCTAssertEqual(drag.location, LunaPointI(x: 8, y: 8))
+        } else {
+            XCTFail("Expected latest drag motion before button up")
+        }
+    }
+
 }

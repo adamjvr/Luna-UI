@@ -277,6 +277,9 @@ The current checkpoint has:
 - Phase 5A real document / buffer integration implemented with product-neutral document descriptors, open buffer storage, active-document routing, per-document caret/selection/scroll preservation, dirty tracking from editable text revisions, shell-tab projection, and demo tabs/sidebar rows that switch the actual editor buffer;
 - Phase 5B product-neutral command runtime implemented with command context, dynamic availability, key binding matching, surface projection, runtime handler execution against an app-owned host, and demo menu/palette/context/keyboard dispatch through one command path;
 - Phase 5C file/project adapter boundary implemented with product-neutral file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save contracts, dirty-close policy, and an in-memory demo adapter proving file/project seams without real Moth policy;
+- Phase 5C.1 frame pacing/invalidation runtime boundary implemented with host timing stats, frame requests, invalidation reasons, frame pacing helpers, SDL vsync/delay cleanup, and runtime diagnostics;
+- Phase 5C.2 editor harness split and input coalescing implemented with default editor mode, optional proof-gallery mode, host pointer-motion coalescing, state-change pointer invalidation, quiet command logging by default, and input/event diagnostics;
+- Phase 5C.1 frame pacing, invalidation, and runtime boundary implemented with host-core frame timing stats, invalidation reasons, frame requests, a frame pacer, runtime tick snapshots, SDL vsync/delay cleanup, and a demo status readout proving Luna UI state remains single-lane while hosts/services handle scheduling;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -286,7 +289,7 @@ The next implementation target is:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5C is complete. The next step is to put a narrow real-file proof behind the adapter boundary while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
+Phase 5C.1 is complete. The next step is to put a narrow real-file proof behind the adapter/runtime boundary while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -356,6 +359,8 @@ swift build --target LunaUIPhase5BTests
 swift test --filter LunaUIPhase5BTests
 swift build --target LunaUIPhase5CTests
 swift test --filter LunaUIPhase5CTests
+swift build --target LunaHostPhase5C1Tests
+swift test --filter LunaHostPhase5C1Tests
 ```
 
 Full Linux check:
@@ -422,3 +427,26 @@ For Moth Text, Luna is the difference between fighting a framework and owning th
 ## License
 
 See [`LICENSE`](LICENSE).
+
+
+### Demo modes
+
+Default run uses the editor harness, which is the Moth-like performance baseline:
+
+```bash
+swift run LunaUITestApp
+```
+
+Proof-gallery mode keeps old phase visual/stress surfaces available without putting them on the default hot path:
+
+```bash
+swift run LunaUITestApp --proof-gallery
+# or
+LUNA_DEMO_MODE=proof swift run LunaUITestApp
+```
+
+Command-request stdout logging is disabled by default. Enable it only when debugging command routing:
+
+```bash
+LUNA_DEMO_DEBUG_COMMANDS=1 swift run LunaUITestApp
+```

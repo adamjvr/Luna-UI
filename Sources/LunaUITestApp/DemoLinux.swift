@@ -61,12 +61,19 @@ func runLinuxDemo() {
     var fb = LunaFramebuffer(width: Int(winW), height: Int(winH))
     let presenter = LunaSDLPresenter(window: window)
     var inputTranslator = LunaSDLInputTranslator()
+    let inputCoalescer = LunaHostInputCoalescer()
+
+    let environment = ProcessInfo.processInfo.environment
+    let arguments = Array(CommandLine.arguments.dropFirst())
+    let demoMode = LunaDemoMode.parse(arguments: arguments, environment: environment)
+    let logsCommandRequests = environment["LUNA_DEMO_DEBUG_COMMANDS"] == "1" || arguments.contains("--debug-commands")
 
     // Shared demo scene (pure Luna, no platform event decoding).
-    var demo = LunaCPUDemoScene(theme: MothDemoTheme.theme)
+    var demo = LunaCPUDemoScene(theme: MothDemoTheme.theme, mode: demoMode)
 
     var framePacer = LunaFramePacer(targetFramesPerSecond: 60, usesExternalVSync: presenter.usesVSync)
     var frameStats = LunaFrameTimingStats()
+    var latestInputStats = LunaInputCoalescingStats()
     var pendingInvalidations = LunaFrameInvalidationSet(.initial)
     var frameIndex: UInt64 = 0
 
@@ -75,7 +82,11 @@ func runLinuxDemo() {
         let inputStart = LunaMonotonicClock.nowNanoseconds()
         var didReceiveEvent = false
 
-        for event in inputTranslator.pollEvents() {
+        let rawInputEvents = inputTranslator.pollEvents()
+        let inputBatch = inputCoalescer.coalesce(rawInputEvents)
+        latestInputStats = inputBatch.stats
+
+        for event in inputBatch.events {
             didReceiveEvent = true
             switch event {
             case .quit:
@@ -94,17 +105,19 @@ func runLinuxDemo() {
                     framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
                 )
 
-                // Do not redraw continuously just because the pointer moved over
-                // the window. Pointer motion only needs a frame when it changes
-                // visible state, hits interactive UI, or activates a command.
-                let pointerNeedsFrame = pointerEvent.phase != .moved || result.didHit || result.didRequestCommand
+                // Do not redraw just because the pointer geometrically hit stable
+                // chrome. Redraw only when routing changed visible state, activated
+                // a command, or processed a non-motion phase such as click/release.
+                let pointerNeedsFrame = pointerEvent.phase != .moved || result.didChangeVisualState || result.didRequestCommand
                 if pointerNeedsFrame {
                     pendingInvalidations.insert(.input)
                 }
 
                 if let command = result.requestedCommand {
                     pendingInvalidations.insert(.commandExecuted)
-                    print("Luna demo requested command: \(command.rawValue)")
+                    if logsCommandRequests {
+                        print("Luna demo requested command: \(command.rawValue)")
+                    }
                 }
 
             case .keyboard(let keyboardEvent):
@@ -146,7 +159,11 @@ func runLinuxDemo() {
 
         frameIndex &+= 1
         let frameStart = LunaMonotonicClock.nowNanoseconds()
-        demo.updateFrameRuntimeDiagnostics(timingStats: frameStats, invalidations: invalidationsForFrame)
+        demo.updateFrameRuntimeDiagnostics(
+            timingStats: frameStats,
+            invalidations: invalidationsForFrame,
+            inputCoalescingStats: latestInputStats
+        )
 
         let renderStart = LunaMonotonicClock.nowNanoseconds()
         demo.render(into: &fb)

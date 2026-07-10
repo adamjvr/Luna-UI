@@ -124,6 +124,7 @@ let package = Package(
         .target(
             name: "LunaHostCore",
             dependencies: [
+                "LunaInput",
                 "LunaRender",
             ]
         ),
@@ -175,6 +176,7 @@ let package = Package(
                 "LunaInput",
                 "LunaLayout",
                 "LunaRender",
+                "LunaHostCore",
                 .target(name: "LunaHostSDL", condition: .when(platforms: [.linux])),
                 .target(name: "SDL2", condition: .when(platforms: [.linux])),
             ]
@@ -393,6 +395,15 @@ let package = Package(
                 "LunaInput",
                 "LunaUI",
                 "LunaTheme",
+                "LunaRender",
+            ]
+        ),
+
+        .testTarget(
+            name: "LunaHostPhase5C1Tests",
+            dependencies: [
+                "LunaHostCore",
+                "LunaInput",
                 "LunaRender",
             ]
         ),

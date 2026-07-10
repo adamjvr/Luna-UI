@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5C file / project adapter boundary.
+This document is the working checkpoint after Phase 5C.2 editor harness split and input coalescing.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5C**.
+Luna UI is through **Phase 5C.2**.
 
 The engine now has:
 
@@ -40,7 +40,9 @@ The engine now has:
 - a product-neutral anchored completion popup foundation with app-supplied completion items, caret/anchor positioning, viewport clamping, selected rows, completion details, keyboard and pointer activation, insertion/command result payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes;
 - a product-neutral document/buffer identity layer with document descriptors, open-buffer storage, active-document routing, per-document caret/selection/scroll state, dirty tracking from editable text revisions, shell-tab projection, and demo tabs that switch the actual editable buffer;
 - a product-neutral command runtime with dynamic command availability, checked/disabled/visible state, key binding matching, surface projection, handler execution against a mutable host, keyboard shortcut routing, and demo menu/palette/context/keymap dispatch through one command path;
-- a product-neutral file/project adapter boundary with file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save request/result contracts, dirty-document close policy, and an in-memory demo workspace adapter that opens and saves document buffers without baking real Moth filesystem policy into Luna.
+- a product-neutral file/project adapter boundary with file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save request/result contracts, dirty-document close policy, and an in-memory demo workspace adapter that opens and saves document buffers without baking real Moth filesystem policy into Luna;
+- a host-runtime frame pacing/invalidation foundation with `LunaFrameTimingSample`, `LunaFrameTimingStats`, `LunaInvalidationReason`, `LunaFrameInvalidationSet`, `LunaFrameRequest`, `LunaFramePacer`, `LunaRuntimeTick`, SDL vsync/delay cleanup, and demo status-bar diagnostics for frame timing and invalidation reasons;
+- a split demo harness with editor mode as the default Moth-like performance baseline, proof-gallery mode for earlier visual/stress proofs, pointer-motion coalescing at the host boundary, state-change-based pointer invalidation, quiet command logging by default, input coalescing diagnostics, and proof-era surfaces removed from the default hot path.
 
 ---
 
@@ -141,6 +143,8 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5A — Real Document / Buffer Integration: complete.
 - Phase 5B — Product-Neutral Editor Command Runtime: complete.
 - Phase 5C — File / Project Adapter Boundary: complete.
+- Phase 5C.1 — Frame Pacing, Invalidation, and Runtime Boundary: complete.
+- Phase 5C.2 — Editor Harness Split and Input Coalescing: complete.
 
 ---
 
@@ -161,4 +165,4 @@ Luna does not yet have:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5D should provide a narrow real-file proof behind the Phase 5C adapter boundary: load/save local text files through an app-owned adapter, keep Luna product-neutral, and avoid turning the demo harness into Moth Text.
+Phase 5D should provide a narrow real-file proof behind the Phase 5C adapter boundary and Phase 5C.1/5C.2 runtime pacing, invalidation, and harness boundaries: load/save local text files through an app-owned adapter, keep Luna product-neutral, and avoid turning the demo harness into Moth Text.

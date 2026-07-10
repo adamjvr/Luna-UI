@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5C file / project adapter boundary.
+This protocol is the standing manual regression checklist for the demo app after Phase 5C.2 editor harness split and input coalescing.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -17,7 +17,7 @@ The demo is an integration harness for Luna UI. It may show the Moth Obsidian pa
 | `Ctrl+A` | Select all text in the editor when no overlay owns input. |
 | `Ctrl+Space` | Open the anchored completion popup near the text caret. |
 | `Escape` | Close the active modal/palette/find panel/menu/context menu/completion popup before the editor sees it. |
-| Window resize | Header, menu bar, tab strip, sidebar, editor content, proof panel, overlays, and status bar reflow cleanly. |
+| Window resize | Menu bar, tab strip, sidebar, editor content, overlays, and status bar reflow cleanly; proof panel reflows in proof-gallery mode. |
 
 Retired behavior:
 
@@ -31,6 +31,75 @@ Theme switching is command-palette-only.
 
 
 
+
+
+## Editor Harness / Proof Gallery Protocol
+
+Phase 5C.2 separates the default editor harness from the proof-gallery stress/demo surfaces. The default mode should be used to judge Moth-like responsiveness. Proof-gallery mode still exists for visual regression and old phase proofs.
+
+Run default editor harness:
+
+```bash
+swift run LunaUITestApp
+```
+
+Run proof gallery:
+
+```bash
+swift run LunaUITestApp --proof-gallery
+# or
+LUNA_DEMO_MODE=proof swift run LunaUITestApp
+```
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Launch default app | Opens editor mode, not proof-gallery mode. |
+| Default app at rest | No moving block, semantic proof panel, or proof HUD is visible. |
+| Default app status bar | Shows mode, frame timing, invalidation, and input coalescing diagnostics. |
+| Move pointer rapidly across stable empty/editor areas | Pointer-motion storms are coalesced; redraws occur only for meaningful state changes. |
+| Drag-select text | Drag still works; coalescing preserves the latest drag endpoint per frame. |
+| Click tabs/sidebar/menu/context/completion | Non-motion semantic events are preserved and routed normally. |
+| Run `--proof-gallery` | Old proof panel, moving block, semantic widget proof, and HUD are visible again. |
+| Set `LUNA_DEMO_DEBUG_COMMANDS=1` | Command-request stdout logging is enabled. |
+| Default logging | Command-request stdout spam is suppressed. |
+
+Boundary rule:
+
+```text
+The default demo is the editor performance harness.
+Proof-gallery mode is the regression/stress harness.
+Luna remains state-driven; this is not a retained-mode rewrite.
+Hosts invalidate on state change, not on mere pointer hits.
+```
+
+---
+
+## Runtime / Frame Pacing Protocol
+
+Phase 5C.1 adds the host-runtime frame pacing and invalidation boundary. The demo should no longer behave like an unconditional game loop that redraws forever while idle. Host code records frame timing, tracks why a frame was requested, and avoids double-throttling when SDL vsync already owns presentation pacing.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Start the demo and stop touching input | CPU usage should settle significantly lower than the old unconditional redraw loop. |
+| Move/click/type/resize | The host records an invalidation reason and renders a new frame. |
+| Type into the editor | Invalidation reasons include text/document activity and dirty document state still updates. |
+| Open menus/palette/context/completion/find | Overlay input still works and requests frames through the UI lane. |
+| Status bar | Shows frame timing, recent invalidation reasons, mode, and input coalescing diagnostics. |
+| Linux/SDL presenter | Uses vsync as the timing authority and does not also unconditionally `SDL_Delay(16)` after every present. |
+
+Boundary rule:
+
+```text
+Luna widgets remain synchronous and deterministic.
+Host runtimes own frame pacing and invalidation scheduling.
+Applications/services may do async work, but async results must return to the UI lane as snapshots/events before mutating Luna state.
+```
+
+---
 
 ## Command Runtime Protocol
 

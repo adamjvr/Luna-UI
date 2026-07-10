@@ -1149,6 +1149,62 @@ File > Close Document consults dirty-close policy before closing
 status bar includes project/workspace metadata without Luna owning project policy
 ```
 
+### Phase 5C.1 — Frame Pacing, Invalidation, and Runtime Boundary
+
+Status: complete.
+
+Phase 5C.1 hardens the host/runtime boundary before real file I/O and future async services. It does not make widgets concurrent, does not turn document state into an actor, and does not parallelize the renderer. It defines how a host requests frames, records timing, avoids needless redraws, and keeps all Luna UI state mutation on one deterministic UI lane.
+
+Completed scope:
+
+- `LunaInvalidationReason` for input, text, document, overlay, command, theme, workspace, resize, animation, async-result, accessibility, and explicit invalidations;
+- `LunaFrameInvalidationSet` for collecting render reasons;
+- `LunaFrameRequest` for deciding whether a frame should be rendered;
+- `LunaFrameTimingSample` and `LunaFrameTimingStats` for host-side measurement of frame, render, and present cost;
+- `LunaFramePacer` for deciding whether the host or external vsync owns pacing;
+- `LunaRuntimeTick` for future bounded periodic work and async-result polling;
+- Linux SDL presenter can now be created with or without vsync and exposes whether vsync is active;
+- Linux demo loop no longer unconditionally double-throttles with both vsync and `SDL_Delay(16)`;
+- Linux demo loop renders only when invalidated or when a scene explicitly requests continuous frames;
+- demo status bar reports frame timing and latest invalidation reasons;
+- host-runtime tests cover invalidation, frame requests, timing stats, frame pacing, and runtime ticks.
+
+Architecture rule:
+
+```text
+Luna widgets remain synchronous and deterministic.
+Host runtimes own frame pacing and invalidation scheduling.
+Applications/services may do async work, but async results return to the UI lane as snapshots/events before mutating Luna state.
+```
+
+### Phase 5C.2 — Editor Harness Split and Input Coalescing
+
+Status: complete.
+
+Phase 5C.2 separates the default LunaUITestApp from the older proof-gallery/stress surfaces. The default mode is now a small Moth-like editor harness used as the performance baseline. Proof-gallery mode keeps the earlier phase visuals available without forcing the moving block, semantic proof panel, and debug HUD onto the default hot path.
+
+Completed scope:
+
+- `LunaDemoMode.editor` as the default run mode;
+- `LunaDemoMode.proofGallery` selectable with `--proof-gallery`, `--proof`, or `LUNA_DEMO_MODE=proof`;
+- editor-mode layout gives the editor surface the shell content area instead of reserving side proof-panel space;
+- proof panel, moving block, semantic-widget proof, and HUD are hidden by default but remain available in proof-gallery mode;
+- `LunaHostInputCoalescer` coalesces contiguous pointer-motion runs to the latest event while preserving button, key, text, resize, and quit boundaries;
+- Linux host loop uses coalesced input batches and exposes coalesced-event diagnostics to the status bar;
+- pointer redraw invalidation is based on meaningful state changes/commands/non-motion phases rather than mere geometric hits;
+- command-request stdout spam is behind `LUNA_DEMO_DEBUG_COMMANDS=1` or `--debug-commands`;
+- `LunaPointerActivationResult` carries `didChangeVisualState` so hosts can request redraws without confusing hit testing with invalidation;
+- tests cover pointer-motion coalescing and preservation of semantic input boundaries.
+
+Architecture rule:
+
+```text
+Luna remains state-driven and deterministic.
+The default app is an editor harness, not a proof collage.
+Proof-gallery mode stays first-class for visual/stress regression coverage.
+Pointer motion can be coalesced; button/key/text/resize/quit semantics cannot be dropped.
+```
+
 ### Phase 5D — Real File I/O Proof
 
 Scope:
@@ -1227,4 +1283,4 @@ The next implementation target is:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5C is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter boundary. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
+Phase 5C.2 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, and editor-harness boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
