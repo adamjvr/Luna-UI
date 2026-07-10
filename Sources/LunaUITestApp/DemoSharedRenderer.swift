@@ -129,6 +129,14 @@ public struct LunaCPUDemoScene {
     /// projection; the demo supplies fake documents instead of real file I/O.
     private var documentStore = LunaCPUDemoScene.demoDocumentStore
 
+    /// Phase 5C file/project adapter boundary proof. The adapter is still an
+    /// in-memory demo fixture, but the app now talks to it through Luna's
+    /// product-neutral workspace/open/save contracts instead of hardcoded
+    /// sidebar-only commands. Real Moth file I/O can later provide a different
+    /// adapter with the same seam.
+    private var workspaceState = LunaCPUDemoScene.demoWorkspaceState
+    private var workspaceAdapter = LunaCPUDemoWorkspaceAdapter.demo
+
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
     /// supplies the generic widget/model, while the demo supplies its commands.
@@ -1243,7 +1251,10 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 5A document missing: \(id.rawValue)"
             return
         }
-        documentStore.syncShellState(&editorShellState)
+        workspaceState.syncFromActiveDocument(documentStore)
+        documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
+            workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
+        })
         completionPopupState.close()
         activeTextSelectionAnchor = nil
         if var find = findPanelState {
@@ -1256,9 +1267,89 @@ public struct LunaCPUDemoScene {
         lastInteractionStatus = "Phase 5A active document: \(title) (\(reason))"
     }
 
+    private mutating func openWorkspaceFile(_ fileID: LunaFileID, framebufferSize: LunaSizeI, source: String) {
+        if documentStore.document(with: LunaDocumentID(rawValue: fileID.rawValue)) != nil {
+            activateDocument(LunaDocumentID(rawValue: fileID.rawValue), framebufferSize: framebufferSize, reason: source)
+            return
+        }
+
+        let result = workspaceAdapter.openFile(LunaWorkspaceOpenRequest(fileID: fileID, source: source))
+        guard let file = result.file, let text = result.text else {
+            lastInteractionStatus = result.statusMessage ?? "Phase 5C could not open file: \(fileID.rawValue)"
+            return
+        }
+
+        workspaceState.registerFile(file)
+        _ = workspaceState.open(fileID: file.id)
+        let documentID = documentStore.openOrActivate(file: file, text: text)
+        documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
+            workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
+        })
+        completionPopupState.close()
+        activeTextSelectionAnchor = nil
+        ensureEditableCaretVisible(framebufferSize: framebufferSize)
+        lastInteractionStatus = result.statusMessage ?? "Phase 5C opened \(file.title) through workspace adapter"
+        if documentID != documentStore.activeDocumentID {
+            lastInteractionStatus = "Phase 5C opened \(file.title)"
+        }
+    }
+
+    private mutating func saveActiveDocumentThroughWorkspaceAdapter() {
+        guard let request = documentStore.saveRequestForActiveDocument() else {
+            lastInteractionStatus = "Phase 5C save skipped: no active document"
+            return
+        }
+        let result = workspaceAdapter.saveDocument(request)
+        documentStore.applySaveResult(result)
+        lastInteractionStatus = result.statusMessage ?? (result.didSave ? "Saved \(request.title)" : "Could not save \(request.title)")
+    }
+
+    private mutating func saveAllDirtyDocumentsThroughWorkspaceAdapter() {
+        let dirtyIDs = documentStore.dirtyDocumentIDs()
+        guard !dirtyIDs.isEmpty else {
+            lastInteractionStatus = "Phase 5C save all: no dirty documents"
+            return
+        }
+        var savedCount = 0
+        for id in dirtyIDs {
+            guard let request = documentStore.saveRequest(for: id, kind: .saveAll) else { continue }
+            let result = workspaceAdapter.saveDocument(request)
+            if result.didSave { savedCount += 1 }
+            documentStore.applySaveResult(result)
+        }
+        lastInteractionStatus = "Phase 5C save all: saved \(savedCount) document(s) through workspace adapter"
+    }
+
+    private mutating func closeActiveDocumentUsingWorkspacePolicy() {
+        guard let activeID = documentStore.activeDocumentID, let request = documentStore.closeRequest(for: activeID) else {
+            lastInteractionStatus = "Phase 5C close skipped: no active document"
+            return
+        }
+        let resolution = LunaDirtyDocumentClosePolicy(promptsForDirtyDocuments: true).resolve(request)
+        switch resolution.decision {
+        case .closeNow:
+            _ = documentStore.close(activeID)
+            _ = workspaceState.close(fileID: LunaFileID(rawValue: activeID.rawValue))
+            workspaceState.syncFromActiveDocument(documentStore)
+            documentStore.syncShellState(&editorShellState, sidebarItemForDocument: { documentID in
+                workspaceState.snapshot.node(for: LunaFileID(rawValue: documentID.rawValue)).map { LunaSidebarItemID(rawValue: $0.id.rawValue) }
+            })
+            lastInteractionStatus = resolution.statusMessage ?? "Closed \(request.title)"
+        case .requestSave:
+            lastInteractionStatus = resolution.statusMessage ?? "Save changes before closing \(request.title)"
+        case .cancel:
+            lastInteractionStatus = resolution.statusMessage ?? "Close cancelled"
+        }
+    }
+
     private func demoCommandAvailability(for command: LunaCommandID, context: LunaCommandContext) -> LunaCommandAvailability {
         let currentTheme = MothDemoTheme.canonicalTheme(for: theme).name
         let hasSelection = editableTextState.selection != nil
+
+        if let fileID = command.rawValue.lunaDemoOpenFileID {
+            let canOpen = workspaceState.descriptor(for: fileID) != nil
+            return LunaCommandAvailability(isEnabled: canOpen, disabledReason: canOpen ? nil : "Workspace file is unavailable")
+        }
 
         switch command.rawValue {
         case "luna.demo.theme.blue":
@@ -1269,6 +1360,15 @@ public struct LunaCPUDemoScene {
             return LunaCommandAvailability(isChecked: currentTheme == LunaTheme.highContrastProof.name)
         case "luna.demo.sidebar.toggle":
             return LunaCommandAvailability(isChecked: editorShellState.isSidebarVisible)
+        case "luna.demo.file.save":
+            let isDirty = documentStore.activeDocument?.isDirty ?? false
+            return LunaCommandAvailability(isEnabled: isDirty, disabledReason: isDirty ? nil : "Active document is already saved")
+        case "luna.demo.file.saveAll":
+            let hasDirty = !documentStore.dirtyDocumentIDs().isEmpty
+            return LunaCommandAvailability(isEnabled: hasDirty, disabledReason: hasDirty ? nil : "No dirty documents")
+        case "luna.demo.file.close":
+            let canClose = documentStore.activeDocument?.descriptor.isClosable ?? false
+            return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Active document is not closable")
         case "luna.demo.edit.selectAll":
             return LunaCommandAvailability(isEnabled: !staticTextDocument.lines.isEmpty)
         case "luna.demo.selection.clear":
@@ -1318,6 +1418,11 @@ public struct LunaCPUDemoScene {
     }
 
     private mutating func performDemoCommandBody(_ command: LunaCommandID, framebufferSize: LunaSizeI) -> LunaCommandExecutionResult {
+        if let fileID = command.rawValue.lunaDemoOpenFileID {
+            openWorkspaceFile(fileID, framebufferSize: framebufferSize, source: "command runtime")
+            return .handled(lastInteractionStatus)
+        }
+
         switch command.rawValue {
         case "luna.demo.theme.blue":
             setTheme(.lunaDemoBlue, framebufferSize: framebufferSize)
@@ -1339,6 +1444,12 @@ public struct LunaCPUDemoScene {
         case "luna.demo.palette.open":
             openQuickPanel()
             lastInteractionStatus = "Command palette opened from menu command"
+        case "luna.demo.file.save":
+            saveActiveDocumentThroughWorkspaceAdapter()
+        case "luna.demo.file.saveAll":
+            saveAllDirtyDocumentsThroughWorkspaceAdapter()
+        case "luna.demo.file.close":
+            closeActiveDocumentUsingWorkspacePolicy()
         case "luna.demo.scroll.top":
             setStaticTextScrollTopLine(0, framebufferSize: framebufferSize, reason: "quick panel top")
         case "luna.demo.scroll.end":
@@ -1401,12 +1512,16 @@ public struct LunaCPUDemoScene {
             )
             modalManager.openQueuedModals(from: &context, viewportSize: framebufferSize)
             lastInteractionStatus = "Phase 4E context info opened"
-        case "luna.demo.sidebar.documentBuffer",
-             "luna.demo.sidebar.editorShell",
-             "luna.demo.sidebar.completionPopup",
-             "luna.demo.sidebar.phase5aTests",
-             "luna.demo.sidebar.roadmap":
-            lastInteractionStatus = "Phase 5A sidebar command: \(command.rawValue)"
+        case "luna.demo.sidebar.documentBuffer":
+            openWorkspaceFile("document-buffer", framebufferSize: framebufferSize, source: "legacy sidebar command")
+        case "luna.demo.sidebar.editorShell":
+            openWorkspaceFile("editor-shell", framebufferSize: framebufferSize, source: "legacy sidebar command")
+        case "luna.demo.sidebar.completionPopup":
+            openWorkspaceFile("completion-popup", framebufferSize: framebufferSize, source: "legacy sidebar command")
+        case "luna.demo.sidebar.phase5aTests":
+            openWorkspaceFile("phase5a-tests", framebufferSize: framebufferSize, source: "legacy sidebar command")
+        case "luna.demo.sidebar.roadmap":
+            openWorkspaceFile("roadmap", framebufferSize: framebufferSize, source: "legacy sidebar command")
         default:
             lastInteractionStatus = "Demo command: \(command.rawValue)"
         }
@@ -1581,14 +1696,27 @@ public struct LunaCPUDemoScene {
     }
 
     private func demoStatusSegments() -> [LunaStatusSegment] {
-        documentStore.statusSegments(status: lastInteractionStatus, syntaxFallback: "Swift")
+        Self.workspaceStatusSegments(
+            status: lastInteractionStatus,
+            store: documentStore,
+            projectTitle: workspaceState.snapshot.projects.first?.title ?? "Workspace"
+        )
     }
 
     public static func demoStatusSegmentsSnapshot(
         status: String = "Ready",
         store: LunaDocumentStore = LunaCPUDemoScene.demoDocumentStore
     ) -> [LunaStatusSegment] {
-        store.statusSegments(status: status, syntaxFallback: "Swift")
+        workspaceStatusSegments(status: status, store: store, projectTitle: demoProjectDescriptor.title)
+    }
+
+    private static func workspaceStatusSegments(status: String, store: LunaDocumentStore, projectTitle: String) -> [LunaStatusSegment] {
+        var segments = store.statusSegments(status: status, syntaxFallback: "Swift")
+        segments.insert(
+            LunaStatusSegment(id: "workspace", title: "Project", value: projectTitle, placement: .leading, emphasis: .muted),
+            at: min(1, segments.count)
+        )
+        return segments
     }
 
     /// Build the Phase 4D product-neutral editor shell proof. The shell contents
@@ -1733,7 +1861,7 @@ public struct LunaCPUDemoScene {
 
     private func demoShellTabs() -> [LunaShellTab] {
         documentStore.shellTabs(
-            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.tab.\(id.rawValue)") },
+            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.file.open.\(id.rawValue)") },
             closeCommand: { id in
                 documentStore.document(with: id)?.descriptor.isClosable == true
                     ? LunaCommandID(rawValue: "luna.demo.tab.close")
@@ -1744,7 +1872,7 @@ public struct LunaCPUDemoScene {
 
     public static var demoShellTabs: [LunaShellTab] {
         demoDocumentStore.shellTabs(
-            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.tab.\(id.rawValue)") },
+            activateCommand: { id in LunaCommandID(rawValue: "luna.demo.file.open.\(id.rawValue)") },
             closeCommand: { id in
                 demoDocumentStore.document(with: id)?.descriptor.isClosable == true
                     ? LunaCommandID(rawValue: "luna.demo.tab.close")
@@ -1753,51 +1881,75 @@ public struct LunaCPUDemoScene {
         )
     }
 
-    public static let demoSidebarItems: [LunaSidebarItem] = [
-        LunaSidebarItem(
-            id: "workspace",
-            title: "Luna-UI",
-            kind: .folder,
-            children: [
-                LunaSidebarItem(
-                    id: "open-documents",
-                    title: "Open Documents",
-                    kind: .folder,
-                    children: [
-                        LunaSidebarItem(id: "overview", title: "Overview.swift", kind: .file, activateCommand: "luna.demo.tab.overview"),
-                        LunaSidebarItem(id: "editor", title: "EditorSurface.swift", kind: .file, activateCommand: "luna.demo.tab.editor"),
-                        LunaSidebarItem(id: "theme", title: "Theme.json", kind: .file, activateCommand: "luna.demo.tab.theme"),
-                    ],
-                    isSelectable: false
-                ),
-                LunaSidebarItem(
-                    id: "sources",
-                    title: "Sources",
-                    kind: .folder,
-                    children: [
-                        LunaSidebarItem(id: "luna-ui", title: "LunaUI", kind: .folder, children: [
-                            LunaSidebarItem(id: "document-buffer", title: "LunaDocumentBuffer.swift", kind: .file, activateCommand: "luna.demo.sidebar.documentBuffer"),
-                            LunaSidebarItem(id: "editor-shell", title: "LunaEditorShell.swift", kind: .file, activateCommand: "luna.demo.sidebar.editorShell"),
-                            LunaSidebarItem(id: "completion-popup", title: "LunaCompletionPopup.swift", kind: .file, activateCommand: "luna.demo.sidebar.completionPopup"),
-                        ], isSelectable: false),
-                        LunaSidebarItem(id: "test-app", title: "LunaUITestApp", kind: .folder, isSelectable: false),
-                    ],
-                    isSelectable: false
-                ),
-                LunaSidebarItem(id: "tests", title: "Tests", kind: .folder, children: [
-                    LunaSidebarItem(id: "phase5a-tests", title: "LunaUIPhase5ATests.swift", kind: .file, activateCommand: "luna.demo.sidebar.phase5aTests"),
-                ], isSelectable: false),
-                LunaSidebarItem(id: "roadmap", title: "LUNA_UI_ROADMAP.md", kind: .file, activateCommand: "luna.demo.sidebar.roadmap"),
-            ],
-            isSelectable: false
-        ),
+    public static let demoProjectDescriptor = LunaProjectDescriptor(
+        id: "luna-ui",
+        title: "Luna-UI",
+        rootPath: "/demo/Luna-UI",
+        displayPath: "Luna-UI"
+    )
+
+    public static let demoWorkspaceFiles: [LunaFileDescriptor] = [
+        LunaFileDescriptor(id: "overview", path: "/demo/Luna-UI/Demo/Overview.swift", displayPath: "Demo/Overview.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "editor", path: "/demo/Luna-UI/Sources/LunaUI/LunaStaticTextView.swift", displayPath: "Sources/LunaUI/LunaStaticTextView.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "theme", path: "/demo/Luna-UI/Demo/Theme.json", displayPath: "Demo/Theme.json", projectID: "luna-ui", syntaxName: "JSON"),
+        LunaFileDescriptor(id: "document-buffer", path: "/demo/Luna-UI/Sources/LunaUI/LunaDocumentBuffer.swift", displayPath: "Sources/LunaUI/LunaDocumentBuffer.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "editor-shell", path: "/demo/Luna-UI/Sources/LunaUI/LunaEditorShell.swift", displayPath: "Sources/LunaUI/LunaEditorShell.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "completion-popup", path: "/demo/Luna-UI/Sources/LunaUI/LunaCompletionPopup.swift", displayPath: "Sources/LunaUI/LunaCompletionPopup.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "phase5a-tests", path: "/demo/Luna-UI/Tests/LunaUIPhase5ATests/LunaUIPhase5ATests.swift", displayPath: "Tests/LunaUIPhase5ATests/LunaUIPhase5ATests.swift", projectID: "luna-ui", syntaxName: "Swift"),
+        LunaFileDescriptor(id: "roadmap", path: "/demo/Luna-UI/docs/LUNA_UI_ROADMAP.md", displayPath: "docs/LUNA_UI_ROADMAP.md", projectID: "luna-ui", syntaxName: "Markdown"),
     ]
+
+    public static let demoWorkspaceSnapshot = LunaProjectTreeSnapshot(
+        projects: [demoProjectDescriptor],
+        roots: [
+            .project(
+                id: "workspace",
+                title: "Luna-UI",
+                projectID: "luna-ui",
+                children: [
+                    .folder(id: "open-documents", title: "Open Documents", projectID: "luna-ui", children: [
+                        .file(id: "file.overview", title: "Overview.swift", fileID: "overview", projectID: "luna-ui"),
+                        .file(id: "file.editor", title: "EditorSurface.swift", fileID: "editor", projectID: "luna-ui"),
+                        .file(id: "file.theme", title: "Theme.json", fileID: "theme", projectID: "luna-ui"),
+                    ]),
+                    .folder(id: "sources", title: "Sources", projectID: "luna-ui", children: [
+                        .folder(id: "luna-ui-module", title: "LunaUI", projectID: "luna-ui", children: [
+                            .file(id: "file.document-buffer", title: "LunaDocumentBuffer.swift", fileID: "document-buffer", projectID: "luna-ui"),
+                            .file(id: "file.editor-shell", title: "LunaEditorShell.swift", fileID: "editor-shell", projectID: "luna-ui"),
+                            .file(id: "file.completion-popup", title: "LunaCompletionPopup.swift", fileID: "completion-popup", projectID: "luna-ui"),
+                        ]),
+                        .folder(id: "test-app", title: "LunaUITestApp", projectID: "luna-ui", children: []),
+                    ]),
+                    .folder(id: "tests", title: "Tests", projectID: "luna-ui", children: [
+                        .file(id: "file.phase5a-tests", title: "LunaUIPhase5ATests.swift", fileID: "phase5a-tests", projectID: "luna-ui"),
+                    ]),
+                    .file(id: "file.roadmap", title: "LUNA_UI_ROADMAP.md", fileID: "roadmap", projectID: "luna-ui"),
+                ]
+            )
+        ],
+        version: 5
+    )
+
+    public static let demoWorkspaceState = LunaWorkspaceState(
+        snapshot: demoWorkspaceSnapshot,
+        fileDescriptors: demoWorkspaceFiles,
+        openFileIDs: ["overview", "editor", "theme"],
+        activeFileID: "editor",
+        selectedNodeID: "file.editor",
+        expandedNodeIDs: ["workspace", "open-documents", "sources", "luna-ui-module", "tests"]
+    )
+
+    public static var demoSidebarItems: [LunaSidebarItem] {
+        demoWorkspaceState.sidebarItems { node in
+            node.fileID.map { LunaCommandID(rawValue: "luna.demo.file.open.\($0.rawValue)") }
+        }
+    }
 
     public static let demoEditorShellState = LunaEditorShellState(
         tabStrip: LunaTabStripState(activeTabID: "editor"),
         sidebar: LunaSidebarState(
-            selectedItemID: "editor",
-            expandedItemIDs: ["workspace", "open-documents", "sources", "luna-ui", "tests"]
+            selectedItemID: "file.editor",
+            expandedItemIDs: ["workspace", "open-documents", "sources", "luna-ui-module", "tests"]
         ),
         isSidebarVisible: true,
         sidebarWidth: 236
@@ -1854,6 +2006,17 @@ public struct LunaCPUDemoScene {
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
         LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("P", modifiers: [.primary]), menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
+        LunaCommandDescriptor(id: "luna.demo.file.save", title: "Save Active Document", defaultKey: LunaKeyEquivalent("S", modifiers: [.primary]), menuPath: ["File"]),
+        LunaCommandDescriptor(id: "luna.demo.file.saveAll", title: "Save All Dirty Documents", defaultKey: LunaKeyEquivalent("S", modifiers: [.primary, .shift]), menuPath: ["File"]),
+        LunaCommandDescriptor(id: "luna.demo.file.close", title: "Close Active Document", defaultKey: LunaKeyEquivalent("W", modifiers: [.primary]), menuPath: ["File"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.overview", title: "Open Overview.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.editor", title: "Open EditorSurface.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.theme", title: "Open Theme.json", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.document-buffer", title: "Open LunaDocumentBuffer.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.editor-shell", title: "Open LunaEditorShell.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.completion-popup", title: "Open LunaCompletionPopup.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.phase5a-tests", title: "Open LunaUIPhase5ATests.swift", menuPath: ["Workspace"]),
+        LunaCommandDescriptor(id: "luna.demo.file.open.roadmap", title: "Open LUNA_UI_ROADMAP.md", menuPath: ["Workspace"]),
         LunaCommandDescriptor(id: "luna.demo.theme.blue", title: "Theme: Luna Demo Blue", defaultKey: nil, menuPath: ["Theme"]),
         LunaCommandDescriptor(id: "luna.demo.theme.moth", title: "Theme: Moth Obsidian Demo", defaultKey: nil, menuPath: ["Theme"]),
         LunaCommandDescriptor(id: "luna.demo.theme.highContrast", title: "Theme: High Contrast Proof", defaultKey: nil, menuPath: ["Theme"]),
@@ -1918,7 +2081,11 @@ public struct LunaCPUDemoScene {
             LunaMenuDefinition(id: "file", title: "File", items: [
                 LunaMenuItem.command(id: "file.new", title: "New File", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("N", modifiers: [.primary])),
                 LunaMenuItem.separator(id: "file.sep.0"),
-                LunaMenuItem.command(id: "file.close", title: "Close Window", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("W", modifiers: [.primary]), isEnabled: false),
+                LunaMenuItem.command(id: "file.save", title: "Save", command: "luna.demo.file.save", keyEquivalent: LunaKeyEquivalent("S", modifiers: [.primary])),
+                LunaMenuItem.command(id: "file.saveAll", title: "Save All", command: "luna.demo.file.saveAll", keyEquivalent: LunaKeyEquivalent("S", modifiers: [.primary, .shift])),
+                LunaMenuItem.separator(id: "file.sep.1"),
+                LunaMenuItem.command(id: "file.closeDocument", title: "Close Document", command: "luna.demo.file.close", keyEquivalent: LunaKeyEquivalent("W", modifiers: [.primary])),
+                LunaMenuItem.command(id: "file.closeWindow", title: "Close Window", command: "luna.demo.notice", isEnabled: false),
             ]),
             LunaMenuDefinition(id: "edit", title: "Edit", items: [
                 LunaMenuItem.command(id: "edit.undo", title: "Undo", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("Z", modifiers: [.primary]), isEnabled: false),
@@ -2027,6 +2194,24 @@ public struct LunaCPUDemoScene {
     line_15: all of that comes later on top of this foundation
     """
 
+    public static func demoGeneratedWorkspaceText(title: String, phase: String, focus: String) -> String {
+        """
+        // \(title)
+        //
+        // This is a Phase 5C in-memory workspace-adapter fixture. The file was
+        // opened through LunaWorkspaceAdapter rather than hardcoded sidebar
+        // state, proving Luna can describe file/project boundaries before real
+        // Moth Text filesystem policy lands.
+
+        let phase = "\(phase)"
+        let focus = "\(focus)"
+
+        // Future work will replace this generated text with real disk-backed
+        // contents through a Moth-owned adapter. Luna should keep owning only
+        // neutral descriptors, requests, results, and projection helpers.
+        """
+    }
+
     /// Build the Phase 1 semantic widget for a framebuffer size. The demo render
     /// path and input path both call this helper, which keeps draw bounds and
     /// hit-test bounds identical.
@@ -2055,6 +2240,63 @@ public struct LunaCPUDemoScene {
     /// - Note: `DispatchTime.now()` is monotonic on Apple + Linux.
     public static func nowMonotonicNanoseconds() -> UInt64 {
         DispatchTime.now().uptimeNanoseconds
+    }
+}
+
+private struct LunaCPUDemoWorkspaceAdapter: LunaWorkspaceAdapter {
+    var snapshot: LunaProjectTreeSnapshot
+    var filesByID: [LunaFileID: LunaFileDescriptor]
+    var textsByFileID: [LunaFileID: String]
+
+    init(snapshot: LunaProjectTreeSnapshot, files: [LunaFileDescriptor], texts: [LunaFileID: String]) {
+        self.snapshot = snapshot
+        self.filesByID = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
+        self.textsByFileID = texts
+    }
+
+    static var demo: LunaCPUDemoWorkspaceAdapter {
+        LunaCPUDemoWorkspaceAdapter(
+            snapshot: LunaCPUDemoScene.demoWorkspaceSnapshot,
+            files: LunaCPUDemoScene.demoWorkspaceFiles,
+            texts: [
+                "overview": LunaCPUDemoScene.demoOverviewText,
+                "editor": LunaCPUDemoScene.demoText,
+                "theme": LunaCPUDemoScene.demoThemeDocumentText,
+                "document-buffer": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaDocumentBuffer.swift", phase: "Phase 5A", focus: "document identity and editable buffer state"),
+                "editor-shell": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaEditorShell.swift", phase: "Phase 4D", focus: "tabs, sidebar, status bar, and content-frame layout"),
+                "completion-popup": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaCompletionPopup.swift", phase: "Phase 4F", focus: "anchored completion list behavior"),
+                "phase5a-tests": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaUIPhase5ATests.swift", phase: "Phase 5A", focus: "document-store routing tests"),
+                "roadmap": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LUNA_UI_ROADMAP.md", phase: "Phase 5C", focus: "file/project adapter boundary"),
+            ]
+        )
+    }
+
+    mutating func projectTreeSnapshot() -> LunaProjectTreeSnapshot {
+        snapshot
+    }
+
+    mutating func openFile(_ request: LunaWorkspaceOpenRequest) -> LunaWorkspaceOpenResult {
+        guard let file = filesByID[request.fileID], let text = textsByFileID[request.fileID] else {
+            return LunaWorkspaceOpenResult(statusMessage: "Workspace file not found: \(request.fileID.rawValue)")
+        }
+        return LunaWorkspaceOpenResult(file: file, text: text, statusMessage: "Phase 5C opened \(file.title) through workspace adapter")
+    }
+
+    mutating func saveDocument(_ request: LunaDocumentSaveRequest) -> LunaDocumentSaveResult {
+        guard let fileID = request.fileID, let file = filesByID[fileID] else {
+            return LunaDocumentSaveResult(outcome: .noDestination, documentID: request.documentID, statusMessage: "Phase 5C save needs a destination for \(request.title)")
+        }
+        textsByFileID[fileID] = request.text
+        return .saved(request, file: file, statusMessage: "Phase 5C saved \(request.title) through workspace adapter")
+    }
+}
+
+private extension String {
+    var lunaDemoOpenFileID: LunaFileID? {
+        let prefix = "luna.demo.file.open."
+        guard hasPrefix(prefix) else { return nil }
+        let id = String(dropFirst(prefix.count))
+        return id.isEmpty ? nil : LunaFileID(rawValue: id)
     }
 }
 

@@ -276,16 +276,17 @@ The current checkpoint has:
 - Phase 4F product-neutral completion popup foundation implemented with caret/anchor positioning, app-supplied completion items, selected rows, detail text, keyboard/pointer activation, insertion/command payloads, theme-driven geometry, visible demo labels/details, and accessibility list/list-item nodes;
 - Phase 5A real document / buffer integration implemented with product-neutral document descriptors, open buffer storage, active-document routing, per-document caret/selection/scroll preservation, dirty tracking from editable text revisions, shell-tab projection, and demo tabs/sidebar rows that switch the actual editor buffer;
 - Phase 5B product-neutral command runtime implemented with command context, dynamic availability, key binding matching, surface projection, runtime handler execution against an app-owned host, and demo menu/palette/context/keyboard dispatch through one command path;
+- Phase 5C file/project adapter boundary implemented with product-neutral file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save contracts, dirty-close policy, and an in-memory demo adapter proving file/project seams without real Moth policy;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 5C — Sidebar Data Adapters
+Phase 5D — Real File I/O Proof
 ```
 
-Phase 5B is complete. The next step is to add product-neutral sidebar data adapters that can map app/project trees into Luna sidebar rows while preserving expanded and selected state across refreshes.
+Phase 5C is complete. The next step is to put a narrow real-file proof behind the adapter boundary while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -351,6 +352,10 @@ Phase 5 editor-surface deepening tests:
 ```bash
 swift build --target LunaUIPhase5ATests
 swift test --filter LunaUIPhase5ATests
+swift build --target LunaUIPhase5BTests
+swift test --filter LunaUIPhase5BTests
+swift build --target LunaUIPhase5CTests
+swift test --filter LunaUIPhase5CTests
 ```
 
 Full Linux check:

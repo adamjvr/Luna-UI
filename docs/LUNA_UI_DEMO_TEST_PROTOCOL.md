@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5B product-neutral command runtime.
+This protocol is the standing manual regression checklist for the demo app after Phase 5C file / project adapter boundary.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -57,6 +57,35 @@ Boundary rule:
 LunaCommands owns descriptor/availability/keymap/runtime plumbing.
 LunaUITestApp owns demo handlers.
 Moth will later provide its own handlers and policy.
+```
+
+---
+
+## Workspace / Project Adapter Protocol
+
+Phase 5C adds the product-neutral file/project adapter boundary. The demo still uses an in-memory adapter, but the sidebar tree, open-file behavior, Save, Save All, and dirty close policy now flow through Luna workspace descriptors and request/result contracts instead of hardcoded demo-only sidebar commands.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Open the app at rest | Sidebar tree is projected from a `LunaProjectTreeSnapshot`, not hand-built static sidebar rows. |
+| Click `Sources > LunaUI > LunaDocumentBuffer.swift` | The file opens through `LunaWorkspaceAdapter` and becomes the active editor document. |
+| Click `Sources > LunaUI > LunaEditorShell.swift` | A different adapter-backed document opens/activates. |
+| Click `docs > LUNA_UI_ROADMAP.md` / roadmap row | Markdown fixture opens through the same file-open command shape. |
+| Type into an opened file | Active document becomes dirty while other documents remain unchanged. |
+| `File > Save` | Active dirty document is saved through `LunaDocumentSaveRequest` / `LunaDocumentSaveResult`; dirty indicator clears. |
+| Modify multiple documents then `File > Save All` | All dirty demo documents are saved through the adapter boundary. |
+| `File > Close Document` on clean closable doc | Document closes through dirty-close policy. |
+| `File > Close Document` on dirty doc | Demo reports the save-prompt decision instead of silently closing. |
+| Status bar | Includes project/workspace metadata plus active document metadata. |
+
+Boundary rule:
+
+```text
+Luna owns file/project IDs, descriptors, tree snapshots, adapter contracts, and projection helpers.
+The demo adapter owns fake file contents.
+Moth will later own real filesystem/project policy behind the same seam.
 ```
 
 ---

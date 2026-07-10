@@ -1118,23 +1118,46 @@ theme/sidebar/tab checked states come from command runtime surface projection
 command handlers still live in LunaUITestApp, proving Luna owns machinery but not product policy
 ```
 
-### Phase 5C — Sidebar Data Adapters
+### Phase 5C — File / Project Adapter Boundary
+
+Status: complete.
+
+Phase 5C builds the product-neutral seam between Luna editor/document surfaces and application-owned file/project policy. Luna still does not perform real filesystem I/O, choose save prompts, walk project folders, filter ignored files, or become Moth Text. It owns the descriptor/request/result shapes and projection helpers that a product adapter can feed.
+
+Completed scope:
+
+- `LunaFileID`, `LunaProjectID`, and `LunaWorkspaceNodeID` typed identities;
+- `LunaFileReference`, `LunaFileDescriptor`, and `LunaProjectDescriptor` metadata models;
+- `LunaProjectTreeNode` and `LunaProjectTreeSnapshot` for project/sidebar data snapshots;
+- project-tree to `LunaSidebarItem` projection helpers with app-owned command generation;
+- `LunaWorkspaceState` for known files, open file IDs, active file ID, selected node, and expanded node state;
+- `LunaWorkspaceAdapter` protocol shape with open-file, save-document, and project-tree snapshot operations;
+- `LunaWorkspaceOpenRequest`/`LunaWorkspaceOpenResult`;
+- `LunaDocumentSaveRequest`/`LunaDocumentSaveResult`;
+- dirty-document close request/resolution/policy models;
+- document-store helpers for opening/activating file descriptors, save requests, save-result application, dirty IDs, and close requests;
+- demo integration using an in-memory workspace adapter so sidebar rows can open file-backed document buffers and Save/Save All can clear dirty state through the adapter boundary.
+
+Phase 5C demo proof:
+
+```text
+sidebar tree comes from LunaProjectTreeSnapshot projection
+clicking a workspace file row opens or activates a document through LunaWorkspaceAdapter
+File > Save clears active dirty state through LunaDocumentSaveRequest/Result
+File > Save All clears all dirty demo documents through the same adapter seam
+File > Close Document consults dirty-close policy before closing
+status bar includes project/workspace metadata without Luna owning project policy
+```
+
+### Phase 5D — Real File I/O Proof
 
 Scope:
 
-- map app/project trees into `LunaSidebarItem` values;
-- preserve expanded/selected row state across refreshes;
-- prepare for file icons/symbol icons once display-list text/icon support matures.
-
-### Phase 5D — Minimap / Scrollbar Lane
-
-Scope:
-
-- minimap placeholder rendering;
-- scrollbar lane;
-- viewport indicator;
-- theme tokens;
-- pointer hit testing for scroll thumb/minimap viewport later.
+- provide a narrow app-owned local-file adapter behind the Phase 5C contracts;
+- open a real UTF-8 text file into `LunaDocumentStore`;
+- save active and dirty documents back through adapter results;
+- surface file errors as command execution status instead of crashing;
+- keep LunaUI free of Moth-specific project policy, preferences, and UI prompts.
 
 ### Phase 5E — Tab Overflow and Split/Panes
 
@@ -1201,7 +1224,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5C — Sidebar Data Adapters
+Phase 5D — Real File I/O Proof
 ```
 
-Phase 5B is complete. Phase 5C should add product-neutral adapter helpers that map app/project trees into `LunaSidebarItem` values while preserving expanded/selected row state across refreshes. Real file I/O and Moth-specific project policy still belong above Luna.
+Phase 5C is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter boundary. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
