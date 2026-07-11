@@ -1478,3 +1478,21 @@ Definition of done:
 - application scenes consume only normalized Luna events and framebuffers;
 - host initialization failures return explicit non-zero codes;
 - the CPU renderer remains the correctness path.
+
+### Phase 5E.2 — Document/View Adapter Seams
+
+**Status:** implemented in this iteration.
+
+Deliverables:
+
+- immutable text-storage snapshots with stable document identity and revision;
+- absolute UTF-8 range access at the storage boundary;
+- independent document-view presentation state and revision invalidation;
+- injected find-result provider and product-session contracts;
+- tests proving two views retain independent caret/selection/scroll state over
+  one shared document;
+- public bitmap diagnostic text rendering for downstream Luna application
+  bring-up without copying test-app internals.
+
+The next Luna milestone is Phase 5F tab overflow, pinned tabs, and generic
+split/pane mechanics. Product editor-group and cloned-view policy remains Moth-owned.

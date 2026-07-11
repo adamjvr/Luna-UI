@@ -219,3 +219,24 @@ Before adding more editor-shell behavior, establish the layered boundary in code
 - retain all current demo behavior and performance baselines.
 
 Only after this boundary pass should tab overflow, pinned-tab refinement, and split/pane work proceed. Those features will then land in the correct reusable component layer rather than hardening accidental monolithic APIs.
+
+## Phase 5E.2 adapter boundary
+
+The optional document/editor component layer now exposes value snapshots rather
+than retaining application buffers:
+
+```text
+Application-owned source buffer
+    -> LunaTextStorageAdapter
+        -> LunaTextStorageSnapshot
+            -> reusable Luna text views and panels
+```
+
+A `LunaDocumentViewPresentationState` belongs to one presentation, not to the
+shared document. Caret, selection, preferred column, scroll state, and observed
+revision therefore remain independent when multiple views consume the same
+snapshot identity.
+
+Find presentation follows the same rule. `LunaFindResultsProviding` supplies
+results, and `LunaFindPanelSession` receives semantic actions. Luna does not own
+source-editor scanning indexes, replacement transactions, or undo grouping.

@@ -216,3 +216,29 @@ framework demo and downstream consumers exercise one host implementation.
 
 This is the first concrete Phase 5E extraction seam and enables Moth Text M0.2
 to open a real Luna-rendered Linux application window.
+
+---
+
+## Phase 5E.2 — Document/View Adapter Seams
+
+**Status: complete in this revision.**
+
+Phase 5E.2 adds the product-neutral boundary needed for downstream editors to
+share one authoritative document across independent presentations without
+turning Luna's proof text model into a product source buffer.
+
+Delivered:
+
+- `LunaTextStorageAdapter` and immutable `LunaTextStorageSnapshot` values;
+- typed absolute UTF-8 storage ranges and monotonic content revisions;
+- independent `LunaDocumentViewPresentationState` values with view identity,
+  caret, selection, preferred column, scroll state, and observed revision;
+- per-view revision invalidation and coordinate clamping after shared content
+  changes;
+- injected `LunaFindResultsProviding` and `LunaFindPanelSession` contracts so
+  scanning, replacement, transaction, and undo policy can stay application-owned;
+- a public CPU debug bitmap-text renderer for downstream graphical bring-up;
+- regression tests proving one document can back two independent views.
+
+`LunaEditableTextDocument` remains a small deterministic reusable proof model.
+It is not the future Moth Text source buffer.

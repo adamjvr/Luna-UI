@@ -254,6 +254,59 @@ public enum LunaFindPanelAction: Hashable, Sendable {
     case replaceAll
 }
 
+
+/// Injected search provider used by the reusable panel state.
+///
+/// Luna ships a static-document provider for its proof model, while products may
+/// provide indexed, incremental, multi-buffer, or syntax-aware search without
+/// moving that policy into the panel implementation.
+public protocol LunaFindResultsProviding: Sendable {
+    func results(for query: LunaFindQuery) -> LunaFindResultSet
+}
+
+/// Default provider backed by Luna's deterministic proof scanner.
+public struct LunaStaticTextFindResultsProvider: LunaFindResultsProviding, Sendable {
+    public var document: LunaStaticTextDocument
+
+    public init(document: LunaStaticTextDocument) {
+        self.document = document
+    }
+
+    public func results(for query: LunaFindQuery) -> LunaFindResultSet {
+        LunaFindScanner.results(in: document, query: query)
+    }
+}
+
+/// Product-session response after Luna requests a find or replace action.
+public struct LunaFindSessionActionResult: Hashable, Sendable {
+    public var results: LunaFindResultSet
+    public var didChangeDocument: Bool
+    public var replacementCount: Int
+
+    public init(
+        results: LunaFindResultSet,
+        didChangeDocument: Bool = false,
+        replacementCount: Int = 0
+    ) {
+        self.results = results
+        self.didChangeDocument = didChangeDocument
+        self.replacementCount = max(0, replacementCount)
+    }
+}
+
+/// Optional product-owned find session behind Luna's panel presentation.
+///
+/// Applications decide how scanning, replacement, undo grouping, and document
+/// transactions work. Luna only owns panel state and forwards semantic actions.
+public protocol LunaFindPanelSession: LunaFindResultsProviding {
+    mutating func perform(
+        action: LunaFindPanelAction,
+        query: LunaFindQuery,
+        selectedMatch: LunaFindMatch?,
+        replacementText: String
+    ) -> LunaFindSessionActionResult
+}
+
 public struct LunaFindPanelInteractionResult: Hashable, Sendable {
     public var didConsumeEvent: Bool
     public var didDismiss: Bool
@@ -300,14 +353,48 @@ public struct LunaFindPanelState: Hashable, Sendable {
 
     public var query: LunaFindQuery { LunaFindQuery(text: queryText, options: options) }
 
-    public mutating func refreshResults(in document: LunaStaticTextDocument, preservingSelectionNear location: LunaTextLocation? = nil) {
-        var newResults = LunaFindScanner.results(in: document, query: query)
+    public mutating func refreshResults<P: LunaFindResultsProviding>(
+        using provider: P,
+        preservingSelectionNear location: LunaTextLocation? = nil
+    ) {
+        var newResults = provider.results(for: query)
         if let location {
             newResults = newResults.selectingMatch(containing: location)
-        } else if let old = results.selectedMatch, let candidate = newResults.matches.firstIndex(where: { $0.utf8Offset >= old.utf8Offset }) {
-            newResults = LunaFindResultSet(query: newResults.query, matches: newResults.matches, selectedMatchIndex: candidate)
+        } else if let old = results.selectedMatch,
+                  let candidate = newResults.matches.firstIndex(where: { $0.utf8Offset >= old.utf8Offset }) {
+            newResults = LunaFindResultSet(
+                query: newResults.query,
+                matches: newResults.matches,
+                selectedMatchIndex: candidate
+            )
         }
         results = newResults
+    }
+
+    public mutating func refreshResults(
+        in document: LunaStaticTextDocument,
+        preservingSelectionNear location: LunaTextLocation? = nil
+    ) {
+        refreshResults(
+            using: LunaStaticTextFindResultsProvider(document: document),
+            preservingSelectionNear: location
+        )
+    }
+
+    /// Forward a semantic panel action to a product-owned session.
+    @discardableResult
+    public mutating func perform<S: LunaFindPanelSession>(
+        _ action: LunaFindPanelAction,
+        using session: inout S
+    ) -> LunaFindSessionActionResult {
+        let result = session.perform(
+            action: action,
+            query: query,
+            selectedMatch: results.selectedMatch,
+            replacementText: replaceText
+        )
+        results = result.results
+        return result
     }
 
     public mutating func appendCommittedText(_ text: String) {
@@ -341,14 +428,27 @@ public struct LunaFindPanelState: Hashable, Sendable {
 }
 
 public extension LunaFindPanelState {
-    mutating func handleTextInput(_ event: LunaTextInputEvent, document: LunaStaticTextDocument) -> LunaFindPanelInteractionResult {
+    mutating func handleTextInput<P: LunaFindResultsProviding>(
+        _ event: LunaTextInputEvent,
+        provider: P
+    ) -> LunaFindPanelInteractionResult {
         guard !event.text.isEmpty else { return LunaFindPanelInteractionResult() }
         appendCommittedText(event.text)
-        refreshResults(in: document)
+        refreshResults(using: provider)
         return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
     }
 
-    mutating func handleKeyboardEvent(_ event: LunaKeyboardEvent, document: LunaStaticTextDocument) -> LunaFindPanelInteractionResult {
+    mutating func handleTextInput(
+        _ event: LunaTextInputEvent,
+        document: LunaStaticTextDocument
+    ) -> LunaFindPanelInteractionResult {
+        handleTextInput(event, provider: LunaStaticTextFindResultsProvider(document: document))
+    }
+
+    mutating func handleKeyboardEvent<P: LunaFindResultsProviding>(
+        _ event: LunaKeyboardEvent,
+        provider: P
+    ) -> LunaFindPanelInteractionResult {
         switch event.key {
         case .escape:
             return LunaFindPanelInteractionResult(didConsumeEvent: true, didDismiss: true)
@@ -357,7 +457,7 @@ public extension LunaFindPanelState {
             return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
         case .backspace:
             deleteBackwardInFocusedField()
-            refreshResults(in: document)
+            refreshResults(using: provider)
             return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
         case .enter:
             return LunaFindPanelInteractionResult(
@@ -368,6 +468,13 @@ public extension LunaFindPanelState {
         default:
             return LunaFindPanelInteractionResult()
         }
+    }
+
+    mutating func handleKeyboardEvent(
+        _ event: LunaKeyboardEvent,
+        document: LunaStaticTextDocument
+    ) -> LunaFindPanelInteractionResult {
+        handleKeyboardEvent(event, provider: LunaStaticTextFindResultsProvider(document: document))
     }
 
     mutating func selectNext() {
