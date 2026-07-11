@@ -241,6 +241,12 @@ public struct LunaCPUDemoScene {
     /// LunaUI primitives; the demo supplies fake documents/project/status data.
     private var editorShellState = LunaCPUDemoScene.demoEditorShellState
 
+
+    /// Phase 5F.1 product-neutral split/pane proof. The demo maps pane IDs to
+    /// presentation regions only; document/view cloning remains application
+    /// policy and is intentionally not encoded in LunaPaneContainer.
+    private var paneWorkspaceState = LunaCPUDemoScene.demoPaneWorkspaceState
+
     /// Phase 4B generic find/replace panel state. The state lives in the demo
     /// because the app owns when a find UI is open and which document it targets;
     /// LunaUI owns the reusable panel/search primitives.
@@ -481,6 +487,13 @@ public struct LunaCPUDemoScene {
             highlights: findHighlights(theme: renderTheme),
             theme: renderTheme,
             mode: demoMode
+        )
+
+        drawPaneContainerProof(
+            into: &fb,
+            state: paneWorkspaceState,
+            bounds: renderLayout.textViewBounds,
+            theme: renderTheme
         )
         if demoMode.usesProofGallerySurfaces {
             drawSemanticWidgetProof(
@@ -847,6 +860,46 @@ public struct LunaCPUDemoScene {
                     announcementTexts: result.requestedCommand == nil ? [] : ["Shell command activated"],
                     didChangeVisualState: result.didChangeState || result.requestedCommand != nil
                 )
+            }
+        }
+
+        // Phase 5F.1 pane routing. Divider presses resize the split and are
+        // consumed. Pane presses update active-pane routing but continue into
+        // the text surface so ordinary caret placement still works.
+        if event.button == .primary, event.phase == .down {
+            let paneBounds = Self.layout(for: framebufferSize, mode: demoMode).textViewBounds
+            let container = LunaPaneContainer(
+                id: "demo.phase5f1.panes",
+                bounds: paneBounds,
+                state: paneWorkspaceState,
+                theme: theme,
+                metrics: LunaPaneContainerMetrics(
+                    dividerThickness: 5,
+                    minimumPaneExtent: 80,
+                    activePaneBorderThickness: 2
+                )
+            )
+            let paneLayout = container.layout()
+            let hit = container.hitTest(event.location)
+            if paneLayout.dividerFrames.contains(where: { $0.nodeID == hit }) {
+                var state = paneWorkspaceState
+                let result = container.handlePointerEvent(event, state: &state)
+                paneWorkspaceState = state
+                if let split = result.resizedSplitID {
+                    lastInteractionStatus = "Phase 5F.1 resized split: \(split.rawValue)"
+                }
+                return LunaPointerActivationResult(
+                    event: event,
+                    hitNodeID: result.hitNodeID,
+                    requestedCommand: nil,
+                    announcementTexts: ["Split divider resized"],
+                    didChangeVisualState: result.didChangeState
+                )
+            }
+            if let pane = paneLayout.paneFrames.first(where: { $0.nodeID == hit }) {
+                if paneWorkspaceState.activate(pane.paneID) {
+                    lastInteractionStatus = "Phase 5F.1 active pane: \(pane.paneID.rawValue)"
+                }
             }
         }
 
@@ -2606,6 +2659,18 @@ public struct LunaCPUDemoScene {
         sidebarWidth: 236
     )
 
+
+    public static let demoPaneWorkspaceState = LunaPaneWorkspaceState(
+        root: .split(
+            id: "demo.primary-split",
+            axis: .horizontal,
+            fraction: 0.68,
+            first: .pane("demo.editor.primary"),
+            second: .pane("demo.editor.secondary")
+        ),
+        activePaneID: "demo.editor.primary"
+    )
+
     public static let demoDocumentStore = LunaDocumentStore(
         openDocuments: [
             LunaDocumentBuffer(
@@ -2982,6 +3047,47 @@ private func drawStaticTextViewProof(
             w: caretRect.w,
             h: caretRect.h,
             color: theme.ui.editor.caret
+        )
+    }
+}
+
+/// Draw the Phase 5F.1 split-container proof over the editor surface.
+///
+/// The divider and active-pane border are real LunaPaneContainer output. Small
+/// pane labels remain demo-font annotations until display-list text lands.
+private func drawPaneContainerProof(
+    into fb: inout LunaFramebuffer,
+    state: LunaPaneWorkspaceState,
+    bounds: LunaRectI,
+    theme: LunaTheme
+) {
+    guard !bounds.isEmpty else { return }
+    let container = LunaPaneContainer(
+        id: "demo.phase5f1.panes",
+        bounds: bounds,
+        state: state,
+        theme: theme,
+        metrics: LunaPaneContainerMetrics(
+            dividerThickness: 5,
+            minimumPaneExtent: 80,
+            activePaneBorderThickness: 2
+        )
+    )
+    var displayList = LunaDisplayList()
+    container.buildDisplayList(into: &displayList)
+    LunaCPURenderer().render(displayList: displayList, into: &fb)
+
+    for frame in container.layout().paneFrames {
+        let title = frame.paneID == state.activePaneID ? "ACTIVE PANE" : "SECONDARY PANE"
+        drawText5x7Color(
+            into: &fb,
+            x: frame.bounds.x + 8,
+            y: frame.bounds.y + 6,
+            text: title,
+            scale: 1,
+            color: frame.paneID == state.activePaneID
+                ? theme.ui.statusBar.accent
+                : theme.ui.editor.gutterForeground
         )
     }
 }

@@ -1,12 +1,19 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5D.3.2 proof-gallery frame-cache optimization.
+This document is the working checkpoint after Luna UI Phase 5F.1.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5D.3.2**.
+Luna UI is through **Phase 5F.1**.
+
+The newest paired-application contracts are:
+
+- Phase 5E.1 public SDL application lifecycle, now including an application-owned termination veto for unsaved-document workflows;
+- Phase 5E.2 immutable text-storage snapshots, independent document-view presentation state, revision invalidation, and injected find sessions;
+- Phase 5F.1 recursive pane trees, horizontal/vertical split geometry, active-pane state, visual and wrapping traversal, divider resizing, neutral pane command context, pinned tabs, deterministic tab overflow, and reusable overflow state;
+- a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
 
@@ -176,21 +183,21 @@ Luna does not yet have:
 - real project/document/tab persistence;
 - first-class portal/Win32/AppKit dialog providers beyond the current demo helper bridge;
 - native open/save panels inside LunaUI itself, which remains intentionally out of scope;
-- formal layered package/component boundaries between Luna foundation, general UI, optional document/editor components, and future Moth product code;
-- injected search/provider seams separating find-panel UI from product search and undo policy;
-- a proven shared-buffer / independent-view-state model;
-- tab overflow, pinned-tab refinement, and split/pane groundwork (deferred to Phase 5F after the boundary pass);
-- the actual Moth Text application target.
+- final physical SwiftPM target cuts for optional document/editor component libraries;
+- visible split-command chrome and full keyboard shortcut routing for pane operations;
+- a polished tab-overflow popup/list presentation beyond the reusable overflow state and geometry;
+- application-owned editor groups, cloned views, project persistence, and session persistence;
+- the actual Moth Text application target, which remains a separate repository by design.
 
 ---
 
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5E — Layered Component Boundary and Moth Extraction Seams
+Phase 5F.2 — Split/tab interaction polish and downstream integration hardening
 ```
 
-Phase 5D.3.2 is complete. The next phase is an architectural consolidation pass, not a rewrite: classify current editor-adjacent code into reusable optional Luna components versus Moth-owned policy, detach find/search presentation from product search semantics, establish shared-buffer/independent-view seams, and add dependency tests. Tab overflow, pinned-tab refinement, and split/pane groundwork move to Phase 5F so those APIs are built in the correct layer.
+Phase 5F.1 has established the product-neutral pane tree, split geometry, focus traversal, command context, pinned-tab, and overflow contracts. The next Luna slice should expose visible split actions and keyboard affordances, deepen overflow presentation, and harden these seams against Moth editor-group integration without importing product policy.
 
 ---
 
@@ -242,3 +249,21 @@ Delivered:
 
 `LunaEditableTextDocument` remains a small deterministic reusable proof model.
 It is not the future Moth Text source buffer.
+
+
+---
+
+## Phase 5F.1 — Pane and Tab Mechanics
+
+**Status: complete in this revision.**
+
+Delivered:
+
+- recursive `LunaPaneNode` trees with stable pane and split identities;
+- horizontal and vertical split layout with bounded fractions and minimum pane extents;
+- active-pane state, next/previous wrapping traversal, and visual directional traversal;
+- split insertion, removal/collapse, and reusable divider interaction;
+- neutral command-context projection carrying active and target pane IDs;
+- pinned-tab compact geometry, active-tab visibility, hidden-tab reporting, and overflow-button state;
+- regression tests proving Luna owns mechanics while applications own pane meaning;
+- an SDL scene termination veto so applications can cancel native window close for unsaved documents.

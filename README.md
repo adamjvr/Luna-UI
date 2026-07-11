@@ -348,16 +348,19 @@ The current checkpoint has:
 - Phase 5D.3 host dialog boundary implemented with neutral LunaHostCore dialog service request/result types, scripted test doubles, interactive Open… / Save As… / dirty-close routing in `LunaUITestApp`, Linux/macOS desktop-helper bridges, and a deliberate seam for future Luna-rendered file-management widgets without making LunaUI own OS dialog policy;
 - Phase 5D.3.1 proof-gallery animation pacing implemented with a LunaHostCore animation clock, clamped logical animation deltas, animation invalidation diagnostics, and cleanup of duplicate demo chrome drawing while keeping the default editor harness event-driven;
 - Phase 5D.3.2 proof-gallery frame-cache optimization implemented with animation-only static-frame reuse, explicit framebuffer copy support, and removal of reflection from the presenter pixel-upload path so the legacy moving-square stress proof stays smooth without changing editor-mode invalidation policy;
+- Phase 5E.1 reusable SDL application lifecycle implemented with a public downstream scene contract, normalized host events, invalidation-driven presentation, and an application-owned termination veto seam for unsaved-document policy;
+- Phase 5E.2 document/view adapter seams implemented with immutable UTF-8 snapshots, stable revisions, independent presentation state, injected find sessions, and public diagnostic bitmap text rendering;
+- Phase 5F.1 workspace mechanics implemented with recursive product-neutral pane trees, split geometry, active-pane routing, directional and wrapping focus traversal, divider resizing, pane command context, pinned-tab layout, deterministic tab overflow, and overflow presentation state;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
-The next implementation target is:
+The current implementation checkpoint is:
 
 ```text
-Phase 5E — Layered Component Boundary and Moth Extraction Seams
+Phase 5F.1 — Product-neutral pane, focus, pinned-tab, and overflow mechanics
 ```
 
-Phase 5D.3.2 is complete. The editor harness now covers the basic file lifecycle and the proof gallery has bounded animation timing plus static-frame caching. Before adding more editor-shell behavior, Phase 5E formalizes Luna as layered foundation, general UI, and optional document/editor component libraries; separates reusable editor anatomy from Moth product policy; and proves shared-buffer/independent-view seams. Tab overflow, pinned-tab refinement, and split/pane groundwork follow in Phase 5F.
+Luna now supplies reusable workspace anatomy while leaving document groups, cloned editor views, file policy, and product command semantics to Moth. The next Luna slice is Phase 5F.2: visible split commands, keyboard affordances, tab-overflow presentation polish, and integration hardening against Moth M2.2/M3 needs.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -429,6 +432,8 @@ swift build --target LunaUIPhase5CTests
 swift test --filter LunaUIPhase5CTests
 swift build --target LunaHostPhase5C1Tests
 swift test --filter LunaHostPhase5C1Tests
+swift build --target LunaUIPhase5F1Tests
+swift test --filter LunaUIPhase5F1Tests
 ```
 
 Full Linux check:

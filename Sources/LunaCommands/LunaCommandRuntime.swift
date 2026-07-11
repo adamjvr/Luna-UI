@@ -70,6 +70,16 @@ public enum LunaCommandContextAttributeKey {
     /// Optional target shell tab ID for UI-shell commands that need to preserve
     /// the exact tab frame that initiated the action.
     public static let targetShellTabID = "luna.target.shellTabID"
+
+
+    /// Product-neutral active pane identity projected by Luna's split-container
+    /// mechanics. Products remain responsible for mapping this string back to
+    /// their own editor-group or view objects.
+    public static let activePaneID = "luna.active.paneID"
+
+    /// Optional explicit pane target for commands initiated from pane chrome or
+    /// accessibility surfaces rather than the currently active pane.
+    public static let targetPaneID = "luna.target.paneID"
 }
 
 public extension LunaCommandContext {

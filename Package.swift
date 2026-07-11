@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "LunaInput", targets: ["LunaInput"]),
         .library(name: "LunaLayout", targets: ["LunaLayout"]),
         .library(name: "LunaRender", targets: ["LunaRender"]),
+        .library(name: "LunaTheme", targets: ["LunaTheme"]),
         .library(name: "LunaHostCore", targets: ["LunaHostCore"]),
         .library(name: "LunaHostSDL", targets: ["LunaHostSDL"]),
         .executable(name: "LunaUITestApp", targets: ["LunaUITestApp"]),
@@ -420,6 +421,19 @@ let package = Package(
             dependencies: [
                 "LunaInput",
                 "LunaUI",
+                "LunaRender",
+            ]
+        ),
+
+
+        .testTarget(
+            name: "LunaUIPhase5F1Tests",
+            dependencies: [
+                "LunaAccessibility",
+                "LunaCommands",
+                "LunaInput",
+                "LunaUI",
+                "LunaTheme",
                 "LunaRender",
             ]
         ),

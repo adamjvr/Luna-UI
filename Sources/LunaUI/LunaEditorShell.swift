@@ -106,16 +106,28 @@ public struct LunaTabStripState: Hashable, Sendable {
     public var pressedTabID: LunaShellTabID?
     public var pressedCloseTabID: LunaShellTabID?
 
+    /// Preferred starting index within the unpinned tab sequence when overflow
+    /// is present. Pinned tabs are never counted in this index.
+    public var firstVisibleUnpinnedTabIndex: Int
+
+    /// Whether the host should present its product-neutral overflow chooser.
+    /// Luna owns the toggle; the application chooses the menu/panel contents.
+    public var isOverflowPresented: Bool
+
     public init(
         activeTabID: LunaShellTabID? = nil,
         hoveredTabID: LunaShellTabID? = nil,
         pressedTabID: LunaShellTabID? = nil,
-        pressedCloseTabID: LunaShellTabID? = nil
+        pressedCloseTabID: LunaShellTabID? = nil,
+        firstVisibleUnpinnedTabIndex: Int = 0,
+        isOverflowPresented: Bool = false
     ) {
         self.activeTabID = activeTabID
         self.hoveredTabID = hoveredTabID
         self.pressedTabID = pressedTabID
         self.pressedCloseTabID = pressedCloseTabID
+        self.firstVisibleUnpinnedTabIndex = max(0, firstVisibleUnpinnedTabIndex)
+        self.isOverflowPresented = isOverflowPresented
     }
 
     public mutating func normalize(tabs: [LunaShellTab]) {
@@ -128,6 +140,37 @@ public struct LunaTabStripState: Hashable, Sendable {
         if let hoveredTabID, !ids.contains(hoveredTabID) { self.hoveredTabID = nil }
         if let pressedTabID, !ids.contains(pressedTabID) { self.pressedTabID = nil }
         if let pressedCloseTabID, !ids.contains(pressedCloseTabID) { self.pressedCloseTabID = nil }
+        let unpinnedCount = tabs.lazy.filter { !$0.isPinned }.count
+        firstVisibleUnpinnedTabIndex = min(firstVisibleUnpinnedTabIndex, max(0, unpinnedCount - 1))
+        if tabs.isEmpty { isOverflowPresented = false }
+    }
+
+    @discardableResult
+    public mutating func selectNextTab(in tabs: [LunaShellTab], wraps: Bool = true) -> LunaShellTabID? {
+        selectTab(in: tabs, delta: 1, wraps: wraps)
+    }
+
+    @discardableResult
+    public mutating func selectPreviousTab(in tabs: [LunaShellTab], wraps: Bool = true) -> LunaShellTabID? {
+        selectTab(in: tabs, delta: -1, wraps: wraps)
+    }
+
+    private mutating func selectTab(in tabs: [LunaShellTab], delta: Int, wraps: Bool) -> LunaShellTabID? {
+        guard !tabs.isEmpty else {
+            activeTabID = nil
+            return nil
+        }
+        let current = activeTabID.flatMap { id in tabs.firstIndex { $0.id == id } } ?? 0
+        let proposed = current + delta
+        let index: Int
+        if wraps {
+            index = (proposed % tabs.count + tabs.count) % tabs.count
+        } else {
+            index = min(max(0, proposed), tabs.count - 1)
+        }
+        activeTabID = tabs[index].id
+        isOverflowPresented = false
+        return activeTabID
     }
 }
 
@@ -305,6 +348,7 @@ public struct LunaEditorShellInteractionResult: Hashable, Sendable {
     public var hitNodeID: LunaNodeID?
     public var selectedTabID: LunaShellTabID?
     public var closedTabID: LunaShellTabID?
+    public var didToggleTabOverflow: Bool
     public var selectedSidebarItemID: LunaSidebarItemID?
     public var toggledSidebarItemID: LunaSidebarItemID?
     public var activatedStatusSegmentID: LunaStatusSegmentID?
@@ -316,6 +360,7 @@ public struct LunaEditorShellInteractionResult: Hashable, Sendable {
         hitNodeID: LunaNodeID? = nil,
         selectedTabID: LunaShellTabID? = nil,
         closedTabID: LunaShellTabID? = nil,
+        didToggleTabOverflow: Bool = false,
         selectedSidebarItemID: LunaSidebarItemID? = nil,
         toggledSidebarItemID: LunaSidebarItemID? = nil,
         activatedStatusSegmentID: LunaStatusSegmentID? = nil
@@ -326,6 +371,7 @@ public struct LunaEditorShellInteractionResult: Hashable, Sendable {
         self.hitNodeID = hitNodeID
         self.selectedTabID = selectedTabID
         self.closedTabID = closedTabID
+        self.didToggleTabOverflow = didToggleTabOverflow
         self.selectedSidebarItemID = selectedSidebarItemID
         self.toggledSidebarItemID = toggledSidebarItemID
         self.activatedStatusSegmentID = activatedStatusSegmentID
@@ -346,6 +392,8 @@ public struct LunaEditorShellMetrics: Hashable, Sendable {
     public var shellBorderWidth: Int
     public var tabMinWidth: Int
     public var tabMaxWidth: Int
+    public var pinnedTabWidth: Int
+    public var tabOverflowButtonWidth: Int
     public var tabHorizontalPadding: Int
     public var tabCloseSize: Int
     public var tabDirtySize: Int
@@ -366,6 +414,8 @@ public struct LunaEditorShellMetrics: Hashable, Sendable {
         shellBorderWidth: Int = 1,
         tabMinWidth: Int = 92,
         tabMaxWidth: Int = 210,
+        pinnedTabWidth: Int = 46,
+        tabOverflowButtonWidth: Int = 30,
         tabHorizontalPadding: Int = 12,
         tabCloseSize: Int = 12,
         tabDirtySize: Int = 5,
@@ -385,6 +435,8 @@ public struct LunaEditorShellMetrics: Hashable, Sendable {
         self.shellBorderWidth = max(0, shellBorderWidth)
         self.tabMinWidth = max(1, tabMinWidth)
         self.tabMaxWidth = max(tabMinWidth, tabMaxWidth)
+        self.pinnedTabWidth = max(1, pinnedTabWidth)
+        self.tabOverflowButtonWidth = max(1, tabOverflowButtonWidth)
         self.tabHorizontalPadding = max(0, tabHorizontalPadding)
         self.tabCloseSize = max(0, tabCloseSize)
         self.tabDirtySize = max(1, tabDirtySize)
@@ -432,6 +484,8 @@ public struct LunaEditorShellLayout: Hashable, Sendable {
     public var editorContentBounds: LunaRectI
     public var statusBarBounds: LunaRectI
     public var tabFrames: [LunaShellTabFrame]
+    public var hiddenTabIDs: [LunaShellTabID]
+    public var tabOverflowButtonBounds: LunaRectI?
     public var sidebarRows: [LunaSidebarRowFrame]
     public var statusSegments: [LunaStatusSegmentFrame]
 
@@ -446,6 +500,8 @@ public struct LunaEditorShellLayout: Hashable, Sendable {
     public func statusFrame(for nodeID: LunaNodeID) -> LunaStatusSegmentFrame? {
         statusSegments.first { $0.nodeID == nodeID }
     }
+
+    public var hasTabOverflow: Bool { !hiddenTabIDs.isEmpty }
 }
 
 // MARK: - Widget
@@ -501,6 +557,7 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
         let editorX = sidebar.x + sidebar.w
         let editor = LunaRectI(x: editorX, y: content.y, w: max(0, content.x + content.w - editorX), h: content.h)
 
+        let tabLayout = layoutTabs(in: tabStrip)
         return LunaEditorShellLayout(
             bounds: bounds,
             tabStripBounds: tabStrip,
@@ -508,7 +565,9 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
             sidebarHeaderBounds: sidebarHeader,
             editorContentBounds: editor,
             statusBarBounds: status,
-            tabFrames: layoutTabs(in: tabStrip),
+            tabFrames: tabLayout.frames,
+            hiddenTabIDs: tabLayout.hiddenTabIDs,
+            tabOverflowButtonBounds: tabLayout.overflowButtonBounds,
             sidebarRows: layoutSidebarRows(in: sidebar, belowHeader: sidebarHeader),
             statusSegments: layoutStatusSegments(in: status)
         )
@@ -568,6 +627,26 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
             }
         }
 
+
+        if let overflow = layout.tabOverflowButtonBounds {
+            let fill = state.tabStrip.isOverflowPresented
+                ? tabsStyle.activeBackground
+                : tabsStyle.inactiveBackground
+            displayList.append(.rect(overflow, fill.asRenderColor))
+            displayList.append(.rect(
+                LunaRectI(x: overflow.x, y: overflow.y + 4, w: 1, h: max(1, overflow.h - 8)),
+                tabsStyle.divider.asRenderColor
+            ))
+            let dotY = overflow.y + max(1, overflow.h / 2 - 1)
+            let startX = overflow.x + max(2, (overflow.w - 11) / 2)
+            for offset in [0, 4, 8] {
+                displayList.append(.rect(
+                    LunaRectI(x: startX + offset, y: dotY, w: 3, h: 3),
+                    tabsStyle.closeButton.asRenderColor
+                ))
+            }
+        }
+
         if metrics.shellBorderWidth > 0 {
             displayList.append(.rect(LunaRectI(x: bounds.x, y: layout.tabStripBounds.y + layout.tabStripBounds.h - metrics.shellBorderWidth, w: bounds.w, h: metrics.shellBorderWidth), chrome.separator.asRenderColor))
             displayList.append(.rect(LunaRectI(x: bounds.x, y: layout.statusBarBounds.y, w: bounds.w, h: metrics.shellBorderWidth), statusStyle.border.asRenderColor))
@@ -610,7 +689,7 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
                 role: .group,
                 label: "Tabs",
                 bounds: layout.tabStripBounds.asAccessibilityRect,
-                children: layout.tabFrames.map(\.nodeID),
+                children: layout.tabFrames.map(\.nodeID) + (layout.tabOverflowButtonBounds == nil ? [] : [tabOverflowNodeID]),
                 actions: [.focus]
             )
         )
@@ -640,6 +719,21 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
                     )
                 )
             }
+        }
+
+
+        if let overflow = layout.tabOverflowButtonBounds {
+            nodes.append(
+                LunaAccessibilityNode(
+                    id: tabOverflowNodeID,
+                    role: .button,
+                    label: "Show \(layout.hiddenTabIDs.count) hidden tabs",
+                    value: state.tabStrip.isOverflowPresented ? "expanded" : "collapsed",
+                    bounds: overflow.asAccessibilityRect,
+                    isFocused: state.tabStrip.isOverflowPresented,
+                    actions: [.press, .focus]
+                )
+            )
         }
 
         if !layout.sidebarBounds.isEmpty {
@@ -696,6 +790,10 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
 
     public func hitTest(_ point: LunaPointI) -> LunaNodeID? {
         let layout = layout()
+        if let overflow = layout.tabOverflowButtonBounds,
+           overflow.contains(x: point.x, y: point.y) {
+            return tabOverflowNodeID
+        }
         for tab in layout.tabFrames.reversed() {
             if let closeID = tab.closeNodeID, let closeBounds = tab.closeButtonBounds, closeBounds.contains(x: point.x, y: point.y) {
                 return closeID
@@ -740,6 +838,16 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
         case .down:
             guard event.button == .primary else {
                 return LunaEditorShellInteractionResult(didConsumeEvent: hit != nil && hit != editorContentNodeID, hitNodeID: hit)
+            }
+
+            if hit == tabOverflowNodeID, layout.hasTabOverflow {
+                mutableState.tabStrip.isOverflowPresented.toggle()
+                return LunaEditorShellInteractionResult(
+                    didConsumeEvent: true,
+                    didChangeState: true,
+                    hitNodeID: hit,
+                    didToggleTabOverflow: true
+                )
             }
 
             if let tab = hitTab {
@@ -822,6 +930,7 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
     }
 
     public var tabStripNodeID: LunaNodeID { id.child("tabs") }
+    public var tabOverflowNodeID: LunaNodeID { tabStripNodeID.child("overflow") }
     public var sidebarNodeID: LunaNodeID { id.child("sidebar") }
     public var editorContentNodeID: LunaNodeID { id.child("editor") }
     public var statusBarNodeID: LunaNodeID { id.child("status") }
@@ -842,20 +951,81 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
         id.child("status-segment").child(stableComponent(segmentID.rawValue))
     }
 
-    private func layoutTabs(in bounds: LunaRectI) -> [LunaShellTabFrame] {
-        guard !bounds.isEmpty, !tabs.isEmpty else { return [] }
-        let available = max(1, bounds.w)
-        let desired = min(metrics.tabMaxWidth, max(metrics.tabMinWidth, available / max(1, tabs.count)))
+    private func layoutTabs(
+        in bounds: LunaRectI
+    ) -> (
+        frames: [LunaShellTabFrame],
+        hiddenTabIDs: [LunaShellTabID],
+        overflowButtonBounds: LunaRectI?
+    ) {
+        guard !bounds.isEmpty, !tabs.isEmpty else { return ([], [], nil) }
+
+        let indexedTabs = Array(tabs.enumerated())
+        let pinned = indexedTabs.filter { $0.element.isPinned }
+        let unpinned = indexedTabs.filter { !$0.element.isPinned }
+        let desiredRegularWidth = min(
+            metrics.tabMaxWidth,
+            max(metrics.tabMinWidth, bounds.w / max(1, tabs.count))
+        )
+        let desiredPinnedWidth = metrics.pinnedTabWidth
+        let allDesiredWidth = pinned.count * desiredPinnedWidth + unpinned.count * desiredRegularWidth
+        let hasOverflow = allDesiredWidth > bounds.w
+        let overflowWidth = hasOverflow ? min(metrics.tabOverflowButtonWidth, bounds.w) : 0
+        let tabsWidth = max(0, bounds.w - overflowWidth)
+
+        let pinnedWidth: Int
+        if pinned.isEmpty {
+            pinnedWidth = 0
+        } else if hasOverflow {
+            pinnedWidth = min(desiredPinnedWidth, max(1, tabsWidth / pinned.count))
+        } else {
+            pinnedWidth = desiredPinnedWidth
+        }
+        let pinnedConsumed = min(tabsWidth, pinnedWidth * pinned.count)
+        let regularAvailable = max(0, tabsWidth - pinnedConsumed)
+
+        let visibleUnpinned: [(offset: Int, element: LunaShellTab)]
+        if !hasOverflow {
+            visibleUnpinned = unpinned
+        } else if regularAvailable <= 0 || unpinned.isEmpty {
+            visibleUnpinned = []
+        } else {
+            let visibleCount = min(
+                unpinned.count,
+                max(1, regularAvailable / max(1, metrics.tabMinWidth))
+            )
+            var start = min(
+                max(0, state.tabStrip.firstVisibleUnpinnedTabIndex),
+                max(0, unpinned.count - visibleCount)
+            )
+            if let activeID = state.tabStrip.activeTabID,
+               let activeIndex = unpinned.firstIndex(where: { $0.element.id == activeID }) {
+                if activeIndex < start {
+                    start = activeIndex
+                } else if activeIndex >= start + visibleCount {
+                    start = activeIndex - visibleCount + 1
+                }
+            }
+            visibleUnpinned = Array(unpinned[start..<min(unpinned.count, start + visibleCount)])
+        }
+
+        let visibleIDs = Set((pinned + visibleUnpinned).map { $0.element.id })
+        let hiddenIDs = tabs.filter { !visibleIDs.contains($0.id) }.map(\.id)
+        let regularWidth = visibleUnpinned.isEmpty
+            ? 0
+            : min(metrics.tabMaxWidth, max(1, regularAvailable / visibleUnpinned.count))
+
         var frames: [LunaShellTabFrame] = []
         var x = bounds.x
-        for (index, tab) in tabs.enumerated() {
-            guard x < bounds.x + bounds.w else { break }
-            let remaining = bounds.x + bounds.w - x
-            let width = min(desired, remaining)
-            guard width > 0 else { break }
+
+        func appendFrame(index: Int, tab: LunaShellTab, width proposedWidth: Int, compactPinned: Bool) {
+            guard x < bounds.x + tabsWidth else { return }
+            let remaining = bounds.x + tabsWidth - x
+            let width = min(max(1, proposedWidth), remaining)
+            guard width > 0 else { return }
             let frameBounds = LunaRectI(x: x, y: bounds.y, w: width, h: bounds.h)
             let closeBounds: LunaRectI?
-            if tab.isClosable && width >= metrics.tabMinWidth {
+            if tab.isClosable && !compactPinned && width >= metrics.tabMinWidth {
                 closeBounds = LunaRectI(
                     x: frameBounds.x + frameBounds.w - metrics.tabHorizontalPadding - metrics.tabCloseSize,
                     y: frameBounds.y + max(1, (frameBounds.h - metrics.tabCloseSize) / 2),
@@ -866,10 +1036,19 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
                 closeBounds = nil
             }
             let dirtyBounds = tab.isDirty
-                ? LunaRectI(x: frameBounds.x + 7, y: frameBounds.y + max(1, (frameBounds.h - metrics.tabDirtySize) / 2), w: metrics.tabDirtySize, h: metrics.tabDirtySize)
+                ? LunaRectI(
+                    x: frameBounds.x + 7,
+                    y: frameBounds.y + max(1, (frameBounds.h - metrics.tabDirtySize) / 2),
+                    w: metrics.tabDirtySize,
+                    h: metrics.tabDirtySize
+                )
                 : nil
-            let leftInset = metrics.tabHorizontalPadding + (tab.isDirty ? metrics.tabDirtySize + 5 : 0)
-            let rightInset = metrics.tabHorizontalPadding + (closeBounds == nil ? 0 : metrics.tabCloseSize + 6)
+            let leftInset = compactPinned
+                ? max(4, (frameBounds.w - metrics.glyphMetrics.advance) / 2)
+                : metrics.tabHorizontalPadding + (tab.isDirty ? metrics.tabDirtySize + 5 : 0)
+            let rightInset = compactPinned
+                ? max(4, frameBounds.w - leftInset - metrics.glyphMetrics.advance)
+                : metrics.tabHorizontalPadding + (closeBounds == nil ? 0 : metrics.tabCloseSize + 6)
             let titleBounds = LunaRectI(
                 x: frameBounds.x + leftInset,
                 y: frameBounds.y + max(0, (frameBounds.h - metrics.glyphMetrics.glyphHeight) / 2),
@@ -890,7 +1069,29 @@ public struct LunaEditorShell: LunaWidget, Hashable, Sendable {
             )
             x += width
         }
-        return frames
+
+        // Preserve the application's tab order. Pinning affects visibility and
+        // compact width, not semantic ordering; this keeps existing tab indices,
+        // hit targets, and command routing stable while overflow is introduced.
+        for item in indexedTabs where visibleIDs.contains(item.element.id) {
+            let compactPinned = item.element.isPinned
+            appendFrame(
+                index: item.offset,
+                tab: item.element,
+                width: compactPinned ? pinnedWidth : regularWidth,
+                compactPinned: compactPinned
+            )
+        }
+
+        let overflowBounds = hasOverflow
+            ? LunaRectI(
+                x: bounds.x + bounds.w - overflowWidth,
+                y: bounds.y,
+                w: overflowWidth,
+                h: bounds.h
+            )
+            : nil
+        return (frames, hiddenIDs, overflowBounds)
     }
 
     private func layoutSidebarRows(in bounds: LunaRectI, belowHeader header: LunaRectI) -> [LunaSidebarRowFrame] {

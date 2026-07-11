@@ -44,6 +44,11 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
 public protocol LunaSDLApplicationScene {
     var wantsContinuousRendering: Bool { get }
 
+    /// Gives the application a synchronous opportunity to cancel native-window
+    /// termination, for example while an unsaved-document confirmation is
+    /// active. Hosts remain product-neutral: the scene owns all close policy.
+    mutating func shouldTerminate() -> Bool
+
     mutating func handleHostEvent(
         _ event: LunaHostInputEvent,
         framebufferSize: LunaSizeI
@@ -60,6 +65,7 @@ public protocol LunaSDLApplicationScene {
 
 public extension LunaSDLApplicationScene {
     var wantsContinuousRendering: Bool { false }
+    mutating func shouldTerminate() -> Bool { true }
 
     mutating func updateFrameRuntimeDiagnostics(
         timingStats: LunaFrameTimingStats,
@@ -135,7 +141,11 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
             didReceiveEvent = true
 
             if case .quit = event {
-                running = false
+                if scene.shouldTerminate() {
+                    running = false
+                } else {
+                    pendingInvalidations.insert(.input)
+                }
                 continue
             }
 

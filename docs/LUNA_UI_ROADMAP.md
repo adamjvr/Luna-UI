@@ -1358,7 +1358,7 @@ Phase 5D.3.2 deliverables:
 
 ### Phase 5E — Layered Component Boundary and Moth Extraction Seams
 
-Status: next.
+Status: **complete through Phase 5E.2**.
 
 Purpose: formalize the new Luna family-of-libraries paradigm before additional editor-shell behavior hardens accidental monolithic APIs.
 
@@ -1388,7 +1388,20 @@ Definition of done:
 
 ### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
-Scope:
+Status: **Phase 5F.1 implemented; Phase 5F.2 remains.**
+
+Phase 5F.1 delivered:
+
+- recursive product-neutral pane and split identities;
+- horizontal/vertical layout and divider geometry;
+- active-pane state, wrapping traversal, and directional traversal by visual geometry;
+- split insertion, removal/collapse, and bounded divider resizing;
+- product-neutral command context projection for active and target panes;
+- pinned-tab compact layout, active-tab visibility, hidden-tab reporting, and reusable overflow presentation state;
+- host termination veto support so product dirty-document policy can cancel native window close;
+- regression tests and a LunaUITestApp split-pane proof.
+
+Remaining Phase 5F.2 scope:
 
 - overflow behavior when tabs exceed strip width;
 - pinned-tab layout and interaction refinement;
@@ -1453,10 +1466,10 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5E — Layered Component Boundary and Moth Extraction Seams
+Phase 5F.2 — Split/tab interaction polish and downstream integration hardening
 ```
 
-Phase 5D.3.2 is complete. Before tab overflow and split/pane APIs expand, Phase 5E should formalize Luna as a layered family of foundation, general UI, and optional document/editor component libraries. The phase preserves all working behavior, separates reusable component anatomy from Moth product policy, introduces buffer/view seams, and prepares Phase 5F tab/split work to land in the correct layer.
+Phase 5F.1 establishes the reusable pane tree, geometry, focus, command-target, pinned-tab, and overflow contracts. Phase 5F.2 should add visible split actions and keyboard affordances, polish overflow presentation, and harden those contracts against the next Moth workspace/editor-group slice without moving Moth policy into Luna.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 
@@ -1494,5 +1507,5 @@ Deliverables:
 - public bitmap diagnostic text rendering for downstream Luna application
   bring-up without copying test-app internals.
 
-The next Luna milestone is Phase 5F tab overflow, pinned tabs, and generic
-split/pane mechanics. Product editor-group and cloned-view policy remains Moth-owned.
+Phase 5F.1 now supplies the generic mechanics. Phase 5F.2 will deepen the
+interaction layer while product editor-group and cloned-view policy remains Moth-owned.

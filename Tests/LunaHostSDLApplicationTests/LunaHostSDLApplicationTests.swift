@@ -37,9 +37,10 @@ final class LunaHostSDLApplicationTests: XCTestCase {
         XCTAssertFalse(configuration.usesVSync)
     }
 
-    func testSceneDefaultsToInvalidationDrivenRendering() {
+    func testSceneDefaultsToInvalidationDrivenRenderingAndAllowsTermination() {
         var scene = DefaultScene()
         XCTAssertFalse(scene.wantsContinuousRendering)
+        XCTAssertTrue(scene.shouldTerminate())
 
         var framebuffer = LunaFramebuffer(width: 2, height: 2)
         scene.render(into: &framebuffer)
