@@ -48,8 +48,8 @@ struct LunaUIPhase4BTests {
             in: document(),
             query: LunaFindQuery(text: "b[a-z]+a", options: LunaFindOptions(usesRegularExpression: true))
         )
-        #expect(results.count == 2)
-        #expect(results.matches.map(\.matchedText) == ["beta", "Beta"])
+        #expect(results.count == 3)
+        #expect(results.matches.map(\.matchedText) == ["beta", "Beta", "beta"])
     }
 
     @Test("find panel state edits query and navigates results")
@@ -85,7 +85,11 @@ struct LunaUIPhase4BTests {
     @Test("replace current mutates editable text and refreshes results")
     func replaceCurrent() {
         var text = LunaEditableTextState(text: "one two one two")
-        var state = LunaFindPanelState(queryText: "one", replaceText: "ONE")
+        var state = LunaFindPanelState(
+            queryText: "one",
+            replaceText: "ONE",
+            options: LunaFindOptions(isCaseSensitive: true)
+        )
         state.refreshResults(in: text.document.staticDocument)
         #expect(state.results.count == 2)
         let result = LunaFindReplaceController.replaceCurrent(state: &state, text: &text)

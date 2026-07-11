@@ -1457,3 +1457,24 @@ Phase 5E — Layered Component Boundary and Moth Extraction Seams
 ```
 
 Phase 5D.3.2 is complete. Before tab overflow and split/pane APIs expand, Phase 5E should formalize Luna as a layered family of foundation, general UI, and optional document/editor component libraries. The phase preserves all working behavior, separates reusable component anatomy from Moth product policy, introduces buffer/view seams, and prepares Phase 5F tab/split work to land in the correct layer.
+
+### Phase 5E.1 — Reusable SDL Application Lifecycle
+
+**Status:** implemented in this iteration.
+
+Deliverables:
+
+- public `LunaHostSDL` SwiftPM product;
+- reusable `LunaSDLApplicationConfiguration`;
+- reusable `LunaSDLApplicationScene` contract;
+- reusable invalidation-driven SDL event loop;
+- LunaUITestApp migrated away from its private host loop;
+- host configuration and scene-default tests.
+
+Definition of done:
+
+- LunaUITestApp still opens and runs until its window closes;
+- a downstream package can create a Luna window without importing SDL2;
+- application scenes consume only normalized Luna events and framebuffers;
+- host initialization failures return explicit non-zero codes;
+- the CPU renderer remains the correctness path.

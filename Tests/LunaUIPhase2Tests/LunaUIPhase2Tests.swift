@@ -433,7 +433,7 @@ final class LunaUIPhase2CThemeTests: XCTestCase {
 
     func testControlStyleCanBeBuiltFromThemeHexTokens() {
         var ui = LunaUIThemeColors.lunaDefaultDark
-        ui.panelBackground = .hex("#101112")
+        ui.panel.background = .hex("#101112")
         ui.controlColors.hoveredBackground = .hex("#ABCDEF")
         ui.controlColors.selectedForeground = .hex("#010203")
 

@@ -526,3 +526,10 @@ Command-request stdout logging is disabled by default. Enable it only when debug
 ```bash
 LUNA_DEMO_DEBUG_COMMANDS=1 swift run LunaUITestApp
 ```
+
+### Reusable Linux Application Host
+
+`LunaHostSDL` now exposes the same invalidation-driven Linux window lifecycle
+used by `LunaUITestApp`. Downstream applications provide a platform-neutral
+`LunaSDLApplicationScene`; Luna owns SDL initialization, input normalization,
+framebuffer presentation, resizing, pacing, and shutdown.

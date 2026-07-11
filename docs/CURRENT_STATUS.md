@@ -191,3 +191,28 @@ Phase 5E — Layered Component Boundary and Moth Extraction Seams
 ```
 
 Phase 5D.3.2 is complete. The next phase is an architectural consolidation pass, not a rewrite: classify current editor-adjacent code into reusable optional Luna components versus Moth-owned policy, detach find/search presentation from product search semantics, establish shared-buffer/independent-view seams, and add dependency tests. Tab overflow, pinned-tab refinement, and split/pane groundwork move to Phase 5F so those APIs are built in the correct layer.
+
+---
+
+## Phase 5E.1 — Reusable SDL Application Host
+
+Phase 5E.1 extracts the Linux SDL lifecycle from `LunaUITestApp` into the
+public `LunaHostSDL` package product.
+
+The reusable host now owns:
+
+- SDL initialization and shutdown;
+- native window creation and destruction;
+- normalized Luna input polling and coalescing;
+- framebuffer creation and resize handling;
+- invalidation-driven frame scheduling;
+- CPU framebuffer presentation;
+- frame timing diagnostics;
+- event-loop lifetime through window close.
+
+Applications provide a `LunaSDLApplicationScene` and remain independent of raw
+SDL APIs. `LunaUITestApp` now uses this same public path, ensuring that the
+framework demo and downstream consumers exercise one host implementation.
+
+This is the first concrete Phase 5E extraction seam and enables Moth Text M0.2
+to open a real Luna-rendered Linux application window.

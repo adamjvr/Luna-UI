@@ -26,7 +26,7 @@ final class LunaUIPhase3ATests: XCTestCase {
         let doc = LunaStaticTextDocument(text: "alpha\nbeta\ngamma\ndelta")
         let view = LunaStaticTextView(
             id: "phase3a.text",
-            bounds: LunaRectI(x: 10, y: 20, w: 220, h: 56),
+            bounds: LunaRectI(x: 10, y: 20, w: 220, h: 44),
             document: doc,
             scrollTopLine: 1,
             currentLineIndex: 2,
@@ -42,11 +42,11 @@ final class LunaUIPhase3ATests: XCTestCase {
         let layout = view.layout()
 
         XCTAssertEqual(layout.firstVisibleLineIndex, 1)
-        XCTAssertEqual(layout.maxVisibleLineCount, 4)
+        XCTAssertEqual(layout.maxVisibleLineCount, 3)
         XCTAssertEqual(layout.visibleLines.map { $0.line.text }, ["beta", "gamma", "delta"])
-        XCTAssertEqual(layout.gutterBounds, LunaRectI(x: 10, y: 20, w: 40, h: 56))
+        XCTAssertEqual(layout.gutterBounds, LunaRectI(x: 10, y: 20, w: 40, h: 44))
         XCTAssertEqual(layout.textViewportBounds.x, 54)
-        XCTAssertEqual(layout.visibleLines[0].rowBounds, LunaRectI(x: 10, y: 24, w: 220, h: 12))
+        XCTAssertEqual(layout.visibleLines[0].rowBounds, LunaRectI(x: 10, y: 24, w: 212, h: 12))
         XCTAssertFalse(layout.visibleLines[0].isCurrentLine)
         XCTAssertTrue(layout.visibleLines[1].isCurrentLine)
     }

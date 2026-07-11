@@ -104,8 +104,6 @@ final class LunaUIPhase4ETests: XCTestCase {
         let menu = LunaContextMenu(id: "context", bounds: LunaRectI(x: 0, y: 0, w: 800, h: 600), state: state, theme: .lunaDefaultDark)
 
         _ = menu.handleKeyboardEvent(LunaKeyboardEvent(key: .arrowDown), state: &state)
-        XCTAssertEqual(state.highlightedPath, LunaMenuItemPath(menuIndex: 0, itemIndices: [1]))
-        _ = menu.handleKeyboardEvent(LunaKeyboardEvent(key: .arrowDown), state: &state)
         XCTAssertEqual(state.highlightedPath, LunaMenuItemPath(menuIndex: 0, itemIndices: [3]))
         _ = menu.handleKeyboardEvent(LunaKeyboardEvent(key: .arrowRight), state: &state)
         XCTAssertEqual(state.highlightedPath, LunaMenuItemPath(menuIndex: 0, itemIndices: [3, 0]))

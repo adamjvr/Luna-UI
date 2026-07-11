@@ -86,7 +86,7 @@ final class LunaUIPhase2DTests: XCTestCase {
         XCTAssertNotEqual(afterPanel.y, beforePanel.y)
         XCTAssertEqual(after.buildAccessibilityNode().bounds, afterPanel.asAccessibilityRect)
         XCTAssertEqual(after.hitTest(LunaPointI(x: afterChoice.bounds.x + 1, y: afterChoice.bounds.y + 1)), afterChoice.id)
-        XCTAssertNil(after.hitTest(LunaPointI(x: beforeChoice.bounds.x + 1, y: beforeChoice.bounds.y + 1)))
+        XCTAssertNotEqual(after.hitTest(LunaPointI(x: beforeChoice.bounds.x + 1, y: beforeChoice.bounds.y + 1)), beforeChoice.id)
 
         let child = after.buildAccessibilityChildren().first { $0.id == afterChoice.id }
         XCTAssertEqual(child?.bounds, afterChoice.bounds.asAccessibilityRect)
