@@ -18,6 +18,7 @@ The project direction is split into two roadmap documents:
 - [`docs/MOTH_TEXT_ROADMAP.md`](docs/MOTH_TEXT_ROADMAP.md) — editor-product roadmap for Moth Text.
 - [`docs/LUNA_UI_DEMO_TEST_PROTOCOL.md`](docs/LUNA_UI_DEMO_TEST_PROTOCOL.md) — current LunaUITestApp manual regression protocol.
 - [`docs/LUNA_LAYERED_ARCHITECTURE.md`](docs/LUNA_LAYERED_ARCHITECTURE.md) — governing boundary between Luna foundation, general UI, optional document/editor components, and Moth product policy.
+- [`docs/PAIRED_ITERATION_PROTOCOL.md`](docs/PAIRED_ITERATION_PROTOCOL.md) — required Luna-first build, test, commit, and Moth submodule-consumption workflow.
 
 The short version:
 
