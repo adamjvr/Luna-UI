@@ -1,12 +1,12 @@
 # Luna UI
 
-**Luna UI** is a from-scratch, cross-platform UI and rendering engine written in Swift. It is the foundational UI layer for **Moth Text**, a future Sublime-class text editor, but Luna is intentionally designed as a standalone reusable engine that can power other applications.
+**Luna UI** is a from-scratch, cross-platform family of UI, rendering, text, document, and developer-tool libraries written in Swift. It is the foundational UI stack for **Moth Text**, a future Sublime-class text editor, while remaining reusable for unrelated desktop applications.
 
 This repository is **not Moth Text**.
 
-This repository is the engine.
+This repository is the shared Luna stack.
 
-Luna UI owns the reusable infrastructure that a serious custom editor needs: rendering, layout, text shaping, input routing, theming, widgets, accessibility semantics, commands, modal overlays, and platform hosting. Moth Text will sit above Luna and define the editor product behavior.
+Luna owns reusable mechanisms: rendering, layout, text shaping, input routing, theming, widgets, accessibility semantics, commands, overlays, platform hosting, and optional document/editor-oriented components. Moth sits above Luna and owns editor meaning, workflow, compatibility, and product policy. Editor-adjacent functionality is welcome in Luna when it is optional, product-neutral, and usable by other applications.
 
 ---
 
@@ -17,12 +17,14 @@ The project direction is split into two roadmap documents:
 - [`docs/LUNA_UI_ROADMAP.md`](docs/LUNA_UI_ROADMAP.md) — engine/runtime roadmap for Luna UI.
 - [`docs/MOTH_TEXT_ROADMAP.md`](docs/MOTH_TEXT_ROADMAP.md) — editor-product roadmap for Moth Text.
 - [`docs/LUNA_UI_DEMO_TEST_PROTOCOL.md`](docs/LUNA_UI_DEMO_TEST_PROTOCOL.md) — current LunaUITestApp manual regression protocol.
+- [`docs/LUNA_LAYERED_ARCHITECTURE.md`](docs/LUNA_LAYERED_ARCHITECTURE.md) — governing boundary between Luna foundation, general UI, optional document/editor components, and Moth product policy.
 
 The short version:
 
 ```text
-Luna UI   = reusable Swift UI/runtime/rendering/accessibility engine
-Moth Text = Sublime-class editor product built on Luna UI
+Luna Foundation/General UI = reusable runtime, rendering, widgets, accessibility
+Luna Document/Editor UI    = optional reusable document and developer-tool components
+Moth Text                  = Sublime-class editor product and compatibility policy
 ```
 
 The roadmap is intentionally broken into implementation gates. Recent work showed that broad phases like “modal overlays” hide too much detail. The repo now tracks subphases such as pointer routing, modal interaction polish, host-boundary cleanup, theme customization, layout/reflow, and accessibility bounds validation.
@@ -53,20 +55,23 @@ Rather than fight those frameworks, Luna owns the stack.
 
 ```text
 Moth Text
-  Editor application, documents, projects, commands, packages, Sublime compatibility.
+  Source-editor behavior, production buffers, projects, settings, packages, Sublime compatibility.
 
-Luna UI
-  Reusable UI/runtime engine: widgets, overlays, focus, commands, accessibility.
+Luna Document / Editor Components
+  Optional reusable text surfaces, document workspaces, search UI, gutters, completion, diff/log tools.
 
-Luna Render / Text / Theme / Host
-  Rendering, shaping, styling, and platform-specific host bridges.
+Luna General UI
+  Reusable widgets, layouts, overlays, menus, focus, commands, and accessibility.
+
+Luna Foundation / Render / Text / Theme / Host
+  Core identities, rendering, shaping, styling, and platform-specific host bridges.
 ```
 
-Moth Text defines **what** the editor does.
+Moth Text defines **what the editor means and how its product workflow behaves**.
 
-Luna UI defines **how** it is drawn, interacted with, hosted, themed, and exposed semantically.
+Luna defines **the reusable mechanisms and optional component anatomy** used to draw, interact with, host, theme, and expose applications semantically.
 
-This means Moth should not own the renderer, SDL/AppKit/Metal imports, accessibility bridge, generic overlays, command palette UI, completion popup UI, menus, or platform event loop. Those belong in Luna.
+This means Moth should not own renderer backends, SDL/AppKit/Metal imports, accessibility bridges, generic overlays, command-palette UI, completion-popup UI, menus, or the platform event loop. Luna may also ship optional reusable editor-adjacent components, but Moth retains production source-buffer behavior, multiple-cursor semantics, project/session policy, language services, and Sublime compatibility.
 
 ---
 
@@ -348,10 +353,10 @@ The current checkpoint has:
 The next implementation target is:
 
 ```text
-Phase 5E — Tab Overflow and Split/Panes
+Phase 5E — Layered Component Boundary and Moth Extraction Seams
 ```
 
-Phase 5D.3.2 is complete. The editor harness now covers the basic file lifecycle with host-dialog behavior, and proof-gallery mode has both bounded logical animation timing and an animation-only static-frame cache. The moving-square stress proof no longer forces the full editor shell, sidebar, status rows, and text viewport to rebuild every vsync when no UI state changed. Filesystem path policy, OS dialog integration, and demo-only animation/cache surfaces remain app-owned in `LunaUITestApp`/host code; LunaUI still owns only product-neutral document/workspace/dialog request seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
+Phase 5D.3.2 is complete. The editor harness now covers the basic file lifecycle and the proof gallery has bounded animation timing plus static-frame caching. Before adding more editor-shell behavior, Phase 5E formalizes Luna as layered foundation, general UI, and optional document/editor component libraries; separates reusable editor anatomy from Moth product policy; and proves shared-buffer/independent-view seams. Tab overflow, pinned-tab refinement, and split/pane groundwork follow in Phase 5F.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

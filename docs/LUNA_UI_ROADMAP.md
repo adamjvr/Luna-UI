@@ -1,6 +1,6 @@
 # Luna UI Roadmap
 
-Luna UI is the Swift-native application engine underneath Moth Text. It is not a wrapper around SwiftUI, AppKit widgets, GTK, Qt, Electron, or a web stack. Luna owns the editor-facing UI stack: input, layout, paint, rendering, accessibility semantics, commands, themes, overlays, widgets, and platform hosting.
+Luna is the Swift-native custom application stack underneath Moth Text and a reusable family of libraries for other desktop applications. It is not a wrapper around SwiftUI, AppKit widgets, GTK, Qt, Electron, or a web stack. Luna owns reusable mechanisms: input, layout, paint, rendering, accessibility semantics, commands, themes, overlays, widgets, platform hosting, and optional document/editor-oriented components. Moth owns source-editor meaning, workflow, compatibility, and product policy.
 
 This roadmap merges the original Luna UI goals with the HybX / Hybrid RobotiX architecture pass and the Sublime Text visual references collected for Moth Text. The original Luna goals remain intact: custom rendering, text shaping, GPU rendering with CPU fallback, cross-platform parity, Sublime-style theme compatibility, and a public reusable API. The HybX influence adds the semantic runtime spine: accessibility from day one, typed commands, widget identity, modal overlays, live announcements, and a hard boundary between app policy and platform glue.
 
@@ -15,7 +15,7 @@ Luna UI is:
 - a from-scratch UI and rendering engine written in Swift;
 - a reusable engine, not the Moth Text application itself;
 - cross-platform by design, with macOS and Linux as first-class targets;
-- custom-drawn and editor-first;
+- custom-drawn and application-general, with unusually strong document/editor capabilities;
 - accessibility-first, command-driven, and semantically structured;
 - renderer-backend independent, with CPU as correctness reference and GPU as production direction;
 - visually shaped by the goal of building a Sublime-class editor.
@@ -25,7 +25,7 @@ Luna UI is not:
 - a SwiftUI app;
 - an AppKit clone;
 - a GTK/Qt/Electron wrapper;
-- a general-purpose consumer UI toolkit;
+- a native-control wrapper or lowest-common-denominator consumer toolkit;
 - a place for Moth-specific editor policy;
 - a place for platform C APIs to leak upward into app/editor code.
 
@@ -133,11 +133,21 @@ LunaHostSDL
 LunaHostMetal
   macOS Metal renderer/host path. Metal/AppKit imports stay here.
 
-LunaUI
-  Widgets, layout, focus, overlays, menus, prompts, status bars, UI context.
+LunaUI / future LunaWidgets
+  General widgets, layout, focus, overlays, menus, prompts, status bars, UI context.
+
+Optional Luna document/developer component targets
+  Reusable editable text, document workspaces, gutters, search panels, completion,
+  diff/log/console and other editor-adjacent components. These may begin inside
+  LunaUI but must remain logically separable and optional.
+
+Moth targets (separate product repository/targets)
+  Production source buffers, editor transactions, multi-cursor behavior, projects,
+  sessions, syntax, packages, language services, and Sublime compatibility.
 
 LunaUITestApp
-  Proof application only. It exercises Luna the way Moth will use Luna, but it does not become the engine.
+  Proof application only. It exercises Luna the way Moth and other apps will use
+  Luna, but it does not become the engine or own public product policy.
 ```
 
 ---
@@ -1346,14 +1356,46 @@ Phase 5D.3.2 deliverables:
 - keep default editor mode event/invalidation driven;
 - add regression coverage for raw framebuffer byte-count access and full-buffer pixel copying.
 
-### Phase 5E — Tab Overflow and Split/Panes
+### Phase 5E — Layered Component Boundary and Moth Extraction Seams
+
+Status: next.
+
+Purpose: formalize the new Luna family-of-libraries paradigm before additional editor-shell behavior hardens accidental monolithic APIs.
+
+This is an extraction and contract phase, not a rewrite. All current demo features and performance behavior must remain working.
+
+Scope:
+
+- classify current `LunaUI` types as foundation/general UI, optional document/editor component, or Moth-policy risk;
+- document and test the dependency direction defined in `docs/LUNA_LAYERED_ARCHITECTURE.md`;
+- separate generic find/search panel presentation from document scanning, replacement policy, and editor undo integration;
+- explicitly scope `LunaEditableTextDocument` as a lightweight reusable text model rather than the future Moth production source buffer;
+- establish generic text-storage/document-view protocols where they reduce coupling without speculative abstraction;
+- prove buffer-versus-view separation so two editor views can share a document while retaining independent caret/selection/scroll state;
+- rename or narrow editor-shell APIs whose names or state imply Moth product policy;
+- identify future optional SwiftPM target cuts such as `LunaTextEditing`, `LunaDocumentUI`, and `LunaEditorComponents`, without requiring all physical moves in one commit;
+- add architecture tests preventing Luna foundation/general UI from depending on Moth/product layers;
+- preserve the default editor harness, proof gallery, file I/O proof, dialogs, and frame-cache performance baseline.
+
+Definition of done:
+
+- no current feature is deleted merely for being editor-adjacent;
+- reusable editor anatomy has a documented optional Luna home;
+- Moth-owned semantics are named and isolated behind seams;
+- one buffer can back two independent view states in tests;
+- find-panel UI can operate against an injected provider/session rather than owning product search policy;
+- the next tab/split work has an agreed target layer and does not deepen `LunaUI` monolith coupling.
+
+### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
 Scope:
 
 - overflow behavior when tabs exceed strip width;
-- pinned-tab layout refinement;
-- future split panes / multiple editor groups;
-- keyboard-accessible tab traversal.
+- pinned-tab layout and interaction refinement;
+- generic split-container and pane identity groundwork;
+- keyboard-accessible tab and pane traversal;
+- active pane/group routing through product-neutral context;
+- tests proving that Luna owns pane mechanics while Moth will own editor-group and cloned-view policy.
 
 ---
 
@@ -1411,7 +1453,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5E — Tab Overflow and Split/Panes
+Phase 5E — Layered Component Boundary and Moth Extraction Seams
 ```
 
-Phase 5D.3.2 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, has a repeatable public-domain file corpus, covers the basic new/open/save/save-as/dirty-close file lifecycle through a host dialog boundary, and keeps proof-gallery animation isolated and cached outside editor-mode performance policy: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.
+Phase 5D.3.2 is complete. Before tab overflow and split/pane APIs expand, Phase 5E should formalize Luna as a layered family of foundation, general UI, and optional document/editor component libraries. The phase preserves all working behavior, separates reusable component anatomy from Moth product policy, introduces buffer/view seams, and prepares Phase 5F tab/split work to land in the correct layer.

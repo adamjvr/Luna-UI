@@ -2,7 +2,7 @@
 
 Moth Text is the end-user editor product. Its long-term goal is to become a Swift-native, Sublime-class text editor with clean-room Sublime compatibility and additional modern features.
 
-Moth Text is built on Luna UI. Luna owns the reusable custom UI/runtime layer, renderer, text shaping infrastructure, accessibility tree, overlay system, platform hosts, and theme primitives. Moth owns editor product behavior: documents, buffers, commands, projects, settings policy, packages, compatibility importers, user-facing editor workflow, and product-specific theme choices.
+Moth Text is built on the Luna family of libraries. Luna owns the reusable custom UI/runtime layer, renderer, text shaping infrastructure, accessibility tree, overlay system, platform hosts, theme primitives, and optional product-neutral document/editor components. Moth owns production source buffers, source-editor transactions and selections, commands, projects, settings policy, sessions, language services, packages, compatibility importers, user-facing editor workflow, and product-specific theme choices.
 
 This split is the central design decision.
 
@@ -33,11 +33,16 @@ Moth Text is not:
 ## Relationship to Luna UI
 
 ```text
-Luna UI owns:
-  widgets, overlays, focus, layout, host input, accessibility, rendering, themes.
+Luna foundation/general UI owns:
+  rendering, widgets, overlays, focus, layout, host input, accessibility, themes.
+
+Optional Luna document/editor components own:
+  reusable text surfaces, gutters, search UI, document workspaces, completion,
+  diff/log/console and other product-neutral editor anatomy.
 
 Moth Text owns:
-  editor behavior, documents, commands, projects, settings, packages, compatibility.
+  production source buffers, editor behavior, multi-cursor transactions, projects,
+  sessions, settings, language services, packages, and Sublime compatibility.
 ```
 
 Sublime-like UI surfaces should be implemented using Luna primitives:
@@ -45,11 +50,11 @@ Sublime-like UI surfaces should be implemented using Luna primitives:
 ```text
 Command Palette      Luna quick panel + Moth command registry
 Goto Anything        Luna quick panel + Moth project/file/symbol index
-Find/Replace         Luna bottom panel + Moth find engine
+Find/Replace         Luna panel/component + optional generic provider + Moth find policy
 Completion Popup     Luna anchored popup + Moth completion providers
 Menus                Luna menu model + Moth command descriptors
 Status Bar           Luna status widget + Moth status policy
-Tabs/Splits          Luna layout widgets + Moth document/workspace model
+Tabs/Splits          Luna tab/pane mechanics + Moth editor-group/session policy
 Themes               LunaTheme + Moth/Sublime compatibility importers
 Syntax               Moth syntax model + Luna text/render pipeline
 Multiple Cursors     MothTextCore model + Luna text view rendering
@@ -432,17 +437,14 @@ Moth Text succeeds when:
 
 ## Current Luna Dependency
 
-Before serious Moth implementation, Luna should finish at least:
+Luna has completed the original minimum UI/text prerequisites and now provides a file-backed editor harness, commands, menus, overlays, tabs, document descriptors, and host dialog seams. Before bootstrapping the real Moth target, Luna should complete:
 
 ```text
-Luna Phase 2D — Layout, Resize, and Accessibility Reflow
-Luna Phase 2D.2 — Universal Bounded Text and Control Reflow
-Luna Phase 3A — Static Accessible Text View
-Luna Phase 3B — Caret Geometry and Static Selection Model
-Luna Phase 3C — Text View Scroll and Viewport
+Luna Phase 5E — Layered Component Boundary and Moth Extraction Seams
+Luna Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 ```
 
-Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware, scrollable text surface. Luna now also has locked product-neutral visual tokens, so Moth color work should map onto those token groups from Moth/app code instead of hardcoding colors into editor widgets.
+Phase 5E is the critical gate. It establishes which current editor-adjacent features remain optional Luna components and which semantics must be recreated in Moth. Moth design may continue in parallel, but production Moth buffers and editor policy must not be implemented inside LunaUI simply because the demo currently exercises similar behavior.
 
 
 ---

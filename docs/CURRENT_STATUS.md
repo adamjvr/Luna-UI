@@ -176,7 +176,10 @@ Luna does not yet have:
 - real project/document/tab persistence;
 - first-class portal/Win32/AppKit dialog providers beyond the current demo helper bridge;
 - native open/save panels inside LunaUI itself, which remains intentionally out of scope;
-- tab overflow, pinned-tab refinement, and split/pane groundwork;
+- formal layered package/component boundaries between Luna foundation, general UI, optional document/editor components, and future Moth product code;
+- injected search/provider seams separating find-panel UI from product search and undo policy;
+- a proven shared-buffer / independent-view-state model;
+- tab overflow, pinned-tab refinement, and split/pane groundwork (deferred to Phase 5F after the boundary pass);
 - the actual Moth Text application target.
 
 ---
@@ -184,7 +187,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5E — Tab Overflow and Split/Panes
+Phase 5E — Layered Component Boundary and Moth Extraction Seams
 ```
 
-Phase 5D.3.2 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text. Proof-gallery mode remains a stress/regression harness and should stay isolated from default editor performance policy; its continuous animation path now uses demo-owned cache/pacing rather than pushing proof-gallery render cost into the editor baseline.
+Phase 5D.3.2 is complete. The next phase is an architectural consolidation pass, not a rewrite: classify current editor-adjacent code into reusable optional Luna components versus Moth-owned policy, detach find/search presentation from product search semantics, establish shared-buffer/independent-view seams, and add dependency tests. Tab overflow, pinned-tab refinement, and split/pane groundwork move to Phase 5F so those APIs are built in the correct layer.
