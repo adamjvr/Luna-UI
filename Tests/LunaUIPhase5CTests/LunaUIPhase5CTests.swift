@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MPL-2.0
 import XCTest
+import Foundation
 import LunaCommands
 import LunaCore
 @testable import LunaUI
@@ -167,6 +168,62 @@ final class LunaUIPhase5CTests: XCTestCase {
         XCTAssertTrue(save.didSave)
         XCTAssertEqual(adapter.texts["main"], "print(2)")
     }
+
+
+    func testPublicDomainDemoCorpusManifestMatchesCheckedInFiles() throws {
+        let corpusRoot = Self.repositoryRoot.appendingPathComponent("Examples/PublicDomainDemoFiles", isDirectory: true)
+        let manifestURL = corpusRoot.appendingPathComponent("manifest.json")
+        let manifestData = try Data(contentsOf: manifestURL)
+        let manifestObject = try JSONSerialization.jsonObject(with: manifestData)
+        guard let manifest = manifestObject as? [String: Any],
+              let entries = manifest["files"] as? [[String: Any]] else {
+            return XCTFail("manifest.json should contain a files array")
+        }
+
+        XCTAssertEqual(manifest["encoding"] as? String, "UTF-8")
+        XCTAssertEqual(entries.count, 13)
+
+        var manifestPaths = Set<String>()
+        for entry in entries {
+            guard let path = entry["path"] as? String,
+                  let expectedBytes = entry["bytes"] as? Int,
+                  let expectedSHA256 = entry["sha256"] as? String else {
+                return XCTFail("invalid manifest entry: \(entry)")
+            }
+            XCTAssertFalse(path.contains(".."), "manifest paths should stay inside the corpus")
+            XCTAssertFalse(path.hasPrefix("/"), "manifest paths should be relative")
+            XCTAssertEqual(expectedSHA256.count, 64, "SHA-256 should be recorded for \(path)")
+            manifestPaths.insert(path)
+
+            let fileURL = corpusRoot.appendingPathComponent(path)
+            let fileData = try Data(contentsOf: fileURL)
+            XCTAssertEqual(fileData.count, expectedBytes, "byte count should match manifest for \(path)")
+            XCTAssertNotNil(String(data: fileData, encoding: .utf8), "fixture should be UTF-8: \(path)")
+        }
+
+        let discoveredTextFiles = try FileManager.default
+            .subpathsOfDirectory(atPath: corpusRoot.path)
+            .filter { $0.hasSuffix(".txt") }
+        let unlistedTextFiles = Set(discoveredTextFiles).subtracting(manifestPaths)
+        XCTAssertTrue(unlistedTextFiles.isEmpty, "all .txt demo fixtures should be listed in manifest: \(unlistedTextFiles.sorted())")
+    }
+
+    func testPublicDomainDemoCorpusReadmeDocumentsLaunchCommands() throws {
+        let readmeURL = Self.repositoryRoot.appendingPathComponent("Examples/PublicDomainDemoFiles/README.md")
+        let readme = try String(contentsOf: readmeURL, encoding: .utf8)
+
+        XCTAssertTrue(readme.contains("--open-demo-corpus=largest"))
+        XCTAssertTrue(readme.contains("scripts/run-demo-corpus.sh"))
+        XCTAssertTrue(readme.contains("scripts/verify-public-domain-demo-files.py"))
+    }
+
+    private static var repositoryRoot: URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+    }
+
     func testWorkspaceStateSyncClearsActiveFileWhenDocumentStoreIsEmpty() {
         var workspace = LunaWorkspaceState(
             snapshot: makeSnapshot(),

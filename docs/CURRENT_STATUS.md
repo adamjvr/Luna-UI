@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5D real file I/O proof.
+This document is the working checkpoint after Phase 5D.1 public-domain demo corpus integration.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5D**.
+Luna UI is through **Phase 5D.1**.
 
 The engine now has:
 
@@ -45,7 +45,8 @@ The engine now has:
 - a split demo harness with editor mode as the default Moth-like performance baseline, proof-gallery mode for earlier visual/stress proofs, pointer-motion coalescing at the host boundary, state-change-based pointer invalidation, quiet command logging by default, input coalescing diagnostics, and proof-era surfaces removed from the default hot path;
 - targeted tab/document close routing that keeps the command product-neutral while carrying a clicked/right-clicked target document through `LunaCommandContext`, reuses dirty-close policy for tab close buttons and tab context menus, and synchronizes document/workspace/shell state after closing a clean document;
 - repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license;
-- a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral.
+- a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral;
+- a Phase 5D.1 checked-in public-domain demo corpus under `Examples/PublicDomainDemoFiles`, manifest verification tooling, launch helpers, and `--open-demo-corpus` selection flags for repeatable real-file editor demos.
 
 ---
 
@@ -155,6 +156,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5C.2.1 — Targeted Tab / Document Close Routing: complete.
 - Phase 5C.2.2 — MPL-2.0 License Migration: complete.
 - Phase 5D — Real File I/O Proof: complete.
+- Phase 5D.1 — Public-Domain Demo Corpus Integration: complete.
 
 ---
 
@@ -176,4 +178,4 @@ Luna does not yet have:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D is complete. Phase 5E should build on the now-responsive, file-backed editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.
+Phase 5D.1 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.

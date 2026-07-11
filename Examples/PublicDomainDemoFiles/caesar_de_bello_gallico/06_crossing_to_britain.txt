@@ -1,0 +1,119 @@
+De Bello Gallico IV — The Expedition to Britain
+Public-domain demo excerpt for Luna UI testing
+Source work: C. Iuli Caesaris De Bello Gallico, Books I–IV, Latin text
+Encoding: UTF-8
+
+--- BEGIN EXCERPT ---
+
+suos ab hostibus premi atque aegre sustinere et conferta legione ex
+omnibus partibus tela coici animadvertit. Nam quod omni ex reliquis
+partibus demesso frumento pars una erat reliqua, suspicati hostes huc
+nostros esse venturos noctu in silvis delituerant; tum dispersos depositis
+armis in metendo occupatos Subito adorti paucis interfectis reliquos
+incertis ordinibus perturbaverant, simul equitatu atque essedis
+circumdederant.
+
+Genus hoc est ex essedis pugnae. Primo per omnes partes perequitant
+et tela coiciunt atque ipso terrore equorum et strepitu rotarum ordines
+plerumque perturbant, et cum se inter equitum turmas insinuaverunt, ex
+essedis desiliunt et pedibus proeliantur. Aurigae interim paulatim ex
+proelio excedunt atque ita currus conlocant ut, si illi a multitudine
+hostium premantur, expeditum ad quos receptum habeant. Ita mobilitatem
+equitum, stabilitatem peditum in proeliis praestant, ac tantum usu
+cotidiano et exercitatione efficiunt uti in declivi ac praecipiti loco
+incitatos equos sustinere et brevi moderari ac flectere et per temonem
+percurrere et in iugo insistere et se inde in currus citissime recipere
+consuerint.
+
+Quibus rebus perturbatis nostris [novitate pugnae] tempore
+oportunissimo Caesar auxilium tulit: namque eius adventu hostes
+constiterunt, nostri se ex timore receperunt. Quo facto, ad lacessendum
+hostem et committendum proelium alienum esse tempus arbitratus suo se loco
+continuit et brevi tempore intermisso in castra legiones reduxit. Dum
+haec geruntur, nostris omnibus occupatis qui erant in agris reliqui
+discesserunt. Secutae sunt continuos complures dies tempeststes, quae et
+nostros in castris continerent et hostem a pugna prohiberent. Interim
+barbari nuntios in omnes partes dimiserunt paucitatemque nostrorum militum
+suis praedicaverunt et quanta praedae faciendae atque in perpetuum sui
+liberandi facultas daretur, si Romanos castris expulissent, demonstra;
+verunt. His rebus celeriter magna multitudine peditatus equitatusque
+coacta ad castra venerunt.
+
+Caesar, etsi idem quod superioribus diebus acciderat fore videbat, ut,
+si essent hostes pulsi, celeritate periculum effugerent, tamen nactus
+equites circiter XXX, quos Commius Atrebas, de quo ante dictum est, secum
+transportaverat, legiones in acie pro castris constituit. Commisso
+proelio diutius nostrorum militum impetum hostes ferre non potuerunt ac
+terga verterunt. Quos tanto spatio secuti quantum cursu et viribus
+efficere potuerunt, complures ex iis occiderunt, deinde omnibus longe
+lateque aedificiis incensis se in castra receperunt.
+
+Eodem die legati ab hostibus missi ad Caesarem de pace venerunt. His
+Caesar numerum obsidum quem ante imperaverat duplicavit eosque in
+continentem adduci iussit, quod propinqua die aequinoctii infirmis navibus
+hiemi navigationem subiciendam non existimabat. Ipse idoneam tempestatem
+nactus paulo post mediam noctem naves solvit, quae omnes incolumes ad
+continentem pervenerunt; sed ex iis onerariae duae eosdem portus quos
+reliquae capere non potuerunt et paulo infra delatae sunt.
+
+Quibus ex navibus cum essent expositi milites circiter CCC atque in
+castra contenderent, Morini, quos Caesar in Britanniam proficiscens
+pacatos reliquerat, spe praedae adducti primo non ita magno suorum numero
+circumsteterunt ac, si sese interfici nollent, arma ponere iusserunt. Cum
+illi orbe facto sese defenderent, celeriter ad clamorem hominum circiter
+milia VI convenerunt; Qua re nuntiata, Caesar omnem ex castris equitatum
+suis auxilio misit. Interim nostri milites impetum hostium sustinuerunt
+atque amplius horis IIII fortissime pugnaverunt et paucis vulneribus
+acceptis complures ex iis occiderunt. Postea vero quam equitatus noster
+in conspectum venit, hostes abiectis armis terga verterunt magnusque eorum
+numerus est occisus.
+
+Caesar postero die T. Labienum legatum cum iis legionibus quas ex
+Britannia reduxerat in Morinos qui rebellionem fecerant misit. Qui cum
+propter siccitates paludum quo se reciperent non haberent, quo perfugio
+superiore anno erant usi, omnes fere in potestatem Labieni venerunt. At
+Q. Titurius et L. Cotta legati, qui in Menapiorum fines legiones duxerant,
+omnibus eorum agris vastatis, frumentis succisis, aedificiis incensis,
+quod Menapii se omnes in densissimas silvas abdiderant, se ad Caesarem
+receperunt. Caesar in Belgis omnium legionum hiberna constituit. Eo duae
+omnino civitates ex Britannia obsides miserunt, reliquae neglexerunt. His
+rebus gestis ex litteris Caesaris dierum XX supplicatio a senatu decreta
+est.
+
+End of Project Gutenberg's Cæsar's Commentaries, Books I-IV, by Julius Cæsar
+
+*** END OF THE PROJECT GUTENBERG EBOOK C. IULI CAESARIS DE BELLO GALLICO, I-IV ***
+
+Updated editions will replace the previous one—the old editions will
+be renamed.
+
+Creating the works from print editions not protected by U.S. copyright
+law means that no one owns a United States copyright in these works,
+so the Foundation (and you!) can copy and distribute it in the United
+States without permission and without paying copyright
+royalties. Special rules, set forth in the General Terms of Use part
+of this license, apply to copying and distributing Project
+Gutenberg™ electronic works to protect the PROJECT GUTENBERG™
+concept and trademark. Project Gutenberg is a registered trademark,
+and may not be used if you charge for an eBook, except by following
+the terms of the trademark license, including paying royalties for use
+of the Project Gutenberg trademark. If you do not charge anything for
+copies of this eBook, complying with the trademark license is very
+easy. You may use this eBook for nearly any purpose such as creation
+of derivative works, reports, performances and research. Project
+Gutenberg eBooks may be modified and printed and given away—you may
+do practically ANYTHING in the United States with eBooks not protected
+by U.S. copyright law. Redistribution is subject to the trademark
+license, especially commercial redistribution.
+
+START: FULL LICENSE
+
+THE FULL PROJECT GUTENBERG™ LICENSE
+
+PLEASE READ THIS BEFORE YOU DISTRIBUTE OR USE THIS WORK
+
+To protect the Project Gutenberg™ mission of promoting the free
+distribution of electronic works, by using or distributing this work
+(or any other work associated in any way with the phrase “Project
+
+--- END EXCERPT ---

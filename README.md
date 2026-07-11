@@ -243,6 +243,22 @@ swift run LunaUITestApp README.md
 LUNA_DEMO_OPEN_FILE=README.md swift run LunaUITestApp
 ```
 
+Run the Phase 5D.1 checked-in public-domain demo corpus:
+
+```bash
+swift run LunaUITestApp --open-demo-corpus=largest
+swift run LunaUITestApp --open-demo-corpus=frankenstein
+swift run LunaUITestApp --open-demo-corpus=caesar
+swift run LunaUITestApp --open-demo-corpus=all
+./scripts/run-demo-corpus.sh --largest
+```
+
+Verify the corpus manifest:
+
+```bash
+./scripts/verify-public-domain-demo-files.py
+```
+
 On current Linux SwiftPM, SDL2 may emit warnings about filtered `-D_REENTRANT` flags. Those warnings are expected and do not indicate a failed build.
 
 ---
@@ -290,7 +306,8 @@ The current checkpoint has:
 - Phase 5C.2 editor harness split and input coalescing implemented with default editor mode, optional proof-gallery mode, host pointer-motion coalescing, state-change pointer invalidation, quiet command logging by default, and input/event diagnostics;
 - Phase 5C.2.1 targeted tab/document close routing implemented with context-carried target document IDs, tab-close command routing through dirty-close policy, context-menu command attributes, active/workspace/shell state synchronization after close, and regression coverage for command-context targeting;
 - Phase 5C.2.2 MPL-2.0 license migration completed with the repository license text updated, source/test/shim files carrying SPDX headers, and documentation aligned around the new license;
-- Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy.
+- Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy;
+- Phase 5D.1 public-domain demo corpus integrated under `Examples/PublicDomainDemoFiles`, with manifest verification, helper launch scripts, and `--open-demo-corpus` options for repeatable real-file demos;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -300,7 +317,7 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D is complete. The editor harness can now be seeded with real UTF-8 local files through `--open` while all filesystem access remains app-owned in `LunaUITestApp`. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
+Phase 5D.1 is complete. The editor harness can now be seeded with real UTF-8 local files through `--open` or with the checked-in public-domain corpus through `--open-demo-corpus`, while all filesystem access remains app-owned in `LunaUITestApp`. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

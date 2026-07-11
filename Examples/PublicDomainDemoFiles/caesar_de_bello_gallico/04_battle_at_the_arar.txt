@@ -1,0 +1,77 @@
+De Bello Gallico I — The Battle at the Arar
+Public-domain demo excerpt for Luna UI testing
+Source work: C. Iuli Caesaris De Bello Gallico, Books I–IV, Latin text
+Encoding: UTF-8
+
+--- BEGIN EXCERPT ---
+
+Caesar hac oratione Lisci Dumnorigem, Diviciaci fratrem, designari
+sentiebat, sed, quod pluribus praesentibus eas res iactari nolebat,
+celeriter concilium dimittit, Liscum retinet. Quaerit ex solo ea quae in
+conventu dixerat. Dicit liberius atque audacius. Eadem secreto ab aliis
+quaerit; reperit esse vera: ipsum esse Dumnorigem, summa audacia, magna
+apud plebem propter liberalitatem gratia, cupidum rerum novarum.
+
+Complures annos portoria reliquaque omnia Haeduorum vectigalia parvo
+pretio redempta habere, propterea quod illo licente contra liceri audeat
+nemo. His rebus et suam rem familiarem auxisse et facultates ad
+largiendum magnas comparasse; magnum umerum equitatus suo sumptu semper
+alere et circum se habere, neque solum domi, sed etiam apud finitimas
+civitates largiter posse, atque huius potentiae causa matrem in
+Biturigibus homini illic nobilissimo ac potentissimo conlocasse; ipsum ex
+Helvetiis uxorem habere, sororum ex matre et propinquas suas nuptum in
+alias civitates conlocasse. Favere et cupere Helvetiis propter eam
+adfinitatem, odisse etiam suo nomine Caesarem et Romanos, quod eorum
+adventu potentia eius deminuta et Diviciacus frater in antiquum locum
+gratiae atque honoris sit restitutus. Si quid accidat Romanis, summam in
+spem per Helvetios regni obtinendi venire; imperio populi Romani non modo
+de regno, sed etiam de ea quam habeat gratia desperare. Reperiebat etiam
+in quaerendo Caesar, quod proelium equestre adversum paucis ante diebus
+esset factum, initium eius fugae factum a Dumnorige atque eius equitibus
+(nam equitatui, quem auxilio Caesari Haedui miserant, Dumnorix praeerat):
+
+eorum fuga reliquum esse equitatum perterritum.
+
+Quibus rebus cognitis, cum ad has suspiciones certissimae res
+accederent, quod per fines Sequanorum Helvetios traduxisset, quod obsides
+inter eos dandos curasset, quod ea omnia non modo iniussu suo et civitatis
+sed etiam inscientibus ipsis fecisset, quod a magistratu Haeduorum
+accusaretur, satis esse causae arbitrabatur quare in eum aut ipse
+animadverteret aut civitatem animadvertere iuberet. His omnibus rebus
+unum repugnabat, quod Diviciaci fratris summum in populum Romanum studium,
+summum in se voluntatem, egregiam fidem, iustitiam, temperantiam
+cognoverat; nam ne eius supplicio Diviciaci animum offenderet verebatur.
+
+Itaque prius quam quicquam conaretur, Diviciacum ad se vocari iubet et,
+cotidianis interpretibus remotis, per C. Valerium Troucillum, principem
+Galliae provinciae, familiarem suum, cui summam omnium rerum fidem
+habebat, cum eo conloquitur; simul commonefacit quae ipso praesente in
+concilio [Gallorum] de Dumnorige sint dicta, et ostendit quae separatim
+quisque de eo apud se dixerit. Petit atque hortatur ut sine eius
+offensione animi vel ipse de eo causa cognita statuat vel civitatem
+statuere iubeat.
+
+Diviciacus multis cum lacrimis Caesarem complexus obsecrare coepit ne
+quid gravius in fratrem statueret: scire se illa esse vera, nec quemquam
+ex eo plus quam se doloris capere, propterea quod, cum ipse gratia
+plurimum domi atque in reliqua Gallia, ille minimum propter adulescentiam
+posset, per se crevisset; quibus opibus ac nervis non solum ad minuendam
+gratiam, sed paene ad perniciem suam uteretur. Sese tamen et amore
+fraterno et existimatione vulgi commoveri. Quod si quid ei a Caesare
+gravius accidisset, cum ipse eum locum amicitiae apud eum teneret, neminem
+existimaturum non sua voluntate factum; qua ex re futurum uti totius
+Galliae animi a se averterentur. Haec cum pluribus verbis flens a Caesare
+peteret, Caesar eius dextram prendit; consolatus rogat finem orandi
+faciat; tanti eius apud se gratiam esse ostendit uti et rei publicae
+iniuriam et suum dolorem eius voluntati ac precibus condonet. Dumnorigem
+ad se vocat, fratrem adhibet; quae in eo reprehendat ostendit; quae ipse
+intellegat, quae civitas queratur proponit; monet ut in reliquum tempus
+omnes suspiciones vitet; praeterita se Diviciaco fratri condonare dicit.
+
+Dumnorigi custodes ponit, ut quae agat, quibuscum loquatur scire possit.
+
+Eodem die ab exploratoribus certior factus hostes sub monte consedisse
+milia passuum ab ipsius castris octo, qualis esset natura montis et qualis
+in circuitu ascensus qui cognoscerent misit.Renuntiatum est facilem esse.
+
+--- END EXCERPT ---

@@ -1,0 +1,71 @@
+{
+  "collection": "Luna UI Public-Domain Demo Files",
+  "encoding": "UTF-8",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2812,
+      "sha256": "2dfcd5768ee56f6e0ee28b627121428e7f5f29f5455f466dfb410051642118f4"
+    },
+    {
+      "path": "caesar_de_bello_gallico/01_gallia_est_omnis.txt",
+      "bytes": 1766,
+      "sha256": "e6098a7090a9fbe1c675fe9af073617ec488d47c1c9976912181842faa27c597"
+    },
+    {
+      "path": "caesar_de_bello_gallico/02_orgetorix_and_the_helvetii.txt",
+      "bytes": 4236,
+      "sha256": "36748142a5faa9948fd48839017492282e6f1404c6ef7c7c78462f697cd6b241"
+    },
+    {
+      "path": "caesar_de_bello_gallico/03_caesar_blocks_the_route.txt",
+      "bytes": 4244,
+      "sha256": "2c6c21df54b428d195e7744ded0c89408311d69039eba5ee6ed2385c09f57a91"
+    },
+    {
+      "path": "caesar_de_bello_gallico/04_battle_at_the_arar.txt",
+      "bytes": 4464,
+      "sha256": "e513578767dc049556501a006615b21381fb893520adc7d1fc85fa861964b837"
+    },
+    {
+      "path": "caesar_de_bello_gallico/05_battle_near_bibracte.txt",
+      "bytes": 6491,
+      "sha256": "84560856d447dcdc882df23e68ff6c61e662992c551280987b6b7f792fb2933b"
+    },
+    {
+      "path": "caesar_de_bello_gallico/06_crossing_to_britain.txt",
+      "bytes": 6495,
+      "sha256": "8c71dea73a2419edea1efd4e8ad321ef4b6517480dd4f959af399b1919363e73"
+    },
+    {
+      "path": "frankenstein/01_walton_letter_1.txt",
+      "bytes": 7079,
+      "sha256": "99e2ac5c7dc0f7e103d34d216e420f19b9d9efac4c90d48e4d837bc55668db29"
+    },
+    {
+      "path": "frankenstein/02_victors_childhood_chapter_1.txt",
+      "bytes": 10405,
+      "sha256": "e86a556d4616e61ebc792a2acc566a65a6ddec7ceb9d2755b3845183755afb03"
+    },
+    {
+      "path": "frankenstein/03_the_creation_chapter_5.txt",
+      "bytes": 13293,
+      "sha256": "b577a7d23f16cfdf63b9d89d77cedff538d6591ed103261d3b32fafaf8e16cd7"
+    },
+    {
+      "path": "frankenstein/04_mont_blanc_encounter_chapter_10.txt",
+      "bytes": 13276,
+      "sha256": "5c06f467a71df390bbd8a3a77c9395b9e6c057b3b87ffa0c43e04592bf9d39ab"
+    },
+    {
+      "path": "frankenstein/05_the_creature_reads_chapter_15.txt",
+      "bytes": 17555,
+      "sha256": "093522711e3ef411878343269e93754aa9e4af001f871395ead5195557a7c2f2"
+    },
+    {
+      "path": "frankenstein/06_final_pursuit_chapter_24.txt",
+      "bytes": 46028,
+      "sha256": "4d1da9f0ce09529e49393ceb7798d67754215e98a2360e433cf04c129bd26aaf"
+    }
+  ]
+}

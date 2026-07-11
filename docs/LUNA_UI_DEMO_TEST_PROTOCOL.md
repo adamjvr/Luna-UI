@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5D real file I/O proof.
+This protocol is the standing manual regression checklist for the demo app after Phase 5D.1 public-domain demo corpus integration.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -87,6 +87,54 @@ Boundary rule:
 ```text
 The demo app owns local filesystem access, path display, extension-to-syntax hints, and disk errors.
 LunaUI owns only product-neutral descriptors, request/result shapes, routing, and projection helpers.
+```
+
+---
+
+
+## Public-Domain Demo Corpus Protocol
+
+Phase 5D.1 adds a checked-in UTF-8 text corpus under `Examples/PublicDomainDemoFiles`. The corpus exists to make real-file demos repeatable without editing important user files.
+
+Verify the corpus manifest:
+
+```bash
+./scripts/verify-public-domain-demo-files.py
+```
+
+Open the largest fixture:
+
+```bash
+swift run LunaUITestApp --open-demo-corpus=largest
+# equivalent helper path:
+./scripts/run-demo-corpus.sh --largest
+```
+
+Open multiple fixtures:
+
+```bash
+swift run LunaUITestApp --open-demo-corpus=frankenstein
+swift run LunaUITestApp --open-demo-corpus=caesar
+swift run LunaUITestApp --open-demo-corpus=all
+```
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Run `./scripts/verify-public-domain-demo-files.py` | The manifest reports all checked-in demo corpus files as present with matching byte counts and SHA-256 hashes. |
+| Launch `--open-demo-corpus=largest` | The largest Frankenstein excerpt opens as a real file-backed local document. |
+| Launch `--open-demo-corpus=frankenstein` | Six Frankenstein excerpt tabs become available under the `Local Files` sidebar root. |
+| Launch `--open-demo-corpus=caesar` | Six Latin excerpt tabs become available under the `Local Files` sidebar root. |
+| Launch `--open-demo-corpus=all` | All twelve `.txt` fixtures are registered/opened without breaking tab/document identity. |
+| Run `./scripts/run-demo-corpus.sh --proof-gallery --largest` | Proof-gallery mode still works while opening a corpus file through the same local adapter seam. |
+| Edit a disposable copy of a fixture and save | Save routes through the Phase 5D app-owned adapter and clears dirty state. |
+
+Boundary rule:
+
+```text
+The corpus is a demo/test fixture, not a LunaUI source-code dependency.
+The helper flags merely expand to local file paths before the existing Phase 5D adapter opens them.
 ```
 
 ---

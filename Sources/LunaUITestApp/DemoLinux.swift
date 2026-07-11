@@ -70,9 +70,10 @@ func runLinuxDemo() {
     let demoMode = launchOptions.mode
     let logsCommandRequests = launchOptions.logsCommandRequests
 
-    // Shared demo scene (pure Luna, no platform event decoding). Phase 5D can
+    // Shared demo scene (pure Luna, no platform event decoding). Phase 5D/5D.1 can
     // seed the app-owned workspace adapter with real UTF-8 local files supplied
-    // through --open/path arguments without moving filesystem policy into LunaUI.
+    // through --open/path arguments or the checked-in demo corpus without
+    // moving filesystem policy into LunaUI.
     var demo = LunaCPUDemoScene(
         theme: MothDemoTheme.theme,
         mode: demoMode,

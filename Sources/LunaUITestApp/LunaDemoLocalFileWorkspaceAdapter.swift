@@ -3,7 +3,7 @@
 //  LunaDemoLocalFileWorkspaceAdapter.swift
 //  LunaUITestApp
 //
-//  Demo/app-owned local filesystem adapter used for Phase 5D.
+//  Demo/app-owned local filesystem adapter used for Phase 5D and 5D.1.
 //
 //  LunaUI owns the product-neutral workspace/document contracts. This file is
 //  deliberately kept in LunaUITestApp so real filesystem access, path display,
@@ -21,6 +21,7 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
 
     static func parse(arguments: [String], environment: [String: String]) -> LunaDemoLaunchOptions {
         var openFilePaths: [String] = []
+        let corpusRoot = environment["LUNA_DEMO_CORPUS_ROOT"] ?? "Examples/PublicDomainDemoFiles"
         var index = 0
         while index < arguments.count {
             let argument = arguments[index]
@@ -36,6 +37,11 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
             } else if argument.hasPrefix("--open=") {
                 let value = String(argument.dropFirst("--open=".count))
                 if !value.isEmpty { openFilePaths.append(value) }
+            } else if argument == "--open-demo-corpus" {
+                openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: "all", root: corpusRoot))
+            } else if argument.hasPrefix("--open-demo-corpus=") {
+                let selection = String(argument.dropFirst("--open-demo-corpus=".count))
+                openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: selection, root: corpusRoot))
             } else if !argument.hasPrefix("-") {
                 openFilePaths.append(argument)
             }
@@ -48,12 +54,53 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
         if let environmentOpenFiles = environment["LUNA_DEMO_OPEN_FILES"], !environmentOpenFiles.isEmpty {
             openFilePaths.append(contentsOf: environmentOpenFiles.split(separator: ":").map(String.init).filter { !$0.isEmpty })
         }
+        if let environmentCorpus = environment["LUNA_DEMO_OPEN_CORPUS"], !environmentCorpus.isEmpty {
+            openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: environmentCorpus, root: corpusRoot))
+        }
 
         return LunaDemoLaunchOptions(
             mode: LunaDemoMode.parse(arguments: arguments, environment: environment),
             openFilePaths: Self.uniquedPreservingOrder(openFilePaths),
             logsCommandRequests: environment["LUNA_DEMO_DEBUG_COMMANDS"] == "1" || arguments.contains("--debug-commands")
         )
+    }
+
+    private static func demoCorpusFilePaths(selection rawSelection: String, root: String) -> [String] {
+        let rootURL = URL(fileURLWithPath: root, relativeTo: URL(fileURLWithPath: FileManager.default.currentDirectoryPath, isDirectory: true)).standardizedFileURL
+        let selection = rawSelection.lowercased().replacingOccurrences(of: "_", with: "-")
+
+        func child(_ relativePath: String) -> String {
+            rootURL.appendingPathComponent(relativePath).path
+        }
+
+        switch selection {
+        case "largest", "single", "frankenstein-largest":
+            return [child("frankenstein/06_final_pursuit_chapter_24.txt")]
+        case "frankenstein", "mary-shelley", "shelley":
+            return [
+                child("frankenstein/01_walton_letter_1.txt"),
+                child("frankenstein/02_victors_childhood_chapter_1.txt"),
+                child("frankenstein/03_the_creation_chapter_5.txt"),
+                child("frankenstein/04_mont_blanc_encounter_chapter_10.txt"),
+                child("frankenstein/05_the_creature_reads_chapter_15.txt"),
+                child("frankenstein/06_final_pursuit_chapter_24.txt"),
+            ]
+        case "caesar", "de-bello-gallico", "gallic", "latin":
+            return [
+                child("caesar_de_bello_gallico/01_gallia_est_omnis.txt"),
+                child("caesar_de_bello_gallico/02_orgetorix_and_the_helvetii.txt"),
+                child("caesar_de_bello_gallico/03_caesar_blocks_the_route.txt"),
+                child("caesar_de_bello_gallico/04_battle_at_the_arar.txt"),
+                child("caesar_de_bello_gallico/05_battle_near_bibracte.txt"),
+                child("caesar_de_bello_gallico/06_crossing_to_britain.txt"),
+            ]
+        case "readme", "manifest":
+            return [child("README.md")]
+        case "all", "public-domain", "public-domain-demo-files", "demo", "corpus":
+            return demoCorpusFilePaths(selection: "frankenstein", root: root) + demoCorpusFilePaths(selection: "caesar", root: root)
+        default:
+            return demoCorpusFilePaths(selection: "all", root: root)
+        }
     }
 
     private static func uniquedPreservingOrder(_ values: [String]) -> [String] {

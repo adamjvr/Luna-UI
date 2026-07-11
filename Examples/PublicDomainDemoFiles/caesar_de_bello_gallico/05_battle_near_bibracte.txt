@@ -1,0 +1,106 @@
+De Bello Gallico I — Battle Near Bibracte
+Public-domain demo excerpt for Luna UI testing
+Source work: C. Iuli Caesaris De Bello Gallico, Books I–IV, Latin text
+Encoding: UTF-8
+
+--- BEGIN EXCERPT ---
+
+quidem datis pacem Ariovisti redimere potuisse; Treveri autem, pagos
+centum Sueborum ad ripas Rheni consedisse, qui Rhemum transire conarentur;
+his praeesse Nasuam et Cimberium fratres. Quibus rebus Caesar vehementer
+commotus maturandum sibi existimavit, ne, si nova manus Sueborum cum
+veteribus copiis Ariovisti sese coniunxisset, minus facile resisti posset.
+Itaque re frumentaria quam celerrime potuit comparata magnis itineribus
+ad Ariovistum contendit.
+
+Cum tridui viam processisset, nuntiatum est ei Ariovistum cum suis
+omnibus copiis ad occupandum Vesontionem, quod est oppidum maximum
+Sequanorum, contendere [triduique viam a suis finibus processisse]. Id ne
+accideret, magnopere sibi praecavendum Caesar existimabat. Namque omnium
+rerum quae ad bellum usui erant summa erat in eo oppido facultas, idque
+natura loci sic muniebatur ut magnam ad ducendum bellum daret facultatem,
+propterea quod flumen [alduas] Dubis ut circino circumductum paene totum
+oppidum cingit, reliquum spatium, quod est non amplius pedum MDC, qua
+flumen intermittit, mons continet magna altitudine, ita ut radices eius
+montis ex utraque parte ripae fluminis contingant, hunc murus circumdatus
+arcem efficit et cum oppido coniungit. Huc Caesar magnis nocturnis
+diurnisque itineribus contendit occupatoque oppido ibi praesidium
+conlocat.
+
+Dum paucos dies ad Vesontionem rei frumentariae commeatusque causa
+moratur, ex percontatione nostrorum vocibusque Gallorum ac mercatorum, qui
+ingenti magnitudine corporum Germanos, incredibili virtute atque
+exercitatione in armis esse praedicabant (saepe numero sese cum his
+congressos ne vultum quidem atque aciem oculorum dicebant ferre potuisse),
+tantus subito timor omnem exercitum occupavit ut non mediocriter omnium
+mentes animosque perturbaret. Hic primum ortus est a tribunis militum,
+praefectis, reliquisque qui ex urbe amicitiae causa Caesarem secuti non
+magnum in re militari usum habebant: quorum alius alia causa inlata, quam
+sibi ad proficiscendum necessariam esse diceret, petebat ut eius voluntate
+discedere liceret; non nulli pudore adducti, ut timoris suspicionem
+vitarent, remanebant. Hi neque vultum fingere neque interdum lacrimas
+tenere poterant: abditi in tabernaculis aut suum fatum querebantur aut
+cum familiaribus suis commune periculum miserabantur. Vulgo totis castris
+testamenta obsignabantur. Horum vocibus ac timore paulatim etiam ii qui
+magnum in castris usum habebant, milites centurionesque quique equitatui
+praeerant, perturbabantur. Qui se ex his minus timidos existimari
+volebant, non se hostem vereri, sed angustias itineris et magnitudinem
+silvarum quae intercederent inter ipsos atque Ariovistum, aut rem
+frumentariam, ut satis commode supportari posset, timere dicebant. Non
+nulli etiam Caesari nuntiabant, cum castra moveri ac signa ferri
+iussisset, non fore dicto audientes milites neque propter timorem signa
+laturos.
+
+Haec cum animadvertisset, convocato consilio omniumque ordinum ad id
+consilium adhibitis centurionibus, vehementer eos incusavit: primum, quod
+aut quam in partem aut quo consilio ducerentur sibi quaerendum aut
+cogitandum putarent. Ariovistum se consule cupidissime populi Romani
+amicitiam adpetisse; cur hunc tam temere quisquam ab officio discessurum
+iudicaret? Sibi quidem persuaderi cognitis suis poslulatis atque
+aequitate condicionum perspecta eum neque suam neque populi Romani gratiam
+epudiaturum. Quod si furore atque amentia impulsum bellum intulisset,
+quid tandem vererentur? Aut cur de sua virtute aut de ipsius diligentia
+desperarent? Factum eius hostis periculum patrum nostrorum emoria Cimbris
+et Teutonis a C. Mario pulsis [cum non minorem laudem exercitus quam ipse
+imperator meritus videbatur]; factum etiam nuper in Italia servili
+tumultu, quos tamen aliquid usus ac disciplina, quam a nobis accepissent,
+sublevarint. Ex quo iudicari posse quantum haberet in se boni constantia,
+propterea quod quos aliquam diu inermes sine causa timuissent hos postea
+armatos ac victores superassent. Denique hos esse eosdem Germanos
+quibuscum saepe numero Helvetii congressi non solum in suis sed etiam in
+illorum finibus plerumque superarint, qui tamen pares esse nostro
+exercitui non potuerint. Si quos adversum proelium et fuga Gallorum
+commoveret, hos, si quaererent, reperire posse diuturnitate belli
+defatigatis Gallis Ariovistum, cum multos menses castris se ac paludibus
+tenuisset neque sui potestatem fecisset, desperantes iam de pugna et
+dispersos subito adortum magis ratione et consilio quam virtute vicisse.
+
+Cui rationi contra homines barbaros atque imperitos locus fuisset, hac ne
+ipsum quidem sperare nostros exercitus capi posse. Qui suum timorem in
+rei frumentariae simulationem angustiasque itineris conferrent, facere
+arroganter, cum aut de officio imperatoris desperare aut praescribere
+viderentur. Haec sibi esse curae; frumentum Sequanos, Leucos, Lingones
+subministrare, iamque esse in agris frumenta matura; de itinere ipsos
+brevi tempore iudicaturos. Quod non fore dicto audientes neque signa
+laturi dicantur, nihil se ea re commoveri: scire enim, quibuscumque
+exercitus dicto audiens non fuerit, aut male re gesta fortunam defuisse
+aut aliquo facinore comperto avaritiam esse convictam. Suam innocentiam
+perpetua vita, felicitatem Helvetiorum bello esse perspectam. Itaque se
+quod in longiorem diem conlaturus fuisset repraesentaturum et proxima
+nocte de quarta, vigilia castra moturum, ut quam primum intellegere posset
+utrum apud eos pudor atque officium an timor plus valeret. Quod si
+praeterea nemo sequatur, tamen se cum sola decima legione iturum, de qua
+non dubitet, sibique eam praetoriam cohortem futuram. Huic legioni Caesar
+et indulserat praecipue et propter virtutem confidebat maxime.
+
+Hac oratione habita mirum in modum conversae sunt omnium mentes
+summaque alacritas et cupiditas belli gerendi innata est, princepsque X.
+
+legio per tribunos militum ei gratias egit quod de se optimum iudicium
+fecisset, seque esse ad bellum gerendum paratissimam confirmavit. Deinde
+reliquae legiones cum tribunis militum et primorum ordinum centurionibus
+egerunt uti Caesari satis facerent: se neque umquam dubitasse neque
+timuisse neque de summa belli suum iudicium sed imperatoris esse
+existimavisse. Eorum satisfactione accepta et itinere exquisito per
+
+--- END EXCERPT ---

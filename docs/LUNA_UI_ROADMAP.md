@@ -1265,6 +1265,22 @@ Phase 5D deliverables:
 - surface file errors as command execution status/status-bar text instead of crashing;
 - keep LunaUI free of Moth-specific project policy, preferences, file dialogs, filesystem scanning, and UI prompts.
 
+### Phase 5D.1 — Public-Domain Demo Corpus Integration
+
+Status: **complete**.
+
+Phase 5D.1 makes the Phase 5D real-file proof repeatable by checking in a small public-domain UTF-8 demo corpus under `Examples/PublicDomainDemoFiles`. The corpus contains Frankenstein and De Bello Gallico excerpts plus a manifest with byte counts and SHA-256 hashes. It is intentionally fixture/demo material, not a LunaUI source-code dependency and not a Moth product policy layer.
+
+Phase 5D.1 deliverables:
+
+- add the public-domain fixture corpus under `Examples/PublicDomainDemoFiles`;
+- keep source/public-domain notes with the corpus so its provenance is clear;
+- add `scripts/verify-public-domain-demo-files.py` to validate manifest entries, byte counts, and checksums;
+- add `scripts/run-demo-corpus.sh` to verify and launch the editor harness against selected fixtures;
+- add `--open-demo-corpus=largest|frankenstein|caesar|all` and `LUNA_DEMO_OPEN_CORPUS` convenience expansion in `LunaUITestApp`;
+- add regression coverage proving the corpus is present, UTF-8 readable, and documented;
+- update README, current status, demo protocol, Luna roadmap, and Moth roadmap.
+
 ### Phase 5E — Tab Overflow and Split/Panes
 
 Scope:
@@ -1333,4 +1349,4 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive and file-backed: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.
+Phase 5D.1 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, and has a repeatable public-domain file corpus: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.
