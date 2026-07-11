@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5D.1 public-domain demo corpus integration.
+This protocol is the standing manual regression checklist for the demo app after Phase 5D.2 new-file lifecycle proof.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -136,6 +136,27 @@ Boundary rule:
 The corpus is a demo/test fixture, not a LunaUI source-code dependency.
 The helper flags merely expand to local file paths before the existing Phase 5D adapter opens them.
 ```
+
+## Phase 5D.2 — New File / Untitled Buffer / Save As Proof
+
+Phase 5D.2 completes the basic file lifecycle proof without adding native file dialogs or product-specific Moth policy. Untitled documents are app-owned demo buffers with no file destination until Save As; created empty files and Save As targets are local-file adapter operations owned by `LunaUITestApp`.
+
+```bash
+swift run LunaUITestApp --new-untitled
+mkdir -p /tmp/luna-ui-new-file-proof
+swift run LunaUITestApp --create /tmp/luna-ui-new-file-proof/new-note.txt
+swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/untitled-saved-as.txt
+# Then choose File > Save As Demo File… in the app.
+```
+
+| Action | Expected result |
+|---|---|
+| File > New File or Ctrl+N | Opens `Untitled-N.txt` as an empty, clean, closable tab with no sidebar file selected. |
+| Type into an untitled document | The tab/status dirty state changes exactly like a file-backed document. |
+| Save an untitled dirty document | The demo reports that a destination is required instead of inventing one silently. |
+| Save As Demo File | Writes the active document to a safe demo-owned local path, registers it under `Local Files`, and converts the tab to a file-backed document. |
+| Launch with `--create path` | Creates a new empty UTF-8 local file, refuses to overwrite by default, registers it under `Local Files`, and opens it as a real file-backed buffer. |
+| Launch with `--overwrite-create --create path` | Explicitly allows replacing the target file for testing only. |
 
 ---
 ## Targeted Tab / Document Close Protocol
@@ -291,7 +312,7 @@ The demo now also owns a small local-filesystem adapter behind this seam; Moth w
 
 ## Document / Buffer Protocol
 
-Phase 5A is the first real multi-document proof. As of Phase 5D, the demo still keeps the original in-memory fixture documents but can also open real local UTF-8 files; both paths route through product-neutral `LunaDocumentStore` buffers.
+Phase 5A is the first real multi-document proof. As of Phase 5D.2, the demo still keeps the original in-memory fixture documents but can also open real local UTF-8 files, create empty local files, and create untitled buffers; all paths route through product-neutral `LunaDocumentStore` buffers.
 
 Open documents to test:
 
@@ -314,7 +335,7 @@ Theme.json
 Boundary rule:
 
 ```text
-Phase 5A itself did not do file I/O or Moth project policy. Phase 5D adds demo-owned local file I/O behind the same document/workspace seam while preserving product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
+Phase 5A itself did not do file I/O or Moth project policy. Phase 5D adds demo-owned local file I/O behind the same document/workspace seam, and Phase 5D.2 adds untitled/new-file lifecycle coverage while preserving product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
 ```
 
 ---

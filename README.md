@@ -259,6 +259,20 @@ Verify the corpus manifest:
 ./scripts/verify-public-domain-demo-files.py
 ```
 
+Run the Phase 5D.2 new-file and untitled-buffer proof:
+
+```bash
+# Open an empty in-memory untitled buffer. Ctrl+N / File > New File does the same interactively.
+swift run LunaUITestApp --new-untitled
+
+# Create a new empty local file safely, without overwriting an existing file.
+mkdir -p /tmp/luna-ui-new-file-proof
+swift run LunaUITestApp --create /tmp/luna-ui-new-file-proof/new-note.txt
+
+# Seed the demo Save As target, then choose File > Save As Demo File… in the app.
+swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/untitled-saved-as.txt
+```
+
 On current Linux SwiftPM, SDL2 may emit warnings about filtered `-D_REENTRANT` flags. Those warnings are expected and do not indicate a failed build.
 
 ---
@@ -308,6 +322,7 @@ The current checkpoint has:
 - Phase 5C.2.2 MPL-2.0 license migration completed with the repository license text updated, source/test/shim files carrying SPDX headers, and documentation aligned around the new license;
 - Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy;
 - Phase 5D.1 public-domain demo corpus integrated under `Examples/PublicDomainDemoFiles`, with manifest verification, helper launch scripts, and `--open-demo-corpus` options for repeatable real-file demos;
+- Phase 5D.2 new-file lifecycle proof implemented with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty local-file launch support, demo Save As routing, no-overwrite defaults, and untitled/file-backed state transitions kept outside LunaUI filesystem policy;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -317,7 +332,7 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.1 is complete. The editor harness can now be seeded with real UTF-8 local files through `--open` or with the checked-in public-domain corpus through `--open-demo-corpus`, while all filesystem access remains app-owned in `LunaUITestApp`. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
+Phase 5D.2 is complete. The editor harness now covers the basic file lifecycle: new untitled buffers, open existing local files, create empty local files safely, edit, save, save all, Save As to a demo-owned path, and close through targeted document policy. Filesystem path policy remains app-owned in `LunaUITestApp`; LunaUI still owns only product-neutral document/workspace/request/result seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

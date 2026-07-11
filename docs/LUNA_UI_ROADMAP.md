@@ -1281,6 +1281,21 @@ Phase 5D.1 deliverables:
 - add regression coverage proving the corpus is present, UTF-8 readable, and documented;
 - update README, current status, demo protocol, Luna roadmap, and Moth roadmap.
 
+### Phase 5D.2 — New File / Untitled Buffer / Save As Proof
+
+Phase 5D.2 completes the basic editor file lifecycle in the default demo harness. It adds app-owned untitled buffers for File > New File / Ctrl+N, safe empty local-file creation through `--create`, demo Save As routing, and no-overwrite defaults while keeping LunaUI limited to neutral document descriptors, workspace state, and save/open request/result seams.
+
+Phase 5D.2 deliverables:
+
+- add File > New File and Ctrl+N routing to a demo-owned untitled document creator;
+- add `--new-untitled` / `LUNA_DEMO_NEW_UNTITLED` launch support for repeatable untitled-buffer testing;
+- add `--create path` / `LUNA_DEMO_CREATE_FILE(S)` support that creates empty UTF-8 local files safely and opens them through the Phase 5D adapter;
+- add explicit overwrite flags for create/save-as testing without allowing accidental overwrite by default;
+- add demo Save As routing with `--save-as` / `LUNA_DEMO_SAVE_AS_PATH` and generated `/tmp/luna-ui-save-as` fallback paths;
+- keep all filesystem path policy in `LunaUITestApp`, not `LunaUI`;
+- add regression coverage for untitled save requests, save-as identity migration, and workspace sync when the active document has no file descriptor;
+- update README, current status, demo protocol, and Moth Text roadmap.
+
 ### Phase 5E — Tab Overflow and Split/Panes
 
 Scope:
@@ -1349,4 +1364,4 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.1 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, and has a repeatable public-domain file corpus: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.
+Phase 5D.2 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, has a repeatable public-domain file corpus, and covers the basic new/open/save/save-as/close file lifecycle: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.

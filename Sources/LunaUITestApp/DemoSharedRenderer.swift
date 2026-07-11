@@ -167,12 +167,19 @@ public struct LunaCPUDemoScene {
     /// projection; the demo supplies fake documents instead of real file I/O.
     private var documentStore = LunaCPUDemoScene.demoDocumentStore
 
-    /// Phase 5D file/project adapter boundary proof. The adapter lives in the
-    /// demo app target and can serve both in-memory fixture documents and real
-    /// UTF-8 local files. LunaUI still owns only product-neutral workspace/open/
-    /// save contracts; filesystem access and path policy stay outside Luna.
+    /// Phase 5D/5D.2 file/project adapter boundary proof. The adapter lives in
+    /// the demo app target and can serve in-memory fixtures, real UTF-8 local
+    /// files, created empty files, and Save As targets. LunaUI still owns only
+    /// product-neutral workspace/open/save contracts; filesystem access and path
+    /// policy stay outside Luna.
     private var workspaceState = LunaCPUDemoScene.demoWorkspaceState
     private var workspaceAdapter = LunaCPUDemoWorkspaceAdapter.demo
+
+    /// Phase 5D.2 untitled-document naming stays demo/app policy. LunaUI only
+    /// needs stable document descriptors and save requests.
+    private var nextUntitledDocumentIndex: Int = 1
+    private var demoSaveAsPath: String?
+    private var overwritesDemoSaveAsTarget: Bool = false
 
     /// Phase 5C.1 runtime/frame diagnostics supplied by the host loop. Widgets
     /// stay synchronous; the host records timing and invalidation reasons.
@@ -256,15 +263,24 @@ public struct LunaCPUDemoScene {
         theme: LunaTheme = MothDemoTheme.theme,
         mode: LunaDemoMode = .editor,
         openLocalFilePaths: [String] = [],
+        createLocalFilePaths: [String] = [],
+        newUntitledDocumentCount: Int = 0,
+        demoSaveAsPath: String? = nil,
+        overwritesDemoSaveAsTarget: Bool = false,
+        overwritesCreatedLocalFiles: Bool = false,
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: theme)
         self.startTime = startTimeNanoseconds
         self.theme = resolvedTheme
         self.demoMode = mode
+        self.demoSaveAsPath = demoSaveAsPath
+        self.overwritesDemoSaveAsTarget = overwritesDemoSaveAsTarget
         self.lastInteractionStatus = "Ready. Mode=\(mode.rawValue). Luna UI state remains single-lane and deterministic."
         self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: resolvedTheme))
+        createLocalFilesAtLaunch(createLocalFilePaths, overwrite: overwritesCreatedLocalFiles)
         openLocalFilesAtLaunch(openLocalFilePaths)
+        openUntitledDocumentsAtLaunch(count: newUntitledDocumentCount)
     }
 
 
@@ -1251,7 +1267,7 @@ public struct LunaCPUDemoScene {
                 LunaMenuItem.command(id: "sidebar.reveal", title: "Reveal", command: "luna.demo.context.reveal"),
                 LunaMenuItem.command(id: "sidebar.rename", title: "Rename…", command: "luna.demo.context.rename"),
                 LunaMenuItem.separator(id: "sidebar.sep.0"),
-                LunaMenuItem.command(id: "sidebar.newFile", title: "New File", command: "luna.demo.context.info", isEnabled: false),
+                LunaMenuItem.command(id: "sidebar.newFile", title: "New File", command: "luna.demo.file.new"),
                 LunaMenuItem.command(id: "sidebar.toggle", title: "Toggle Sidebar", command: "luna.demo.sidebar.toggle"),
                 LunaMenuItem.submenu(id: "sidebar.theme", title: "Theme", children: themeItems),
                 LunaMenuItem.separator(id: "sidebar.sep.1"),
@@ -1451,6 +1467,140 @@ public struct LunaCPUDemoScene {
         }
     }
 
+    private mutating func createLocalFilesAtLaunch(_ paths: [String], overwrite: Bool) {
+        guard !paths.isEmpty else { return }
+        let registrations = workspaceAdapter.createEmptyLocalFiles(paths, overwrite: overwrite)
+        workspaceState.snapshot = workspaceAdapter.projectTreeSnapshot()
+        var openedTitles: [String] = []
+        var failures: [String] = []
+
+        for registration in registrations {
+            guard let descriptor = registration.descriptor else {
+                failures.append(registration.statusMessage)
+                continue
+            }
+            workspaceState.registerFile(descriptor)
+            _ = workspaceState.open(fileID: descriptor.id)
+            let result = workspaceAdapter.openFile(LunaWorkspaceOpenRequest(fileID: descriptor.id, source: "launch --create"))
+            guard let file = result.file, let text = result.text else {
+                failures.append(result.statusMessage ?? registration.statusMessage)
+                continue
+            }
+            _ = documentStore.openOrActivate(file: file, text: text)
+            openedTitles.append(file.displayPath)
+        }
+
+        syncWorkspaceAndShellStateToActiveDocument()
+        activeTextSelectionAnchor = nil
+        completionPopupState.close()
+
+        if !openedTitles.isEmpty {
+            let suffix = failures.isEmpty ? "" : "; \(failures.count) create request(s) failed"
+            lastInteractionStatus = "Phase 5D.2 created and opened local file(s): \(openedTitles.joined(separator: ", "))\(suffix)"
+        } else if let firstFailure = failures.first {
+            lastInteractionStatus = firstFailure
+        }
+    }
+
+    private mutating func openUntitledDocumentsAtLaunch(count: Int) {
+        guard count > 0 else { return }
+        var titles: [String] = []
+        for _ in 0..<count {
+            titles.append(createUntitledDocument(activationReason: "launch --new-untitled"))
+        }
+        lastInteractionStatus = "Phase 5D.2 opened untitled document(s): \(titles.joined(separator: ", "))"
+    }
+
+    @discardableResult
+    private mutating func createUntitledDocument(activationReason: String = "File > New File") -> String {
+        let index = nextAvailableUntitledDocumentIndex()
+        nextUntitledDocumentIndex = index + 1
+        let title = "Untitled-\(index).txt"
+        let id = LunaDocumentID(rawValue: "untitled.\(index)")
+        _ = documentStore.openUntitledDocument(id: id, title: title, text: "", syntaxName: "Plain Text")
+        syncWorkspaceAndShellStateToActiveDocument()
+        completionPopupState.close()
+        findPanelState = nil
+        activeTextSelectionAnchor = nil
+        lastInteractionStatus = "Phase 5D.2 new untitled document: \(title) (\(activationReason))"
+        return title
+    }
+
+    private mutating func nextAvailableUntitledDocumentIndex() -> Int {
+        var index = max(1, nextUntitledDocumentIndex)
+        while documentStore.document(with: LunaDocumentID(rawValue: "untitled.\(index)")) != nil {
+            index += 1
+        }
+        return index
+    }
+
+    private mutating func saveActiveDocumentAsDemoPath() {
+        guard let request = documentStore.saveRequestForActiveDocument(kind: .saveAs) else {
+            lastInteractionStatus = "Phase 5D.2 Save As skipped: no active document"
+            return
+        }
+        let targetPath = demoSaveAsPath ?? generatedDemoSaveAsPath(for: request.title)
+        let oldDocumentID = request.documentID
+        let result = workspaceAdapter.saveDocumentAsLocalFile(
+            request,
+            targetPath: targetPath,
+            overwrite: overwritesDemoSaveAsTarget
+        )
+        documentStore.applySaveResult(result)
+        if let file = result.file {
+            workspaceState.registerFile(file)
+            _ = workspaceState.close(fileID: LunaFileID(rawValue: oldDocumentID.rawValue))
+            _ = workspaceState.open(fileID: file.id)
+            workspaceState.snapshot = workspaceAdapter.projectTreeSnapshot()
+            if demoSaveAsPath != nil {
+                demoSaveAsPath = nil
+            }
+        }
+        syncWorkspaceAndShellStateToActiveDocument()
+        lastInteractionStatus = result.statusMessage ?? (result.didSave ? "Saved As \(request.title)" : "Save As failed for \(request.title)")
+    }
+
+    private func generatedDemoSaveAsPath(for title: String) -> String {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("luna-ui-save-as", isDirectory: true)
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let sanitizedTitle = Self.sanitizedDemoFileName(title)
+        let baseName = sanitizedTitle.isEmpty ? "Untitled" : sanitizedTitle
+        var candidate = directory.appendingPathComponent(baseName)
+        if candidate.pathExtension.isEmpty {
+            candidate = candidate.appendingPathExtension("txt")
+        }
+        if !FileManager.default.fileExists(atPath: candidate.path) {
+            return candidate.path
+        }
+        let stem = candidate.deletingPathExtension().lastPathComponent
+        let ext = candidate.pathExtension
+        for index in 2...999 {
+            let name = ext.isEmpty ? "\(stem)-\(index)" : "\(stem)-\(index).\(ext)"
+            let next = directory.appendingPathComponent(name)
+            if !FileManager.default.fileExists(atPath: next.path) {
+                return next.path
+            }
+        }
+        return directory.appendingPathComponent("\(stem)-\(UUID().uuidString).\(ext.isEmpty ? "txt" : ext)").path
+    }
+
+    private static func sanitizedDemoFileName(_ value: String) -> String {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-_."))
+        var output = ""
+        var previousWasDash = false
+        for scalar in value.unicodeScalars {
+            if allowed.contains(scalar) {
+                output.unicodeScalars.append(scalar)
+                previousWasDash = false
+            } else if !previousWasDash {
+                output.append("-")
+                previousWasDash = true
+            }
+        }
+        return output.trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+    }
+
     private mutating func saveActiveDocumentThroughWorkspaceAdapter() {
         guard let request = documentStore.saveRequestForActiveDocument() else {
             lastInteractionStatus = "Phase 5D save skipped: no active document"
@@ -1545,9 +1695,14 @@ public struct LunaCPUDemoScene {
             return LunaCommandAvailability(isChecked: currentTheme == LunaTheme.highContrastProof.name)
         case "luna.demo.sidebar.toggle":
             return LunaCommandAvailability(isChecked: editorShellState.isSidebarVisible)
+        case "luna.demo.file.new":
+            return .enabled
         case "luna.demo.file.save":
             let isDirty = documentStore.activeDocument?.isDirty ?? false
             return LunaCommandAvailability(isEnabled: isDirty, disabledReason: isDirty ? nil : "Active document is already saved")
+        case "luna.demo.file.saveAs":
+            let hasDocument = documentStore.activeDocument != nil
+            return LunaCommandAvailability(isEnabled: hasDocument, disabledReason: hasDocument ? nil : "No active document")
         case "luna.demo.file.saveAll":
             let hasDirty = !documentStore.dirtyDocumentIDs().isEmpty
             return LunaCommandAvailability(isEnabled: hasDirty, disabledReason: hasDirty ? nil : "No dirty documents")
@@ -1658,8 +1813,12 @@ public struct LunaCPUDemoScene {
         case "luna.demo.palette.open":
             openQuickPanel()
             lastInteractionStatus = "Command palette opened from menu command"
+        case "luna.demo.file.new":
+            _ = createUntitledDocument()
         case "luna.demo.file.save":
             saveActiveDocumentThroughWorkspaceAdapter()
+        case "luna.demo.file.saveAs":
+            saveActiveDocumentAsDemoPath()
         case "luna.demo.file.saveAll":
             saveAllDirtyDocumentsThroughWorkspaceAdapter()
         case "luna.demo.file.close":
@@ -2255,7 +2414,9 @@ public struct LunaCPUDemoScene {
     public static let demoCommandDescriptors: [LunaCommandDescriptor] = [
         LunaCommandDescriptor(id: "luna.demo.palette.open", title: "Open Command Palette", defaultKey: LunaKeyEquivalent("P", modifiers: [.primary]), menuPath: ["View"]),
         LunaCommandDescriptor(id: "luna.demo.notice", title: "Show Demo Notice", defaultKey: nil, menuPath: ["Help"]),
+        LunaCommandDescriptor(id: "luna.demo.file.new", title: "New Untitled File", defaultKey: LunaKeyEquivalent("N", modifiers: [.primary]), menuPath: ["File"]),
         LunaCommandDescriptor(id: "luna.demo.file.save", title: "Save Active Document", defaultKey: LunaKeyEquivalent("S", modifiers: [.primary]), menuPath: ["File"]),
+        LunaCommandDescriptor(id: "luna.demo.file.saveAs", title: "Save Active Document As Demo File", defaultKey: LunaKeyEquivalent("S", modifiers: [.primary, .shift, .option]), menuPath: ["File"]),
         LunaCommandDescriptor(id: "luna.demo.file.saveAll", title: "Save All Dirty Documents", defaultKey: LunaKeyEquivalent("S", modifiers: [.primary, .shift]), menuPath: ["File"]),
         LunaCommandDescriptor(id: "luna.demo.file.close", title: "Close Active Document", defaultKey: LunaKeyEquivalent("W", modifiers: [.primary]), menuPath: ["File"]),
         LunaCommandDescriptor(id: "luna.demo.file.open.overview", title: "Open Overview.swift", menuPath: ["Workspace"]),
@@ -2328,9 +2489,10 @@ public struct LunaCPUDemoScene {
 
         return [
             LunaMenuDefinition(id: "file", title: "File", items: [
-                LunaMenuItem.command(id: "file.new", title: "New File", command: "luna.demo.notice", keyEquivalent: LunaKeyEquivalent("N", modifiers: [.primary])),
+                LunaMenuItem.command(id: "file.new", title: "New File", command: "luna.demo.file.new", keyEquivalent: LunaKeyEquivalent("N", modifiers: [.primary])),
                 LunaMenuItem.separator(id: "file.sep.0"),
                 LunaMenuItem.command(id: "file.save", title: "Save", command: "luna.demo.file.save", keyEquivalent: LunaKeyEquivalent("S", modifiers: [.primary])),
+                LunaMenuItem.command(id: "file.saveAs", title: "Save As Demo File…", command: "luna.demo.file.saveAs", keyEquivalent: LunaKeyEquivalent("S", modifiers: [.primary, .shift, .option])),
                 LunaMenuItem.command(id: "file.saveAll", title: "Save All", command: "luna.demo.file.saveAll", keyEquivalent: LunaKeyEquivalent("S", modifiers: [.primary, .shift])),
                 LunaMenuItem.separator(id: "file.sep.1"),
                 LunaMenuItem.command(id: "file.closeDocument", title: "Close Document", command: "luna.demo.file.close", keyEquivalent: LunaKeyEquivalent("W", modifiers: [.primary])),

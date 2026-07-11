@@ -38,6 +38,7 @@ public struct LunaDocumentDescriptor: Hashable, Sendable {
     public var syntaxName: String?
     public var isPinned: Bool
     public var isClosable: Bool
+    public var isUntitled: Bool
     public var accessibilityLabel: String
 
     public init(
@@ -47,6 +48,7 @@ public struct LunaDocumentDescriptor: Hashable, Sendable {
         syntaxName: String? = nil,
         isPinned: Bool = false,
         isClosable: Bool = true,
+        isUntitled: Bool = false,
         accessibilityLabel: String? = nil
     ) {
         self.id = id
@@ -55,6 +57,7 @@ public struct LunaDocumentDescriptor: Hashable, Sendable {
         self.syntaxName = syntaxName
         self.isPinned = isPinned
         self.isClosable = isClosable
+        self.isUntitled = isUntitled
         self.accessibilityLabel = accessibilityLabel ?? title
     }
 }

@@ -144,6 +144,7 @@ public struct LunaFileDescriptor: Hashable, Sendable {
             syntaxName: syntaxName,
             isPinned: isPinned,
             isClosable: isClosable,
+            isUntitled: isUntitled,
             accessibilityLabel: displayPath
         )
     }
@@ -433,6 +434,9 @@ public struct LunaWorkspaceState: Hashable, Sendable {
         let fileID = LunaFileID(rawValue: documentID.rawValue)
         if filesByID[fileID] != nil {
             _ = open(fileID: fileID)
+        } else {
+            activeFileID = nil
+            selectedNodeID = nil
         }
     }
 }
@@ -629,6 +633,33 @@ public extension LunaDocumentStore {
         return documentID
     }
 
+    @discardableResult
+    mutating func openUntitledDocument(
+        id: LunaDocumentID,
+        title: String,
+        text: String = "",
+        syntaxName: String? = "Plain Text",
+        isClosable: Bool = true
+    ) -> LunaDocumentID {
+        if activate(id) {
+            return id
+        }
+        let descriptor = LunaDocumentDescriptor(
+            id: id,
+            title: title,
+            displayPath: nil,
+            syntaxName: syntaxName,
+            isPinned: false,
+            isClosable: isClosable,
+            isUntitled: true,
+            accessibilityLabel: "Untitled document \(title)"
+        )
+        openDocuments.append(LunaDocumentBuffer(descriptor: descriptor, text: text))
+        activeDocumentID = id
+        normalize()
+        return id
+    }
+
     func saveRequestForActiveDocument(kind: LunaDocumentSaveKind = .save) -> LunaDocumentSaveRequest? {
         guard let activeDocument else { return nil }
         return saveRequest(for: activeDocument.id, kind: kind)
@@ -636,9 +667,10 @@ public extension LunaDocumentStore {
 
     func saveRequest(for documentID: LunaDocumentID, kind: LunaDocumentSaveKind = .save) -> LunaDocumentSaveRequest? {
         guard let document = document(with: documentID) else { return nil }
+        let fileID = document.descriptor.isUntitled ? nil : LunaFileID(rawValue: document.id.rawValue)
         return LunaDocumentSaveRequest(
             documentID: document.id,
-            fileID: LunaFileID(rawValue: document.id.rawValue),
+            fileID: fileID,
             title: document.descriptor.title,
             displayPath: document.descriptor.displayPath,
             text: document.textState.document.text,
@@ -652,13 +684,20 @@ public extension LunaDocumentStore {
               let index = openDocuments.firstIndex(where: { $0.id == result.documentID }) else { return }
         if let file = result.file {
             let old = openDocuments[index].descriptor
+            let savedDocumentID = LunaDocumentID(rawValue: file.id.rawValue)
+            let canAdoptSavedID = savedDocumentID == old.id || !openDocuments.contains(where: { $0.id == savedDocumentID })
+            let nextID = canAdoptSavedID ? savedDocumentID : old.id
             openDocuments[index].descriptor = file.documentDescriptor(
-                id: old.id,
+                id: nextID,
                 isPinned: old.isPinned,
                 isClosable: old.isClosable
             )
+            if activeDocumentID == old.id {
+                activeDocumentID = nextID
+            }
         }
         openDocuments[index].markClean()
+        normalize()
     }
 
     func dirtyDocumentIDs() -> [LunaDocumentID] {

@@ -50,6 +50,7 @@ final class LunaUIPhase5CTests: XCTestCase {
         XCTAssertEqual(descriptor.syntaxName, "Swift")
         XCTAssertTrue(descriptor.isPinned)
         XCTAssertFalse(descriptor.isClosable)
+        XCTAssertFalse(descriptor.isUntitled)
     }
 
     func testProjectTreeSnapshotProjectsToSidebarItemsWithAppOwnedCommands() {
@@ -149,6 +150,65 @@ final class LunaUIPhase5CTests: XCTestCase {
         store.applySaveResult(failed)
 
         XCTAssertTrue(store.openDocuments[0].isDirty)
+    }
+
+
+    func testUntitledDocumentSaveRequestHasNoDestinationUntilSaveAs() {
+        var store = LunaDocumentStore(openDocuments: [])
+        let id = store.openUntitledDocument(id: "untitled.1", title: "Untitled-1.txt", text: "")
+        XCTAssertEqual(id, "untitled.1")
+        XCTAssertTrue(store.activeDocument?.descriptor.isUntitled ?? false)
+
+        store.openDocuments[0].textState.insertText("hello")
+        let request = store.saveRequestForActiveDocument()
+
+        XCTAssertEqual(request?.documentID, "untitled.1")
+        XCTAssertNil(request?.fileID)
+        XCTAssertEqual(request?.title, "Untitled-1.txt")
+        XCTAssertEqual(request?.text, "hello")
+    }
+
+    func testSaveAsResultCanAdoptRealFileBackedDocumentIdentity() {
+        var store = LunaDocumentStore(openDocuments: [])
+        _ = store.openUntitledDocument(id: "untitled.1", title: "Untitled-1.txt", text: "hello")
+        let request = store.saveRequestForActiveDocument(kind: .saveAs)!
+        let savedFile = LunaFileDescriptor(
+            id: "local.untitled.abcd",
+            path: "/tmp/Untitled-1.txt",
+            displayPath: "Untitled-1.txt",
+            name: "Untitled-1.txt",
+            projectID: "local-files",
+            syntaxName: "Plain Text",
+            isUntitled: false,
+            metadata: ["adapter": "local-file"]
+        )
+
+        store.applySaveResult(.saved(request, file: savedFile, statusMessage: "Saved As"))
+
+        XCTAssertEqual(store.activeDocumentID, "local.untitled.abcd")
+        XCTAssertEqual(store.activeDocument?.descriptor.displayPath, "Untitled-1.txt")
+        XCTAssertFalse(store.activeDocument?.descriptor.isUntitled ?? true)
+        XCTAssertFalse(store.activeDocument?.isDirty ?? true)
+        XCTAssertNil(store.document(with: "untitled.1"))
+    }
+
+    func testWorkspaceStateSyncClearsSelectionWhenActiveDocumentIsUntitled() {
+        var workspace = LunaWorkspaceState(
+            snapshot: makeSnapshot(),
+            fileDescriptors: makeFiles(),
+            openFileIDs: ["main"],
+            activeFileID: "main",
+            selectedNodeID: "node.main",
+            expandedNodeIDs: ["root", "sources"]
+        )
+        var store = LunaDocumentStore(openDocuments: [])
+        _ = store.openUntitledDocument(id: "untitled.1", title: "Untitled-1.txt")
+
+        workspace.syncFromActiveDocument(store)
+
+        XCTAssertNil(workspace.activeFileID)
+        XCTAssertNil(workspace.selectedNodeID)
+        XCTAssertEqual(workspace.openFileIDs, ["main"])
     }
 
     func testWorkspaceAdapterProtocolCanBeBackedByInMemoryFixture() {

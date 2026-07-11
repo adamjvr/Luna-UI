@@ -70,14 +70,19 @@ func runLinuxDemo() {
     let demoMode = launchOptions.mode
     let logsCommandRequests = launchOptions.logsCommandRequests
 
-    // Shared demo scene (pure Luna, no platform event decoding). Phase 5D/5D.1 can
-    // seed the app-owned workspace adapter with real UTF-8 local files supplied
-    // through --open/path arguments or the checked-in demo corpus without
-    // moving filesystem policy into LunaUI.
+    // Shared demo scene (pure Luna, no platform event decoding). Phase 5D/5D.1/5D.2
+    // can seed the app-owned workspace adapter with real UTF-8 local files,
+    // checked-in demo corpus fixtures, created empty files, and untitled buffers
+    // without moving filesystem policy into LunaUI.
     var demo = LunaCPUDemoScene(
         theme: MothDemoTheme.theme,
         mode: demoMode,
-        openLocalFilePaths: launchOptions.openFilePaths
+        openLocalFilePaths: launchOptions.openFilePaths,
+        createLocalFilePaths: launchOptions.createFilePaths,
+        newUntitledDocumentCount: launchOptions.newUntitledDocumentCount,
+        demoSaveAsPath: launchOptions.demoSaveAsPath,
+        overwritesDemoSaveAsTarget: launchOptions.overwritesSaveAsTarget,
+        overwritesCreatedLocalFiles: launchOptions.overwritesCreatedFiles
     )
 
     var framePacer = LunaFramePacer(targetFramesPerSecond: 60, usesExternalVSync: presenter.usesVSync)

@@ -3,7 +3,7 @@
 //  LunaDemoLocalFileWorkspaceAdapter.swift
 //  LunaUITestApp
 //
-//  Demo/app-owned local filesystem adapter used for Phase 5D and 5D.1.
+//  Demo/app-owned local filesystem adapter used for Phase 5D, 5D.1, and 5D.2.
 //
 //  LunaUI owns the product-neutral workspace/document contracts. This file is
 //  deliberately kept in LunaUITestApp so real filesystem access, path display,
@@ -17,10 +17,20 @@ import LunaUI
 struct LunaDemoLaunchOptions: Hashable, Sendable {
     var mode: LunaDemoMode
     var openFilePaths: [String]
+    var newUntitledDocumentCount: Int
+    var createFilePaths: [String]
+    var overwritesCreatedFiles: Bool
+    var demoSaveAsPath: String?
+    var overwritesSaveAsTarget: Bool
     var logsCommandRequests: Bool
 
     static func parse(arguments: [String], environment: [String: String]) -> LunaDemoLaunchOptions {
         var openFilePaths: [String] = []
+        var createFilePaths: [String] = []
+        var newUntitledDocumentCount = 0
+        var demoSaveAsPath: String? = nil
+        var overwritesCreatedFiles = environment["LUNA_DEMO_OVERWRITE_CREATE"] == "1"
+        var overwritesSaveAsTarget = environment["LUNA_DEMO_OVERWRITE_SAVE_AS"] == "1"
         let corpusRoot = environment["LUNA_DEMO_CORPUS_ROOT"] ?? "Examples/PublicDomainDemoFiles"
         var index = 0
         while index < arguments.count {
@@ -37,6 +47,36 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
             } else if argument.hasPrefix("--open=") {
                 let value = String(argument.dropFirst("--open=".count))
                 if !value.isEmpty { openFilePaths.append(value) }
+            } else if argument == "--new" || argument == "--new-untitled" {
+                newUntitledDocumentCount += 1
+            } else if argument.hasPrefix("--new-untitled=") {
+                let value = String(argument.dropFirst("--new-untitled=".count))
+                newUntitledDocumentCount += max(1, Int(value) ?? 1)
+            } else if argument == "--create" {
+                let nextIndex = index + 1
+                if nextIndex < arguments.count {
+                    createFilePaths.append(arguments[nextIndex])
+                    index += 1
+                }
+            } else if argument.hasPrefix("--create=") {
+                let value = String(argument.dropFirst("--create=".count))
+                if !value.isEmpty { createFilePaths.append(value) }
+            } else if argument == "--overwrite-create" {
+                overwritesCreatedFiles = true
+            } else if argument == "--save-as" || argument == "--save-as-path" {
+                let nextIndex = index + 1
+                if nextIndex < arguments.count {
+                    demoSaveAsPath = arguments[nextIndex]
+                    index += 1
+                }
+            } else if argument.hasPrefix("--save-as=") {
+                let value = String(argument.dropFirst("--save-as=".count))
+                if !value.isEmpty { demoSaveAsPath = value }
+            } else if argument.hasPrefix("--save-as-path=") {
+                let value = String(argument.dropFirst("--save-as-path=".count))
+                if !value.isEmpty { demoSaveAsPath = value }
+            } else if argument == "--overwrite-save-as" {
+                overwritesSaveAsTarget = true
             } else if argument == "--open-demo-corpus" {
                 openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: "all", root: corpusRoot))
             } else if argument.hasPrefix("--open-demo-corpus=") {
@@ -57,10 +97,27 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
         if let environmentCorpus = environment["LUNA_DEMO_OPEN_CORPUS"], !environmentCorpus.isEmpty {
             openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: environmentCorpus, root: corpusRoot))
         }
+        if let environmentNewUntitled = environment["LUNA_DEMO_NEW_UNTITLED"], !environmentNewUntitled.isEmpty {
+            newUntitledDocumentCount += max(1, Int(environmentNewUntitled) ?? 1)
+        }
+        if let environmentCreate = environment["LUNA_DEMO_CREATE_FILE"], !environmentCreate.isEmpty {
+            createFilePaths.append(environmentCreate)
+        }
+        if let environmentCreateFiles = environment["LUNA_DEMO_CREATE_FILES"], !environmentCreateFiles.isEmpty {
+            createFilePaths.append(contentsOf: environmentCreateFiles.split(separator: ":").map(String.init).filter { !$0.isEmpty })
+        }
+        if let environmentSaveAsPath = environment["LUNA_DEMO_SAVE_AS_PATH"], !environmentSaveAsPath.isEmpty {
+            demoSaveAsPath = environmentSaveAsPath
+        }
 
         return LunaDemoLaunchOptions(
             mode: LunaDemoMode.parse(arguments: arguments, environment: environment),
             openFilePaths: Self.uniquedPreservingOrder(openFilePaths),
+            newUntitledDocumentCount: newUntitledDocumentCount,
+            createFilePaths: Self.uniquedPreservingOrder(createFilePaths),
+            overwritesCreatedFiles: overwritesCreatedFiles,
+            demoSaveAsPath: demoSaveAsPath,
+            overwritesSaveAsTarget: overwritesSaveAsTarget,
             logsCommandRequests: environment["LUNA_DEMO_DEBUG_COMMANDS"] == "1" || arguments.contains("--debug-commands")
         )
     }
@@ -166,6 +223,54 @@ struct LunaCPUDemoWorkspaceAdapter: LunaWorkspaceAdapter {
         return registrations
     }
 
+    mutating func createEmptyLocalFiles(
+        _ paths: [String],
+        overwrite: Bool = false,
+        currentDirectory: String = FileManager.default.currentDirectoryPath
+    ) -> [LunaDemoLocalFileRegistration] {
+        var registrations: [LunaDemoLocalFileRegistration] = []
+        for path in paths {
+            registrations.append(createEmptyLocalFile(path, overwrite: overwrite, currentDirectory: currentDirectory))
+        }
+        rebuildLocalProjectTree()
+        return registrations
+    }
+
+    mutating func saveDocumentAsLocalFile(
+        _ request: LunaDocumentSaveRequest,
+        targetPath: String,
+        overwrite: Bool = false,
+        currentDirectory: String = FileManager.default.currentDirectoryPath
+    ) -> LunaDocumentSaveResult {
+        let targetURL = Self.canonicalFileURL(for: targetPath, currentDirectory: currentDirectory)
+        let canonicalPath = targetURL.path
+        let displayPath = Self.displayPath(for: canonicalPath, currentDirectory: currentDirectory)
+        let fileManager = FileManager.default
+        var isDirectory = ObjCBool(false)
+        let exists = fileManager.fileExists(atPath: canonicalPath, isDirectory: &isDirectory)
+        guard !isDirectory.boolValue else {
+            return LunaDocumentSaveResult(outcome: .failed, documentID: request.documentID, statusMessage: "Phase 5D.2 Save As failed: target is a directory (\(displayPath))")
+        }
+        guard overwrite || !exists else {
+            return LunaDocumentSaveResult(outcome: .failed, documentID: request.documentID, statusMessage: "Phase 5D.2 Save As refused to overwrite existing file: \(displayPath)")
+        }
+        let parentURL = targetURL.deletingLastPathComponent()
+        var parentIsDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: parentURL.path, isDirectory: &parentIsDirectory), parentIsDirectory.boolValue else {
+            return LunaDocumentSaveResult(outcome: .failed, documentID: request.documentID, statusMessage: "Phase 5D.2 Save As failed: parent folder does not exist for \(displayPath)")
+        }
+        do {
+            try request.text.write(to: targetURL, atomically: true, encoding: .utf8)
+        } catch {
+            return LunaDocumentSaveResult(outcome: .failed, documentID: request.documentID, statusMessage: "Phase 5D.2 Save As could not write \(displayPath): \(error.localizedDescription)")
+        }
+        let descriptor = localDescriptor(for: targetURL, currentDirectory: currentDirectory, phase: "5D.2")
+        filesByID[descriptor.id] = descriptor
+        localPathsByFileID[descriptor.id] = canonicalPath
+        rebuildLocalProjectTree()
+        return .saved(request, file: descriptor, statusMessage: "Phase 5D.2 saved \(request.title) as \(descriptor.displayPath)")
+    }
+
     mutating func projectTreeSnapshot() -> LunaProjectTreeSnapshot {
         snapshot
     }
@@ -228,26 +333,60 @@ struct LunaCPUDemoWorkspaceAdapter: LunaWorkspaceAdapter {
             return LunaDemoLocalFileRegistration(descriptor: existing, statusMessage: "Phase 5D local file already registered: \(existing.displayPath)")
         }
 
-        let fileID = Self.localFileID(for: canonicalPath)
+        let descriptor = localDescriptor(for: url, currentDirectory: currentDirectory, phase: "5D")
+        filesByID[descriptor.id] = descriptor
+        localPathsByFileID[descriptor.id] = canonicalPath
+        return LunaDemoLocalFileRegistration(descriptor: descriptor, statusMessage: "Phase 5D registered local file \(displayPath)")
+    }
+
+    private mutating func createEmptyLocalFile(_ path: String, overwrite: Bool, currentDirectory: String) -> LunaDemoLocalFileRegistration {
+        let url = Self.canonicalFileURL(for: path, currentDirectory: currentDirectory)
+        let canonicalPath = url.path
+        let displayPath = Self.displayPath(for: canonicalPath, currentDirectory: currentDirectory)
+        let fileManager = FileManager.default
+        var isDirectory = ObjCBool(false)
+        let exists = fileManager.fileExists(atPath: canonicalPath, isDirectory: &isDirectory)
+        guard !isDirectory.boolValue else {
+            return LunaDemoLocalFileRegistration(descriptor: nil, statusMessage: "Phase 5D.2 cannot create text file over directory: \(displayPath)")
+        }
+        guard overwrite || !exists else {
+            return LunaDemoLocalFileRegistration(descriptor: nil, statusMessage: "Phase 5D.2 refused to overwrite existing file: \(displayPath)")
+        }
+        let parentURL = url.deletingLastPathComponent()
+        var parentIsDirectory = ObjCBool(false)
+        guard fileManager.fileExists(atPath: parentURL.path, isDirectory: &parentIsDirectory), parentIsDirectory.boolValue else {
+            return LunaDemoLocalFileRegistration(descriptor: nil, statusMessage: "Phase 5D.2 cannot create \(displayPath): parent folder does not exist")
+        }
+        do {
+            try "".write(to: url, atomically: true, encoding: .utf8)
+        } catch {
+            return LunaDemoLocalFileRegistration(descriptor: nil, statusMessage: "Phase 5D.2 could not create \(displayPath): \(error.localizedDescription)")
+        }
+        let descriptor = localDescriptor(for: url, currentDirectory: currentDirectory, phase: "5D.2")
+        filesByID[descriptor.id] = descriptor
+        localPathsByFileID[descriptor.id] = canonicalPath
+        return LunaDemoLocalFileRegistration(descriptor: descriptor, statusMessage: "Phase 5D.2 created empty local file \(descriptor.displayPath)")
+    }
+
+    private func localDescriptor(for url: URL, currentDirectory: String, phase: String) -> LunaFileDescriptor {
+        let canonicalPath = url.standardizedFileURL.path
+        let displayPath = Self.displayPath(for: canonicalPath, currentDirectory: currentDirectory)
         let fileName = url.lastPathComponent.isEmpty ? displayPath : url.lastPathComponent
-        let descriptor = LunaFileDescriptor(
-            id: fileID,
+        return LunaFileDescriptor(
+            id: Self.localFileID(for: canonicalPath),
             path: canonicalPath,
             displayPath: displayPath,
             name: fileName,
             projectID: Self.localProjectID,
             syntaxName: Self.syntaxName(forPathExtension: url.pathExtension),
-            isReadOnly: !fileManager.isWritableFile(atPath: canonicalPath),
+            isReadOnly: !FileManager.default.isWritableFile(atPath: canonicalPath),
             isUntitled: false,
             metadata: [
                 "adapter": "local-file",
                 "local.path": canonicalPath,
-                "phase": "5D",
+                "phase": phase,
             ]
         )
-        filesByID[fileID] = descriptor
-        localPathsByFileID[fileID] = canonicalPath
-        return LunaDemoLocalFileRegistration(descriptor: descriptor, statusMessage: "Phase 5D registered local file \(displayPath)")
     }
 
     private mutating func rebuildLocalProjectTree() {
