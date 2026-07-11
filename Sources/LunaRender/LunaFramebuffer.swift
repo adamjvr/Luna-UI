@@ -35,6 +35,35 @@ public struct LunaFramebuffer {
         self.storage = [UInt8](repeating: 0, count: self.bytesPerRow * h)
     }
 
+    /// Copy all pixels from another framebuffer into this framebuffer.
+    ///
+    /// This is intentionally a raw full-frame copy instead of assigning the
+    /// backing array. Assignment would make Swift Array storage copy-on-write
+    /// shared; the first tiny dynamic draw after a cached-frame restore would
+    /// then have to clone the entire framebuffer at an unpredictable point.
+    /// Keeping the copy explicit makes proof-gallery frame caching predictable.
+    public mutating func copyPixels(from source: LunaFramebuffer) {
+        if width != source.width || height != source.height {
+            resize(width: source.width, height: source.height)
+        }
+
+        guard storage.count == source.storage.count else {
+            storage = [UInt8](repeating: 0, count: source.storage.count)
+            bytesPerRow = source.bytesPerRow
+            width = source.width
+            height = source.height
+            return copyPixels(from: source)
+        }
+
+        storage.withUnsafeMutableBufferPointer { destination in
+            source.storage.withUnsafeBufferPointer { sourceBuffer in
+                guard let destinationBase = destination.baseAddress,
+                      let sourceBase = sourceBuffer.baseAddress else { return }
+                destinationBase.update(from: sourceBase, count: sourceBuffer.count)
+            }
+        }
+    }
+
     // MARK: - Pixel access
 
     /// Provides *mutable* access to the framebuffer's pixel bytes.

@@ -127,6 +127,26 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 }
 
 
+/// Cached static proof-gallery frame used for animation-only frames.
+///
+/// The proof gallery is intentionally a stress harness, but the bouncing-square
+/// proof should not force the expensive editor/sidebar/text surfaces to be
+/// rebuilt every vsync when nothing except the square's position changes. The
+/// cache stores a fully rendered static frame with the dynamic animation/HUD and
+/// transient overlays omitted; animation-only frames restore it and redraw just
+/// the moving proof surface.
+private struct LunaProofGalleryStaticFrameCache {
+    public var framebuffer: LunaFramebuffer
+
+    public init(width: Int, height: Int) {
+        self.framebuffer = LunaFramebuffer(width: width, height: height)
+    }
+
+    public func matches(width: Int, height: Int) -> Bool {
+        framebuffer.width == width && framebuffer.height == height
+    }
+}
+
 /// A small, deterministic demo scene that can be rendered purely on CPU.
 ///
 /// Feature set (matches your request):
@@ -135,9 +155,6 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 /// - Phase 1B semantic pointer activation demo
 /// - Phase 2 modal/overlay runtime demo
 public struct LunaCPUDemoScene {
-    /// Scene start time reference.
-    private let startTime: UInt64
-
     /// Active theme. Demo colors are theme-provided so the demo exercises the
     /// same customization path applications use instead of hardcoding Luna's
     /// appearance.
@@ -145,6 +162,19 @@ public struct LunaCPUDemoScene {
 
     /// Monotonic frame counter (increments each render).
     public private(set) var frameIndex: UInt64 = 0
+
+    /// Proof-gallery-only animation phase. This is intentionally logical time,
+    /// not raw process uptime, so the moving proof square does not jump after
+    /// modal dialogs, debugger pauses, or host scheduling stalls.
+    private var proofGalleryAnimationClock = LunaAnimationClock()
+
+    /// Static proof-gallery frame used for animation-only frames.
+    ///
+    /// This cache is intentionally demo-owned: it keeps proof-gallery animation
+    /// smooth without turning LunaUI widgets into retained/async objects. Any
+    /// non-animation invalidation refreshes the cache through the normal render
+    /// path before dynamic proof surfaces are drawn.
+    private var proofGalleryStaticFrameCache: LunaProofGalleryStaticFrameCache? = nil
 
     /// Demo harness mode. The default editor mode is the Moth-like performance
     /// baseline; proofGallery keeps old phase/stress surfaces available without
@@ -259,6 +289,10 @@ public struct LunaCPUDemoScene {
     }
 
     /// Create a new demo scene.
+    ///
+    /// `startTimeNanoseconds` seeds the proof-gallery animation clock so tests
+    /// and scripted demo launches can use deterministic timing without exposing
+    /// wall-clock policy to LunaUI.
     public init(
         theme: LunaTheme = MothDemoTheme.theme,
         mode: LunaDemoMode = .editor,
@@ -271,7 +305,11 @@ public struct LunaCPUDemoScene {
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: theme)
-        self.startTime = startTimeNanoseconds
+        self.proofGalleryAnimationClock = LunaAnimationClock(
+            defaultDeltaSeconds: 1.0 / 60.0,
+            maximumDeltaSeconds: 1.0 / 30.0,
+            startTimeNanoseconds: startTimeNanoseconds
+        )
         self.theme = resolvedTheme
         self.demoMode = mode
         self.dialogService = dialogService
@@ -302,6 +340,7 @@ public struct LunaCPUDemoScene {
         )
         staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
             .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
+        proofGalleryStaticFrameCache = nil
         modalManager.reflow(viewportSize: size)
         lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
     }
@@ -314,6 +353,7 @@ public struct LunaCPUDemoScene {
     public mutating func setTheme(_ newTheme: LunaTheme, framebufferSize: LunaSizeI) {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: newTheme)
         theme = resolvedTheme
+        proofGalleryStaticFrameCache = nil
         modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
         menuBarState.close()
         contextMenuState.close()
@@ -338,15 +378,19 @@ public struct LunaCPUDemoScene {
 
     /// Render one frame into the provided framebuffer.
     ///
-    /// - Important: This function does *not* allocate on the hot path other than
-    ///   small, short-lived strings for the HUD/status text.
+    /// - Important: The default editor mode remains event/invalidation driven.
+    ///   Proof-gallery mode may request continuous frames for the moving-square
+    ///   proof, but animation-only frames reuse a static framebuffer cache so the
+    ///   editor shell, sidebar, status rows, and text viewport are not rebuilt
+    ///   every vsync when no UI state changed.
     public mutating func render(into fb: inout LunaFramebuffer) {
         frameIndex &+= 1
 
-        // Compute time (seconds) since scene start.
         let now = Self.nowMonotonicNanoseconds()
-        let dtNs = now &- startTime
-        let t = Double(dtNs) / 1_000_000_000.0
+        let proofAnimationFrame = demoMode.usesProofGallerySurfaces
+            ? proofGalleryAnimationClock.advance(toNanoseconds: now)
+            : nil
+        let proofAnimationSeconds = proofAnimationFrame?.elapsedSeconds ?? 0.0
 
         // Draw from a canonicalized copy of the active theme. This makes key 2
         // impossible to confuse with the Luna demo-blue palette: if the theme is
@@ -356,6 +400,56 @@ public struct LunaCPUDemoScene {
         let frameSize = LunaSizeI(width: fb.width, height: fb.height)
         let renderLayout = Self.layout(for: frameSize, mode: demoMode)
         let activeMenuBar = demoMenuBar(for: frameSize, state: menuBarState, theme: renderTheme)
+
+        if canUseProofGalleryStaticFrameCache(framebufferSize: frameSize),
+           restoreProofGalleryStaticFrame(into: &fb, framebufferSize: frameSize) {
+            drawProofGalleryDynamicSurfaces(
+                into: &fb,
+                layout: renderLayout,
+                timeSeconds: proofAnimationSeconds,
+                animationFrame: proofAnimationFrame,
+                theme: renderTheme
+            )
+            return
+        }
+
+        drawStaticDemoFrame(
+            into: &fb,
+            frameSize: frameSize,
+            layout: renderLayout,
+            menuBar: activeMenuBar,
+            theme: renderTheme
+        )
+
+        if demoMode.usesProofGallerySurfaces {
+            storeProofGalleryStaticFrame(from: fb)
+            drawProofGalleryDynamicSurfaces(
+                into: &fb,
+                layout: renderLayout,
+                timeSeconds: proofAnimationSeconds,
+                animationFrame: proofAnimationFrame,
+                theme: renderTheme
+            )
+        }
+
+        drawTransientOverlays(
+            into: &fb,
+            frameSize: frameSize,
+            menuBar: activeMenuBar,
+            theme: renderTheme
+        )
+    }
+
+    /// Draw the full static scene. Dynamic proof-gallery animation/HUD surfaces
+    /// and transient overlays are intentionally drawn by separate helpers so
+    /// animation-only frames can restore this static frame from cache.
+    private mutating func drawStaticDemoFrame(
+        into fb: inout LunaFramebuffer,
+        frameSize: LunaSizeI,
+        layout renderLayout: LunaCPUDemoSceneLayout,
+        menuBar activeMenuBar: LunaMenuBar,
+        theme renderTheme: LunaTheme
+    ) {
         drawBackground(into: &fb, theme: renderTheme)
         drawDemoChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         drawMenuBarOverlay(
@@ -389,25 +483,47 @@ public struct LunaCPUDemoScene {
             mode: demoMode
         )
         if demoMode.usesProofGallerySurfaces {
-            drawMovingBlock(
-                into: &fb,
-                timeSeconds: t,
-                bounds: renderLayout.proofPanelBounds,
-                theme: renderTheme
-            )
             drawSemanticWidgetProof(
                 into: &fb,
                 activationCount: semanticActivationCount,
                 theme: renderTheme
             )
-            drawHUD(
-                into: &fb,
-                layout: renderLayout,
-                timeSeconds: t,
-                frameIndex: frameIndex,
-                theme: renderTheme
-            )
         }
+    }
+
+    /// Draw only the proof-gallery surfaces that are supposed to change on every
+    /// animation frame. Keeping this small makes the old proof demo smooth while
+    /// preserving the default editor harness as the real app-performance baseline.
+    private func drawProofGalleryDynamicSurfaces(
+        into fb: inout LunaFramebuffer,
+        layout renderLayout: LunaCPUDemoSceneLayout,
+        timeSeconds proofAnimationSeconds: Double,
+        animationFrame proofAnimationFrame: LunaAnimationFrame?,
+        theme renderTheme: LunaTheme
+    ) {
+        guard demoMode.usesProofGallerySurfaces else { return }
+        drawMovingBlock(
+            into: &fb,
+            timeSeconds: proofAnimationSeconds,
+            bounds: renderLayout.proofPanelBounds,
+            theme: renderTheme
+        )
+        drawHUD(
+            into: &fb,
+            layout: renderLayout,
+            timeSeconds: proofAnimationSeconds,
+            animationFrame: proofAnimationFrame,
+            frameIndex: frameIndex,
+            theme: renderTheme
+        )
+    }
+
+    private func drawTransientOverlays(
+        into fb: inout LunaFramebuffer,
+        frameSize: LunaSizeI,
+        menuBar activeMenuBar: LunaMenuBar,
+        theme renderTheme: LunaTheme
+    ) {
         if activeMenuBar.state.isOpen {
             drawMenuDropdownOverlay(
                 into: &fb,
@@ -436,6 +552,39 @@ public struct LunaCPUDemoScene {
             theme: renderTheme
         )
         drawActiveModalOverlay(into: &fb, manager: modalManager)
+    }
+
+    private var hasActiveTransientOverlay: Bool {
+        menuBarState.isOpen ||
+        contextMenuState.isOpen ||
+        completionPopupState.isOpen ||
+        findPanelState != nil ||
+        quickPanelState != nil ||
+        modalManager.hasActiveModal
+    }
+
+    private func canUseProofGalleryStaticFrameCache(framebufferSize: LunaSizeI) -> Bool {
+        guard demoMode.usesProofGallerySurfaces else { return false }
+        guard !hasActiveTransientOverlay else { return false }
+        guard latestFrameInvalidations.reasons == Set([LunaInvalidationReason.animation]) else { return false }
+        guard let cache = proofGalleryStaticFrameCache else { return false }
+        return cache.matches(width: framebufferSize.width, height: framebufferSize.height)
+    }
+
+    private func restoreProofGalleryStaticFrame(into fb: inout LunaFramebuffer, framebufferSize: LunaSizeI) -> Bool {
+        guard let cache = proofGalleryStaticFrameCache,
+              cache.matches(width: framebufferSize.width, height: framebufferSize.height) else {
+            return false
+        }
+        fb.copyPixels(from: cache.framebuffer)
+        return true
+    }
+
+    private mutating func storeProofGalleryStaticFrame(from framebuffer: LunaFramebuffer) {
+        if proofGalleryStaticFrameCache?.matches(width: framebuffer.width, height: framebuffer.height) != true {
+            proofGalleryStaticFrameCache = LunaProofGalleryStaticFrameCache(width: framebuffer.width, height: framebuffer.height)
+        }
+        proofGalleryStaticFrameCache?.framebuffer.copyPixels(from: framebuffer)
     }
 
     /// Route a host pointer event into Luna's modal-first pointer path.
@@ -2170,6 +2319,17 @@ public struct LunaCPUDemoScene {
                 emphasis: latestInputCoalescingStats.coalescedPointerMotionCount > 0 ? .accent : .muted
             )
         )
+        if demoMode.usesProofGallerySurfaces {
+            segments.append(
+                LunaStatusSegment(
+                    id: "animationStats",
+                    title: "Anim",
+                    value: proofGalleryAnimationClock.statusText,
+                    placement: .trailing,
+                    emphasis: proofGalleryAnimationClock.latestFrame?.wasDeltaClamped == true ? .accent : .muted
+                )
+            )
+        }
         segments.append(
             LunaStatusSegment(
                 id: "frameTiming",
@@ -3421,6 +3581,7 @@ private func drawHUD(
     into fb: inout LunaFramebuffer,
     layout: LunaCPUDemoSceneLayout,
     timeSeconds t: Double,
+    animationFrame: LunaAnimationFrame?,
     frameIndex: UInt64,
     theme: LunaTheme
 ) {
@@ -3428,7 +3589,14 @@ private func drawHUD(
     guard !bounds.isEmpty else { return }
 
     let title = "Luna-UI Test App"
-    let info = String(format: "Theme: %@   t=%.2fs   frame=%llu", theme.name, t, frameIndex)
+    let animationInfo: String
+    if let animationFrame {
+        let clampMarker = animationFrame.wasDeltaClamped ? " clamped" : ""
+        animationInfo = String(format: "phase=%.2fs dt=%.2fms%@", t, animationFrame.deltaMilliseconds, clampMarker)
+    } else {
+        animationInfo = String(format: "phase=%.2fs", t)
+    }
+    let info = String(format: "Theme: %@   %@   frame=%llu", theme.name, animationInfo, frameIndex)
     let keys = "Phase 4F: Ctrl+Space completions   right-click context menus   Menu bar   Ctrl+P palette/theme   Ctrl+F find"
 
     drawText5x7Color(into: &fb, x: bounds.x + 10, y: bounds.y + 8, text: title, scale: 2, color: theme.ui.chrome.titleBarForeground)

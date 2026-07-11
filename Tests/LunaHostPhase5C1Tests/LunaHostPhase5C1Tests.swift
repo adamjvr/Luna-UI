@@ -58,6 +58,39 @@ final class LunaHostPhase5C1Tests: XCTestCase {
         XCTAssertTrue(stats.statusText.contains("fps"))
     }
 
+    func testAnimationClockUsesDefaultDeltaForFirstFrame() {
+        var clock = LunaAnimationClock(defaultDeltaSeconds: 1.0 / 60.0, maximumDeltaSeconds: 1.0 / 30.0)
+        let frame = clock.advance(toNanoseconds: 1_000_000_000)
+
+        XCTAssertEqual(frame.frameIndex, 1)
+        XCTAssertEqual(frame.deltaSeconds, 1.0 / 60.0, accuracy: 0.000_001)
+        XCTAssertEqual(clock.elapsedSeconds, 1.0 / 60.0, accuracy: 0.000_001)
+        XCTAssertFalse(frame.wasDeltaClamped)
+        XCTAssertTrue(clock.statusText.contains("anim"))
+    }
+
+    func testAnimationClockClampsLargeDeltaAfterStall() {
+        var clock = LunaAnimationClock(defaultDeltaSeconds: 1.0 / 60.0, maximumDeltaSeconds: 1.0 / 30.0, startTimeNanoseconds: 1_000_000_000)
+        let frame = clock.advance(toNanoseconds: 2_000_000_000)
+
+        XCTAssertEqual(frame.rawDeltaSeconds, 1.0, accuracy: 0.000_001)
+        XCTAssertEqual(frame.deltaSeconds, 1.0 / 30.0, accuracy: 0.000_001)
+        XCTAssertTrue(frame.wasDeltaClamped)
+        XCTAssertEqual(clock.elapsedSeconds, 1.0 / 30.0, accuracy: 0.000_001)
+        XCTAssertTrue(frame.statusText.contains("clamped"))
+    }
+
+    func testAnimationClockResetDropsStaleTimestamp() {
+        var clock = LunaAnimationClock(defaultDeltaSeconds: 0.25, maximumDeltaSeconds: 0.5, startTimeNanoseconds: 10)
+        _ = clock.advance(toNanoseconds: 1_000_000_010)
+        clock.reset()
+        let frame = clock.advance(toNanoseconds: 3_000_000_000)
+
+        XCTAssertEqual(frame.frameIndex, 1)
+        XCTAssertEqual(frame.deltaSeconds, 0.25, accuracy: 0.000_001)
+        XCTAssertEqual(clock.elapsedSeconds, 0.25, accuracy: 0.000_001)
+    }
+
     func testFramePacerDoesNotDoubleThrottleWhenExternalVSyncIsUsed() {
         var pacer = LunaFramePacer(targetFramesPerSecond: 60, usesExternalVSync: true)
         pacer.markFrameEnded(atNanoseconds: 1_000_000_000)
@@ -93,6 +126,43 @@ final class LunaHostPhase5C1Tests: XCTestCase {
         framebuffer.withUnsafePixelBytes { base, strideBytes in
             let lastRowOffset = strideBytes * (height - 1)
             XCTAssertEqual(base[lastRowOffset], 0xAA)
+        }
+    }
+
+    func testRawFramebufferUploadAccessorReportsTotalByteCount() {
+        let framebuffer = LunaFramebuffer(width: 7, height: 5)
+        var observedByteCount = 0
+
+        framebuffer.withUnsafePixelBytes { rawPointer, byteCount in
+            XCTAssertNotNil(rawPointer)
+            observedByteCount = byteCount
+        }
+
+        XCTAssertEqual(observedByteCount, framebuffer.bytesPerRow * framebuffer.height)
+    }
+
+    func testFramebufferCopyPixelsCopiesWholeBuffer() {
+        var source = LunaFramebuffer(width: 4, height: 3)
+        var destination = LunaFramebuffer(width: 1, height: 1)
+
+        source.fillRect(LunaRectI(x: 0, y: 0, w: 4, h: 3), color: LunaRGBA8(r: 1, g: 2, b: 3, a: 255))
+        source.withUnsafeMutablePixelBytes { base, strideBytes in
+            base[strideBytes * 2 + 3 * 4 + 0] = 0x44
+            base[strideBytes * 2 + 3 * 4 + 1] = 0x55
+            base[strideBytes * 2 + 3 * 4 + 2] = 0x66
+            base[strideBytes * 2 + 3 * 4 + 3] = 0xFF
+        }
+
+        destination.copyPixels(from: source)
+
+        XCTAssertEqual(destination.width, source.width)
+        XCTAssertEqual(destination.height, source.height)
+        destination.withUnsafePixelBytes { base, strideBytes in
+            let offset = strideBytes * 2 + 3 * 4
+            XCTAssertEqual(base[offset + 0], 0x44)
+            XCTAssertEqual(base[offset + 1], 0x55)
+            XCTAssertEqual(base[offset + 2], 0x66)
+            XCTAssertEqual(base[offset + 3], 0xFF)
         }
     }
 

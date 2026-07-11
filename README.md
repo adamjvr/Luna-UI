@@ -340,6 +340,8 @@ The current checkpoint has:
 - Phase 5D.1 public-domain demo corpus integrated under `Examples/PublicDomainDemoFiles`, with manifest verification, helper launch scripts, and `--open-demo-corpus` options for repeatable real-file demos;
 - Phase 5D.2 new-file lifecycle proof implemented with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty local-file launch support, demo Save As routing, no-overwrite defaults, and untitled/file-backed state transitions kept outside LunaUI filesystem policy;
 - Phase 5D.3 host dialog boundary implemented with neutral LunaHostCore dialog service request/result types, scripted test doubles, interactive Open… / Save As… / dirty-close routing in `LunaUITestApp`, Linux/macOS desktop-helper bridges, and a deliberate seam for future Luna-rendered file-management widgets without making LunaUI own OS dialog policy;
+- Phase 5D.3.1 proof-gallery animation pacing implemented with a LunaHostCore animation clock, clamped logical animation deltas, animation invalidation diagnostics, and cleanup of duplicate demo chrome drawing while keeping the default editor harness event-driven;
+- Phase 5D.3.2 proof-gallery frame-cache optimization implemented with animation-only static-frame reuse, explicit framebuffer copy support, and removal of reflection from the presenter pixel-upload path so the legacy moving-square stress proof stays smooth without changing editor-mode invalidation policy;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -349,7 +351,7 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.3 is complete. The editor harness now covers the basic file lifecycle with host-dialog behavior: new untitled buffers, Open… through a host/native dialog boundary, open existing local files, create empty local files safely, edit, Save, Save As…, Save All, dirty-close Save / Don’t Save / Cancel decisions, and targeted tab close. Filesystem path policy and OS dialog integration remain app-owned in `LunaUITestApp`/host code; LunaUI still owns only product-neutral document/workspace/dialog request seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
+Phase 5D.3.2 is complete. The editor harness now covers the basic file lifecycle with host-dialog behavior, and proof-gallery mode has both bounded logical animation timing and an animation-only static-frame cache. The moving-square stress proof no longer forces the full editor shell, sidebar, status rows, and text viewport to rebuild every vsync when no UI state changed. Filesystem path policy, OS dialog integration, and demo-only animation/cache surfaces remain app-owned in `LunaUITestApp`/host code; LunaUI still owns only product-neutral document/workspace/dialog request seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

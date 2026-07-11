@@ -1162,6 +1162,7 @@ Completed scope:
 - `LunaFrameRequest` for deciding whether a frame should be rendered;
 - `LunaFrameTimingSample` and `LunaFrameTimingStats` for host-side measurement of frame, render, and present cost;
 - `LunaFramePacer` for deciding whether the host or external vsync owns pacing;
+- `LunaAnimationClock` and `LunaAnimationFrame` for host-owned logical animation timing with large-delta clamping;
 - `LunaRuntimeTick` for future bounded periodic work and async-result polling;
 - Linux SDL presenter can now be created with or without vsync and exposes whether vsync is active;
 - Linux demo loop no longer unconditionally double-throttles with both vsync and `SDL_Delay(16)`;
@@ -1311,6 +1312,40 @@ Phase 5D.3 deliverables:
 - add a Linux/macOS demo helper bridge outside LunaUI, with scripted/CLI fallbacks for headless or minimal desktop sessions;
 - leave a deliberate Plan-B seam so future Luna-rendered file-management widgets can satisfy `LunaDialogService` without making LunaUI own OS file-picker policy.
 
+### Phase 5D.3.1 — Proof Gallery Animation Pacing
+
+Status: **complete**.
+
+Phase 5D.3.1 fixes the remaining proof-gallery-only animation roughness without changing the default editor harness back into a continuously redrawn proof collage. LunaHostCore now exposes a small `LunaAnimationClock`/`LunaAnimationFrame` primitive for host/demo animation timing. The proof-gallery moving square advances from clamped logical animation time, so modal dialogs, debugger pauses, event backlog, or host scheduling stalls do not cause a large position jump on the next frame.
+
+Phase 5D.3.1 deliverables:
+
+- add a host-runtime animation clock with default delta, maximum delta, elapsed phase, latest-frame diagnostics, and reset support;
+- use that clock for the proof-gallery moving block instead of raw process uptime;
+- report animation delta/phase in proof-gallery status/HUD diagnostics;
+- mark continuous proof-gallery frames with the `animation` invalidation reason;
+- keep default editor mode event/invalidation driven and free of proof-gallery animation surfaces;
+- remove duplicate demo-chrome drawing from the shared CPU renderer;
+- add regression coverage for first-frame delta, stall clamping, and reset behavior.
+
+
+### Phase 5D.3.2 — Proof Gallery Static Frame Cache
+
+Status: **complete**.
+
+Phase 5D.3.2 fixes the remaining proof-gallery-only animation sluggishness by separating static proof-gallery rendering from animation-only rendering. The proof gallery remains the stress/regression harness, but the moving-square proof no longer forces the full editor shell, sidebar, status text, menu bar, proof panel chrome, semantic proof widget, and text viewport to be rebuilt every vsync when the only invalidation is animation.
+
+Phase 5D.3.2 deliverables:
+
+- add an explicit `LunaFramebuffer.copyPixels(from:)` full-frame copy helper so cached frames can be restored without relying on Swift Array copy-on-write timing;
+- remove Mirror/reflection from the raw framebuffer upload helper used by host presenters;
+- add a demo-owned static proof-gallery framebuffer cache;
+- use the cache only for animation-only frames with no active transient overlays;
+- redraw only the moving proof square and small HUD diagnostics on animation-only frames;
+- refresh the cache on normal invalidations such as input, document edits, theme changes, workspace changes, overlays, and resize;
+- keep default editor mode event/invalidation driven;
+- add regression coverage for raw framebuffer byte-count access and full-buffer pixel copying.
+
 ### Phase 5E — Tab Overflow and Split/Panes
 
 Scope:
@@ -1379,4 +1414,4 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.3 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, has a repeatable public-domain file corpus, and covers the basic new/open/save/save-as/dirty-close file lifecycle through a host dialog boundary: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.
+Phase 5D.3.2 is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive, file-backed, has a repeatable public-domain file corpus, covers the basic new/open/save/save-as/dirty-close file lifecycle through a host dialog boundary, and keeps proof-gallery animation isolated and cached outside editor-mode performance policy: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.

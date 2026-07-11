@@ -2,21 +2,15 @@
 // LunaFramebuffer+UnsafeBytes.swift
 //
 // Purpose:
-// - Provide a stable way for host presenters (SDL, etc.) to access raw pixel bytes
-//   without depending on the *internal* storage property name of LunaFramebuffer.
-//
-// Why:
-// - Your LunaFramebuffer apparently does NOT expose a `pixels` member.
-// - Different implementations may store pixels as [UInt8], [UInt32], Data, or a raw pointer.
-// - The host layer just needs "a pointer + length" to upload to the OS / GPU.
+// - Provide a raw-pointer pixel upload helper for host presenters such as SDL.
 //
 // Design:
-// - Primary API is `withUnsafePixelBytes(_:)` returning Void to avoid "unused result" warnings.
-// - Secondary API `withUnsafePixelBytesResult(_:)` is available if you truly need a return value.
-//
-// IMPORTANT:
-// - This uses reflection (Mirror) as a pragmatic scaffold.
-// - Later, formalize pixel storage on LunaFramebuffer and delete this file.
+// - LunaFramebuffer's canonical public pixel API reports a typed UInt8 pointer
+//   and row stride. Host upload APIs generally want an UnsafeRawPointer plus a
+//   total byte count, so this adapter computes the byte count once and forwards
+//   to the real storage-backed read-only API.
+// - No reflection is used on the present path. Continuous proof-gallery frames
+//   can therefore upload the CPU framebuffer without re-walking Swift metadata.
 
 import Foundation
 
@@ -41,69 +35,14 @@ public extension LunaFramebuffer {
     /// Use this only when needed.
     @inline(__always)
     func withUnsafePixelBytesResult<R>(_ body: (UnsafeRawPointer, Int) -> R) -> R {
-
-        // Common, stable byteCount if you have bytesPerRow/height.
         let byteCount = self.bytesPerRow * self.height
 
-        let mirror = Mirror(reflecting: self)
-
-        // 1) Try raw pointer-like storage
-        for child in mirror.children {
-            if let p = child.value as? UnsafeRawPointer {
-                return body(p, byteCount)
-            }
-            if let p = child.value as? UnsafeMutableRawPointer {
-                return body(UnsafeRawPointer(p), byteCount)
-            }
+        // This used to use Mirror as an early scaffold. That was convenient,
+        // but it put reflection on every SDL present call, which is exactly the
+        // wrong place for it once proof-gallery mode requests continuous frames.
+        // Forward to LunaFramebuffer's real read-only pixel API instead.
+        return self.withUnsafePixelBytes { (typedBase: UnsafePointer<UInt8>, _) -> R in
+            body(UnsafeRawPointer(typedBase), byteCount)
         }
-
-        // 2) Try [UInt8]
-        for child in mirror.children {
-            if let arr = child.value as? [UInt8] {
-                return arr.withUnsafeBytes { raw in
-                    guard let base = raw.baseAddress else {
-                        fatalError("LunaFramebuffer storage [UInt8] is empty (no baseAddress).")
-                    }
-                    return body(base, byteCount)
-                }
-            }
-        }
-
-        // 3) Try [UInt32]
-        for child in mirror.children {
-            if let arr = child.value as? [UInt32] {
-                return arr.withUnsafeBytes { raw in
-                    guard let base = raw.baseAddress else {
-                        fatalError("LunaFramebuffer storage [UInt32] is empty (no baseAddress).")
-                    }
-                    return body(base, byteCount)
-                }
-            }
-        }
-
-        // 4) Try Data
-        for child in mirror.children {
-            if let data = child.value as? Data {
-                return data.withUnsafeBytes { raw in
-                    guard let base = raw.baseAddress else {
-                        fatalError("LunaFramebuffer storage Data is empty (no baseAddress).")
-                    }
-                    return body(base, byteCount)
-                }
-            }
-        }
-
-        fatalError("""
-        LunaFramebuffer.withUnsafePixelBytes: could not locate pixel storage via reflection.
-
-        Expected one of:
-        - UnsafeRawPointer / UnsafeMutableRawPointer field
-        - [UInt8] field
-        - [UInt32] field
-        - Data field
-
-        Next step (recommended):
-        - Expose an explicit pixel storage API on LunaFramebuffer and remove this reflection shim.
-        """)
     }
 }

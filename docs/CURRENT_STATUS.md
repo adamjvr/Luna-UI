@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5D.3 host dialog boundary.
+This document is the working checkpoint after Phase 5D.3.2 proof-gallery frame-cache optimization.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5D.3**.
+Luna UI is through **Phase 5D.3.2**.
 
 The engine now has:
 
@@ -48,7 +48,9 @@ The engine now has:
 - a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral;
 - a Phase 5D.1 checked-in public-domain demo corpus under `Examples/PublicDomainDemoFiles`, manifest verification tooling, launch helpers, and `--open-demo-corpus` selection flags for repeatable real-file editor demos;
 - a Phase 5D.2 new-file lifecycle proof with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty-file launch support, demo Save As routing, and no-overwrite filesystem behavior owned by `LunaUITestApp`;
-- a Phase 5D.3 host dialog boundary with LunaHostCore dialog request/result types, injectable scripted dialog service, interactive `Open…`, `Save As…`, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel routing in the demo app, plus Linux/macOS desktop-helper bridges outside LunaUI.
+- a Phase 5D.3 host dialog boundary with LunaHostCore dialog request/result types, injectable scripted dialog service, interactive `Open…`, `Save As…`, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel routing in the demo app, plus Linux/macOS desktop-helper bridges outside LunaUI;
+- a Phase 5D.3.1 proof-gallery animation pacing cleanup with a host-runtime animation clock, clamped logical deltas after stalls/dialogs/debugger pauses, animation invalidation diagnostics, and duplicate demo-chrome drawing removed from the shared renderer;
+- a Phase 5D.3.2 proof-gallery frame-cache optimization where animation-only frames restore a cached static proof frame, redraw only dynamic proof surfaces, copy framebuffer pixels explicitly, and avoid presenter-path reflection during continuous animation uploads.
 
 ---
 
@@ -161,6 +163,8 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5D.1 — Public-Domain Demo Corpus Integration: complete.
 - Phase 5D.2 — New File / Untitled Buffer / Save As Proof: complete.
 - Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close: complete.
+- Phase 5D.3.1 — Proof Gallery Animation Pacing: complete.
+- Phase 5D.3.2 — Proof Gallery Static Frame Cache: complete.
 
 ---
 
@@ -183,4 +187,4 @@ Luna does not yet have:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.3 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.
+Phase 5D.3.2 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text. Proof-gallery mode remains a stress/regression harness and should stay isolated from default editor performance policy; its continuous animation path now uses demo-owned cache/pacing rather than pushing proof-gallery render cost into the editor baseline.

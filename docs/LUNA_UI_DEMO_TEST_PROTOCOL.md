@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5D.3 host dialog boundary.
+This protocol is the standing manual regression checklist for the demo app after Phase 5D.3.2 proof-gallery frame-cache optimization.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -45,11 +45,61 @@ Core checks:
 | Inspect `LICENSE` | The file contains Mozilla Public License Version 2.0 text. |
 | Search for old license references | No project source or documentation should refer to the old license. |
 | Inspect Swift/package files | Files begin with concise `SPDX-License-Identifier: MPL-2.0` headers, with `Package.swift` keeping `// swift-tools-version` first. |
-| Run default editor harness | Behavior remains the same as Phase 5C.2.1. |
-| Run proof-gallery mode | Behavior remains the same as Phase 5C.2.1. |
+| Run default editor harness | Behavior remains responsive and event-driven with current file/dialog lifecycle support. |
+| Run proof-gallery mode | Proof surfaces remain available; moving-square animation advances smoothly from logical animation time and animation-only static-frame reuse. |
 
 ---
 
+
+
+### Phase 5D.3.1 — Proof Gallery Animation Pacing
+
+Phase 5D.3.1 keeps the default editor harness event-driven while making proof-gallery animation explicitly time-based and stall-tolerant. The moving proof square advances from a host-runtime `LunaAnimationClock` with clamped logical deltas instead of deriving position directly from absolute uptime or frame count.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Run `swift run LunaUITestApp` | Default editor mode remains idle/event-driven; no proof animation is visible. |
+| Run `swift run LunaUITestApp --proof-gallery` | Proof panel, moving square, semantic widget proof, and HUD are visible. |
+| Watch the moving square | Motion is smooth and bounded inside the proof panel. |
+| Trigger a dialog or briefly stall the app, then return | The moving square resumes without jumping across the proof panel. |
+| Inspect status bar in proof-gallery mode | Animation diagnostics show frame delta/phase and animation invalidation appears during continuous proof rendering. |
+| Inspect default editor status bar | No animation status segment appears in normal editor mode. |
+
+
+
+### Phase 5D.3.2 — Proof Gallery Static Frame Cache
+
+Phase 5D.3.2 keeps the Phase 5D.3.1 logical animation clock, then removes the remaining proof-gallery sluggishness by caching the static proof-gallery frame. Animation-only frames restore that cached frame and redraw only the moving square and small HUD diagnostics. The full editor shell, sidebar, status labels, and text viewport are rebuilt only when input, document state, theme, overlay state, workspace state, or window size invalidates them.
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Run `swift run LunaUITestApp --proof-gallery` | Proof-gallery mode opens with the proof panel and moving square. |
+| Watch the moving square without touching the UI | Motion stays smooth; the editor text/sidebar should not feel like it is being recomputed every frame. |
+| Open a menu/context/completion/find overlay | The demo falls back to full redraw while overlays are active, preserving correct z-order. |
+| Close the overlay and keep watching | Animation returns to the lightweight animation-only path. |
+| Resize or switch theme | The static proof-gallery cache is refreshed before animation-only frames resume. |
+| Run default editor mode | The default editor remains event/invalidation driven and does not use proof-gallery continuous animation. |
+
+Boundary rule:
+
+```text
+The static frame cache is demo/proof-gallery policy.
+It is not a LunaUI retained-mode rewrite.
+```
+
+Boundary rule:
+
+```text
+Proof-gallery animation is demo/stress-harness behavior.
+The default editor harness stays event/invalidation driven.
+LunaUI widgets do not become async or frame-count-driven animation objects.
+```
+
+---
 
 ## Real File I/O Protocol
 
@@ -78,7 +128,7 @@ Core checks:
 | `File > Save` | The local file is written through the app-owned adapter and the dirty marker clears. |
 | Modify local file and an in-memory fixture, then `File > Save All` | Both dirty document types route through the same save request/result seam; local disk errors are reported as status. |
 | Close clean local tab | Targeted close routing removes the local tab and syncs workspace/shell state. |
-| Close dirty local tab | Dirty-close policy still reports the save-prompt decision; destructive discard remains future product UI. |
+| Close dirty local tab | Host dialog boundary prompts Save / Don’t Save / Cancel; Cancel preserves the dirty tab. |
 | Launch with a missing path | Demo reports a file-not-found status instead of crashing. |
 | Launch proof gallery with a file | `swift run LunaUITestApp --proof-gallery --open README.md` keeps proof surfaces available while opening the real file through the same adapter. |
 
@@ -247,7 +297,7 @@ Core checks:
 | Move pointer rapidly across stable empty/editor areas | Pointer-motion storms are coalesced; redraws occur only for meaningful state changes. |
 | Drag-select text | Drag still works; coalescing preserves the latest drag endpoint per frame. |
 | Click tabs/sidebar/menu/context/completion | Non-motion semantic events are preserved and routed normally. |
-| Run `--proof-gallery` | Old proof panel, moving block, semantic widget proof, and HUD are visible again. |
+| Run `--proof-gallery` | Old proof panel, moving block, semantic widget proof, and HUD are visible again; status includes animation timing diagnostics. |
 | Set `LUNA_DEMO_DEBUG_COMMANDS=1` | Command-request stdout logging is enabled. |
 | Default logging | Command-request stdout spam is suppressed. |
 
