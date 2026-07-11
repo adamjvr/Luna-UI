@@ -12,3 +12,7 @@ DerivedData/
 
 # Linux editor junk
 *~
+
+# Temporary/file-recovery worktrees must never enter the repository.
+.fr-*
+**/.fr-*
