@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5C.2.1 targeted tab/document close routing.
+This protocol is the standing manual regression checklist for the demo app after Phase 5C.2.2 MPL-2.0 license migration.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -32,6 +32,23 @@ Theme switching is command-palette-only.
 
 
 
+
+
+## License / Project Metadata Protocol
+
+Phase 5C.2.2 is a project-infrastructure checkpoint. It should not change demo behavior, but the repository metadata should stay consistent.
+
+Core checks:
+
+| Check | Expected reaction |
+|---|---|
+| Inspect `LICENSE` | The file contains Mozilla Public License Version 2.0 text. |
+| Search for old license references | No project source or documentation should refer to the old license. |
+| Inspect Swift/package files | Files begin with concise `SPDX-License-Identifier: MPL-2.0` headers, with `Package.swift` keeping `// swift-tools-version` first. |
+| Run default editor harness | Behavior remains the same as Phase 5C.2.1. |
+| Run proof-gallery mode | Behavior remains the same as Phase 5C.2.1. |
+
+---
 
 ## Targeted Tab / Document Close Protocol
 

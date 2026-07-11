@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaDsiplayLink.swift
 //
 // macOS-only: CVDisplayLink wrapper that is Swift 6 strict-concurrency friendly.

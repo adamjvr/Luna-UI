@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaSDLInputTranslator.swift
 //
 // Phase 2C: SDL input stays inside LunaHostSDL. Demo apps and future editor code

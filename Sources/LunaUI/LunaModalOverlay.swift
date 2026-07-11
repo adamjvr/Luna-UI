@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaModalOverlay.swift
 //
 // Phase 2 / 2B: overlay/modal runtime primitives.

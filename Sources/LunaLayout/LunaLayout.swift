@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaLayout.swift
 //
 // Phase 2D: small, explicit layout/reflow primitives.

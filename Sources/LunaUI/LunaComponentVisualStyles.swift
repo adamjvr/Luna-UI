@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaComponentVisualStyles.swift
 //
 // Phase 2E: render-ready style snapshots for Luna's themeable UI

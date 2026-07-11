@@ -443,3 +443,10 @@ Luna Phase 3C — Text View Scroll and Viewport
 ```
 
 Moth can be designed in parallel, but the first real Moth window should wait until Luna has a resize-safe, accessibility-aware, scrollable text surface. Luna now also has locked product-neutral visual tokens, so Moth color work should map onto those token groups from Moth/app code instead of hardcoding colors into editor widgets.
+
+
+---
+
+## Luna-UI Licensing Baseline
+
+As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. Moth Text remains the product/application layer built on top of Luna boundaries; product policy should stay outside Luna source files unless intentionally contributed to the reusable engine.

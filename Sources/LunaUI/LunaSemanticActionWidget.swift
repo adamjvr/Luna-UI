@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaSemanticActionWidget.swift
 //
 // Phase 1 proof widget.

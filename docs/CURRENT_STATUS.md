@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5C.2.1 targeted tab/document close routing.
+This document is the working checkpoint after Phase 5C.2.2 MPL-2.0 license migration.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5C.2.1**.
+Luna UI is through **Phase 5C.2.2**.
 
 The engine now has:
 
@@ -43,9 +43,14 @@ The engine now has:
 - a product-neutral file/project adapter boundary with file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save request/result contracts, dirty-document close policy, and an in-memory demo workspace adapter that opens and saves document buffers without baking real Moth filesystem policy into Luna;
 - a host-runtime frame pacing/invalidation foundation with `LunaFrameTimingSample`, `LunaFrameTimingStats`, `LunaInvalidationReason`, `LunaFrameInvalidationSet`, `LunaFrameRequest`, `LunaFramePacer`, `LunaRuntimeTick`, SDL vsync/delay cleanup, and demo status-bar diagnostics for frame timing and invalidation reasons;
 - a split demo harness with editor mode as the default Moth-like performance baseline, proof-gallery mode for earlier visual/stress proofs, pointer-motion coalescing at the host boundary, state-change-based pointer invalidation, quiet command logging by default, input coalescing diagnostics, and proof-era surfaces removed from the default hot path;
-- targeted tab/document close routing that keeps the command product-neutral while carrying a clicked/right-clicked target document through `LunaCommandContext`, reuses dirty-close policy for tab close buttons and tab context menus, and synchronizes document/workspace/shell state after closing a clean document.
+- targeted tab/document close routing that keeps the command product-neutral while carrying a clicked/right-clicked target document through `LunaCommandContext`, reuses dirty-close policy for tab close buttons and tab context menus, and synchronizes document/workspace/shell state after closing a clean document;
+- repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license.
 
 ---
+
+## License Status
+
+Phase 5C.2.2 migrates Luna-UI from the previous permissive license file to `MPL-2.0`. The full license text is in `LICENSE`; source, test, package-manifest, C shim, and module-map files now carry concise SPDX license identifiers. Documentation should refer to the project license as `MPL-2.0`.
 
 ## Current Hard Rules
 
@@ -147,6 +152,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5C.1 — Frame Pacing, Invalidation, and Runtime Boundary: complete.
 - Phase 5C.2 — Editor Harness Split and Input Coalescing: complete.
 - Phase 5C.2.1 — Targeted Tab / Document Close Routing: complete.
+- Phase 5C.2.2 — MPL-2.0 License Migration: complete.
 
 ---
 
@@ -168,4 +174,4 @@ Luna does not yet have:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5D should provide a narrow real-file proof behind the Phase 5C adapter boundary, Phase 5C.1/5C.2 runtime and harness boundaries, and Phase 5C.2.1 targeted-close boundary: load/save local text files through an app-owned adapter, keep Luna product-neutral, and avoid turning the demo harness into Moth Text.
+Phase 5D should provide a narrow real-file proof behind the Phase 5C adapter boundary, Phase 5C.1/5C.2 runtime and harness boundaries, Phase 5C.2.1 targeted-close boundary, and Phase 5C.2.2 licensing baseline: load/save local text files through an app-owned adapter, keep Luna product-neutral, and avoid turning the demo harness into Moth Text.

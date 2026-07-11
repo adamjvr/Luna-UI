@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaMetalView.swift
 //
 // macOS-only GPU presenter + minimal Metal renderer for LunaDisplayList.

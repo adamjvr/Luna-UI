@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaStaticTextView.swift
 //
 // Phase 3A/3B/3C/3D: accessible text-view primitive.

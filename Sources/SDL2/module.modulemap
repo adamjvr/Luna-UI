@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 module SDL2 [system] {
     header "SDL.h"
     link "SDL2"

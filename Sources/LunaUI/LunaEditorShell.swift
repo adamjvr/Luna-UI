@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaEditorShell.swift
 //
 // Product-neutral editor/workspace chrome primitives.

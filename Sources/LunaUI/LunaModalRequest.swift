@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaModalRequest.swift
 //
 // Typed transient UI requests. App/editor logic asks Luna to open one of these;

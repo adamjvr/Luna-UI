@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // MothDemoTheme.swift
 //
 // Demo-only product theme for LunaUITestApp.

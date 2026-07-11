@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaFindPanel.swift
 //
 // Phase 4B: generic Find / Replace panel foundation.

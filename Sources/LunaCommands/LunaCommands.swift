@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaCommands.swift
 //
 // Command metadata shared by menus, keymaps, command palettes, tests, and

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // FramebufferPresenters.swift
 //
 // Linux:
@@ -18,18 +19,25 @@ public final class LunaSDLPresenter {
 
     private let window: OpaquePointer
     private let renderer: OpaquePointer
+    public let usesVSync: Bool
     private var texture: OpaquePointer?
 
     private var texW: Int32 = 0
     private var texH: Int32 = 0
 
-    public init(window: OpaquePointer) {
+    public init(window: OpaquePointer, useVSync: Bool = true) {
         self.window = window
+        self.usesVSync = useVSync
+
+        var flags = UInt32(SDL_RENDERER_ACCELERATED.rawValue)
+        if useVSync {
+            flags |= UInt32(SDL_RENDERER_PRESENTVSYNC.rawValue)
+        }
 
         guard let r = SDL_CreateRenderer(
             window,
             -1,
-            UInt32(SDL_RENDERER_ACCELERATED.rawValue | SDL_RENDERER_PRESENTVSYNC.rawValue)
+            flags
         ) else {
             fatalError("SDL_CreateRenderer failed: \(String(cString: SDL_GetError()))")
         }

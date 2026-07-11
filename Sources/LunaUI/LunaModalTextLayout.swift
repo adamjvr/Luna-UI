@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaModalTextLayout.swift
 //
 // Phase 2D.1/2D.2: modal content reflow.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // CPURenderer.swift
 //
 // CPU renderer that consumes a LunaDisplayList and writes into a LunaFramebuffer.

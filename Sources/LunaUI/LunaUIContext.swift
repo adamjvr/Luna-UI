@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaUIContext.swift
 //
 // The controlled boundary between an application and the Luna

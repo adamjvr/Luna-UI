@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaControlVisualStyle.swift
 //
 // Phase 2B/2C: shared interaction-state and default control palette.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // PublicAPI.swift
 // Canonical public interface for Luna-UI
 

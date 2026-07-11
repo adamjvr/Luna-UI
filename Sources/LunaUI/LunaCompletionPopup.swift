@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaCompletionPopup.swift
 //
 // Product-neutral anchored completion popup primitives.

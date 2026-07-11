@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaQuickPanel.swift
 //
 // Phase 4A: command palette / quick panel foundation.

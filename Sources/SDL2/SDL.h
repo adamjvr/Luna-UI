@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 #pragma once
 
 // SDL2 headers live here on Debian/Ubuntu/Pop!_OS:

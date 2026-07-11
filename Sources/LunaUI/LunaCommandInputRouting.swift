@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaCommandInputRouting.swift
 //
 // LunaUI adapter between platform-neutral LunaInput keyboard events and the

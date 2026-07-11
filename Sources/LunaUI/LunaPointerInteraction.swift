@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaPointerInteraction.swift
 //
 // Phase 1B/2C: platform-neutral pointer routing helpers. The pointer event

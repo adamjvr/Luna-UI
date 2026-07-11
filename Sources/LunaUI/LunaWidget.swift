@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaWidget.swift
 //
 // HybX-inspired widget contract: anything Luna can draw should also be able to

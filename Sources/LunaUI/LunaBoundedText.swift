@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaBoundedText.swift
 //
 // Phase 2D.2: universal bounded text primitive.

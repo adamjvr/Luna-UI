@@ -1232,6 +1232,23 @@ The shell emits the target tab/document; the app command handler decides whether
 Dirty documents still require a product/app prompt before destructive close behavior.
 ```
 
+
+### Phase 5C.2.2 — MPL-2.0 License Migration
+
+Status: **complete**.
+
+Phase 5C.2.2 locks the project licensing baseline before real file I/O and broader public reuse work. The repository now uses the Mozilla Public License 2.0 (`MPL-2.0`), with the full license text in `LICENSE` and concise SPDX license identifiers at the top of package, source, test, C shim, and module-map files.
+
+This phase is intentionally legal/project-infrastructure only. It does not change Luna runtime behavior, widget architecture, rendering, input routing, or workspace policy.
+
+Phase 5C.2.2 deliverables:
+
+- replace the previous license file with full MPL-2.0 text;
+- add `SPDX-License-Identifier: MPL-2.0` headers to package/source/test/shim/module-map files;
+- remove remaining project references to the old license;
+- update README/current-status/demo-protocol/roadmap documentation;
+- keep the next technical milestone, Phase 5D real file I/O, unchanged.
+
 ### Phase 5D — Real File I/O Proof
 
 Scope:
@@ -1310,4 +1327,4 @@ The next implementation target is:
 Phase 5D — Real File I/O Proof
 ```
 
-Phase 5C.2.1 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, editor-harness, and targeted-close boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
+Phase 5C.2.2 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, editor-harness, targeted-close, and licensing-baseline boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaKeyboardInteraction.swift
 //
 // Keyboard event types moved to LunaInput in Phase 2C so host layers can

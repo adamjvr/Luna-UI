@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaTheme.swift
 //
 // LunaTheme is a standalone module so Luna-UI can expose theming as a public API

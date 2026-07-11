@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaCommandRuntime.swift
 //
 // Product-neutral command execution, availability, key binding, and surface

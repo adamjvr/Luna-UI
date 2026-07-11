@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaCore.swift
 //
 // Foundation-level value types shared by the rest of Luna-UI.

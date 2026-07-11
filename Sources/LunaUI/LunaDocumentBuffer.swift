@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaDocumentBuffer.swift
 //
 // Product-neutral document / buffer identity primitives.

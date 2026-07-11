@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaContextMenu.swift
 //
 // Product-neutral context menu primitives.

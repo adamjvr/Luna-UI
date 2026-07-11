@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaInputCoalescing.swift
 //
 // Host-runtime input batching helpers.

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaMetrics.swift
 //
 // Centralized UI sizing. Luna widgets should derive chrome/padding/caret/menu

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaInput.swift
 //
 // Platform-neutral input events for Luna. Host layers translate SDL/AppKit/etc.

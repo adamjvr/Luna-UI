@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MPL-2.0
 // LunaWorkspace.swift
 //
 // Product-neutral file / project / workspace adapter primitives.
