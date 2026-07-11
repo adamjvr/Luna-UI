@@ -167,11 +167,10 @@ public struct LunaCPUDemoScene {
     /// projection; the demo supplies fake documents instead of real file I/O.
     private var documentStore = LunaCPUDemoScene.demoDocumentStore
 
-    /// Phase 5C file/project adapter boundary proof. The adapter is still an
-    /// in-memory demo fixture, but the app now talks to it through Luna's
-    /// product-neutral workspace/open/save contracts instead of hardcoded
-    /// sidebar-only commands. Real Moth file I/O can later provide a different
-    /// adapter with the same seam.
+    /// Phase 5D file/project adapter boundary proof. The adapter lives in the
+    /// demo app target and can serve both in-memory fixture documents and real
+    /// UTF-8 local files. LunaUI still owns only product-neutral workspace/open/
+    /// save contracts; filesystem access and path policy stay outside Luna.
     private var workspaceState = LunaCPUDemoScene.demoWorkspaceState
     private var workspaceAdapter = LunaCPUDemoWorkspaceAdapter.demo
 
@@ -256,6 +255,7 @@ public struct LunaCPUDemoScene {
     public init(
         theme: LunaTheme = MothDemoTheme.theme,
         mode: LunaDemoMode = .editor,
+        openLocalFilePaths: [String] = [],
         startTimeNanoseconds: UInt64 = LunaCPUDemoScene.nowMonotonicNanoseconds()
     ) {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: theme)
@@ -264,6 +264,7 @@ public struct LunaCPUDemoScene {
         self.demoMode = mode
         self.lastInteractionStatus = "Ready. Mode=\(mode.rawValue). Luna UI state remains single-lane and deterministic."
         self.modalManager = LunaModalOverlayManager(style: LunaControlVisualStyle(theme: resolvedTheme))
+        openLocalFilesAtLaunch(openLocalFilePaths)
     }
 
 
@@ -1395,10 +1396,11 @@ public struct LunaCPUDemoScene {
 
         let result = workspaceAdapter.openFile(LunaWorkspaceOpenRequest(fileID: fileID, source: source))
         guard let file = result.file, let text = result.text else {
-            lastInteractionStatus = result.statusMessage ?? "Phase 5C could not open file: \(fileID.rawValue)"
+            lastInteractionStatus = result.statusMessage ?? "Phase 5D could not open file: \(fileID.rawValue)"
             return
         }
 
+        workspaceState.snapshot = workspaceAdapter.projectTreeSnapshot()
         workspaceState.registerFile(file)
         _ = workspaceState.open(fileID: file.id)
         let documentID = documentStore.openOrActivate(file: file, text: text)
@@ -1406,36 +1408,88 @@ public struct LunaCPUDemoScene {
         completionPopupState.close()
         activeTextSelectionAnchor = nil
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
-        lastInteractionStatus = result.statusMessage ?? "Phase 5C opened \(file.title) through workspace adapter"
+        lastInteractionStatus = result.statusMessage ?? "Phase 5D opened \(file.title) through workspace adapter"
         if documentID != documentStore.activeDocumentID {
-            lastInteractionStatus = "Phase 5C opened \(file.title)"
+            lastInteractionStatus = "Phase 5D opened \(file.title)"
+        }
+    }
+
+    private mutating func openLocalFilesAtLaunch(_ paths: [String]) {
+        guard !paths.isEmpty else { return }
+        let registrations = workspaceAdapter.registerLocalFiles(paths)
+        workspaceState.snapshot = workspaceAdapter.projectTreeSnapshot()
+        var openedTitles: [String] = []
+        var failures: [String] = []
+
+        for registration in registrations {
+            guard let descriptor = registration.descriptor else {
+                failures.append(registration.statusMessage)
+                continue
+            }
+            workspaceState.registerFile(descriptor)
+            _ = workspaceState.open(fileID: descriptor.id)
+            let result = workspaceAdapter.openFile(LunaWorkspaceOpenRequest(fileID: descriptor.id, source: "launch --open"))
+            guard let file = result.file, let text = result.text else {
+                failures.append(result.statusMessage ?? registration.statusMessage)
+                continue
+            }
+            _ = documentStore.openOrActivate(file: file, text: text)
+            openedTitles.append(file.displayPath)
+        }
+
+        syncWorkspaceAndShellStateToActiveDocument()
+        activeTextSelectionAnchor = nil
+        completionPopupState.close()
+
+        if !openedTitles.isEmpty {
+            let suffix = failures.isEmpty ? "" : "; \(failures.count) file(s) failed"
+            lastInteractionStatus = "Phase 5D opened local file(s): \(openedTitles.joined(separator: ", "))\(suffix)"
+        } else if let firstFailure = failures.first {
+            lastInteractionStatus = firstFailure
+        } else {
+            lastInteractionStatus = "Phase 5D launch requested no local files"
         }
     }
 
     private mutating func saveActiveDocumentThroughWorkspaceAdapter() {
         guard let request = documentStore.saveRequestForActiveDocument() else {
-            lastInteractionStatus = "Phase 5C save skipped: no active document"
+            lastInteractionStatus = "Phase 5D save skipped: no active document"
             return
         }
         let result = workspaceAdapter.saveDocument(request)
         documentStore.applySaveResult(result)
+        if let file = result.file {
+            workspaceState.registerFile(file)
+        }
         lastInteractionStatus = result.statusMessage ?? (result.didSave ? "Saved \(request.title)" : "Could not save \(request.title)")
     }
 
     private mutating func saveAllDirtyDocumentsThroughWorkspaceAdapter() {
         let dirtyIDs = documentStore.dirtyDocumentIDs()
         guard !dirtyIDs.isEmpty else {
-            lastInteractionStatus = "Phase 5C save all: no dirty documents"
+            lastInteractionStatus = "Phase 5D save all: no dirty documents"
             return
         }
         var savedCount = 0
+        var failedMessages: [String] = []
         for id in dirtyIDs {
             guard let request = documentStore.saveRequest(for: id, kind: .saveAll) else { continue }
             let result = workspaceAdapter.saveDocument(request)
-            if result.didSave { savedCount += 1 }
+            if result.didSave {
+                savedCount += 1
+            } else {
+                failedMessages.append(result.statusMessage ?? "Could not save \(request.title)")
+            }
             documentStore.applySaveResult(result)
+            if let file = result.file {
+                workspaceState.registerFile(file)
+            }
         }
-        lastInteractionStatus = "Phase 5C save all: saved \(savedCount) document(s) through workspace adapter"
+        if failedMessages.isEmpty {
+            lastInteractionStatus = "Phase 5D save all: saved \(savedCount) document(s) through workspace adapter"
+        } else {
+            lastInteractionStatus = "Phase 5D save all: saved \(savedCount), failed \(failedMessages.count) — \(failedMessages[0])"
+        }
     }
 
     private mutating func closeDocumentUsingWorkspacePolicy(_ documentID: LunaDocumentID) {
@@ -1536,6 +1590,16 @@ public struct LunaCPUDemoScene {
     ) {
         contextMenuState.close()
         completionPopupState.close()
+
+        // File-open commands can be generated dynamically from app-owned
+        // workspace/sidebar state, especially for Phase 5D local files whose
+        // IDs depend on absolute paths. Keep that dynamic policy in the demo
+        // host instead of forcing LunaCommandRegistry to own every file path.
+        if let fileID = command.rawValue.lunaDemoOpenFileID {
+            openWorkspaceFile(fileID, framebufferSize: framebufferSize, source: source)
+            return
+        }
+
         let context = demoCommandContext(
             framebufferSize: framebufferSize,
             source: source,
@@ -2383,17 +2447,16 @@ public struct LunaCPUDemoScene {
         """
         // \(title)
         //
-        // This is a Phase 5C in-memory workspace-adapter fixture. The file was
-        // opened through LunaWorkspaceAdapter rather than hardcoded sidebar
-        // state, proving Luna can describe file/project boundaries before real
-        // Moth Text filesystem policy lands.
+        // This is an in-memory workspace-adapter fixture. Phase 5D keeps these
+        // synthetic files for the default demo workspace while also allowing
+        // real UTF-8 local files to be opened through the same adapter seam.
 
         let phase = "\(phase)"
         let focus = "\(focus)"
 
-        // Future work will replace this generated text with real disk-backed
-        // contents through a Moth-owned adapter. Luna should keep owning only
-        // neutral descriptors, requests, results, and projection helpers.
+        // Moth can later replace this demo-owned adapter with its real project
+        // adapter. Luna should keep owning only neutral descriptors, requests,
+        // results, and projection helpers.
         """
     }
 
@@ -2426,54 +2489,6 @@ public struct LunaCPUDemoScene {
     /// - Note: `DispatchTime.now()` is monotonic on Apple + Linux.
     public static func nowMonotonicNanoseconds() -> UInt64 {
         DispatchTime.now().uptimeNanoseconds
-    }
-}
-
-private struct LunaCPUDemoWorkspaceAdapter: LunaWorkspaceAdapter {
-    var snapshot: LunaProjectTreeSnapshot
-    var filesByID: [LunaFileID: LunaFileDescriptor]
-    var textsByFileID: [LunaFileID: String]
-
-    init(snapshot: LunaProjectTreeSnapshot, files: [LunaFileDescriptor], texts: [LunaFileID: String]) {
-        self.snapshot = snapshot
-        self.filesByID = Dictionary(uniqueKeysWithValues: files.map { ($0.id, $0) })
-        self.textsByFileID = texts
-    }
-
-    static var demo: LunaCPUDemoWorkspaceAdapter {
-        LunaCPUDemoWorkspaceAdapter(
-            snapshot: LunaCPUDemoScene.demoWorkspaceSnapshot,
-            files: LunaCPUDemoScene.demoWorkspaceFiles,
-            texts: [
-                "overview": LunaCPUDemoScene.demoOverviewText,
-                "editor": LunaCPUDemoScene.demoText,
-                "theme": LunaCPUDemoScene.demoThemeDocumentText,
-                "document-buffer": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaDocumentBuffer.swift", phase: "Phase 5A", focus: "document identity and editable buffer state"),
-                "editor-shell": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaEditorShell.swift", phase: "Phase 4D", focus: "tabs, sidebar, status bar, and content-frame layout"),
-                "completion-popup": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaCompletionPopup.swift", phase: "Phase 4F", focus: "anchored completion list behavior"),
-                "phase5a-tests": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LunaUIPhase5ATests.swift", phase: "Phase 5A", focus: "document-store routing tests"),
-                "roadmap": LunaCPUDemoScene.demoGeneratedWorkspaceText(title: "LUNA_UI_ROADMAP.md", phase: "Phase 5C", focus: "file/project adapter boundary"),
-            ]
-        )
-    }
-
-    mutating func projectTreeSnapshot() -> LunaProjectTreeSnapshot {
-        snapshot
-    }
-
-    mutating func openFile(_ request: LunaWorkspaceOpenRequest) -> LunaWorkspaceOpenResult {
-        guard let file = filesByID[request.fileID], let text = textsByFileID[request.fileID] else {
-            return LunaWorkspaceOpenResult(statusMessage: "Workspace file not found: \(request.fileID.rawValue)")
-        }
-        return LunaWorkspaceOpenResult(file: file, text: text, statusMessage: "Phase 5C opened \(file.title) through workspace adapter")
-    }
-
-    mutating func saveDocument(_ request: LunaDocumentSaveRequest) -> LunaDocumentSaveResult {
-        guard let fileID = request.fileID, let file = filesByID[fileID] else {
-            return LunaDocumentSaveResult(outcome: .noDestination, documentID: request.documentID, statusMessage: "Phase 5C save needs a destination for \(request.title)")
-        }
-        textsByFileID[fileID] = request.text
-        return .saved(request, file: file, statusMessage: "Phase 5C saved \(request.title) through workspace adapter")
     }
 }
 

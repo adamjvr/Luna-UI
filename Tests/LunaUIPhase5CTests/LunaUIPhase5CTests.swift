@@ -112,6 +112,44 @@ final class LunaUIPhase5CTests: XCTestCase {
         XCTAssertEqual(resolution.decision, .requestSave)
     }
 
+
+    func testLocalFileMetadataCanTravelThroughNeutralDescriptorWithoutLunaOwningDiskIO() {
+        let file = LunaFileDescriptor(
+            id: "local.readme.1234",
+            path: "/repo/Luna-UI/README.md",
+            displayPath: "README.md",
+            name: "README.md",
+            projectID: "local-files",
+            syntaxName: "Markdown",
+            metadata: [
+                "adapter": "local-file",
+                "local.path": "/repo/Luna-UI/README.md",
+            ]
+        )
+
+        let descriptor = file.documentDescriptor()
+
+        XCTAssertEqual(file.metadata["adapter"], "local-file")
+        XCTAssertEqual(file.metadata["local.path"], "/repo/Luna-UI/README.md")
+        XCTAssertEqual(descriptor.title, "README.md")
+        XCTAssertEqual(descriptor.displayPath, "README.md")
+        XCTAssertEqual(descriptor.syntaxName, "Markdown")
+    }
+
+    func testFailedSaveResultDoesNotMarkDirtyDocumentClean() {
+        var store = LunaDocumentStore(openDocuments: [
+            LunaDocumentBuffer(descriptor: makeFiles()[0].documentDescriptor(), text: "before")
+        ], activeDocumentID: "main")
+        store.openDocuments[0].textState.insertText(" after")
+        XCTAssertTrue(store.openDocuments[0].isDirty)
+
+        let request = store.saveRequestForActiveDocument()!
+        let failed = LunaDocumentSaveResult(outcome: .failed, documentID: request.documentID, statusMessage: "Disk write failed")
+        store.applySaveResult(failed)
+
+        XCTAssertTrue(store.openDocuments[0].isDirty)
+    }
+
     func testWorkspaceAdapterProtocolCanBeBackedByInMemoryFixture() {
         var adapter = InMemoryWorkspaceAdapter(snapshot: makeSnapshot(), files: makeFiles(), texts: ["main": "print(1)"])
 

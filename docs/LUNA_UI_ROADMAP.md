@@ -1251,13 +1251,19 @@ Phase 5C.2.2 deliverables:
 
 ### Phase 5D — Real File I/O Proof
 
-Scope:
+Status: **complete**.
+
+Phase 5D proves the file/workspace adapter boundary with real local text files while keeping filesystem policy in the demo app target. `LunaUITestApp` now has an app-owned local-file adapter that can register `--open` launch paths, project them under a `Local Files` sidebar root, read UTF-8 contents into `LunaDocumentStore`, save active or dirty documents back through `LunaDocumentSaveResult`, and report read/write errors as status messages instead of making LunaUI own filesystem behavior.
+
+Phase 5D deliverables:
 
 - provide a narrow app-owned local-file adapter behind the Phase 5C contracts;
-- open a real UTF-8 text file into `LunaDocumentStore`;
+- parse launch paths through `--open path`, positional file paths, and `LUNA_DEMO_OPEN_FILE` / `LUNA_DEMO_OPEN_FILES`;
+- open real UTF-8 text files into `LunaDocumentStore`;
+- project opened local files into the sidebar as app-owned workspace nodes;
 - save active and dirty documents back through adapter results;
-- surface file errors as command execution status instead of crashing;
-- keep LunaUI free of Moth-specific project policy, preferences, and UI prompts.
+- surface file errors as command execution status/status-bar text instead of crashing;
+- keep LunaUI free of Moth-specific project policy, preferences, file dialogs, filesystem scanning, and UI prompts.
 
 ### Phase 5E — Tab Overflow and Split/Panes
 
@@ -1324,7 +1330,7 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5D — Real File I/O Proof
+Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5C.2.2 is complete. Phase 5D should put a narrow real-file load/save proof behind the product-neutral adapter, runtime invalidation, editor-harness, targeted-close, and licensing-baseline boundaries. Luna should keep owning descriptors, requests, results, and routing contracts; the app layer should own actual filesystem access, errors, and policy.
+Phase 5D is complete. Phase 5E should grow editor-shell realism now that the default harness is responsive and file-backed: handle tab overflow, refine pinned-tab behavior, and start split/pane groundwork while keeping product behavior and project/file policy outside LunaUI.

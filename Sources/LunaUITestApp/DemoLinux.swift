@@ -66,11 +66,18 @@ func runLinuxDemo() {
 
     let environment = ProcessInfo.processInfo.environment
     let arguments = Array(CommandLine.arguments.dropFirst())
-    let demoMode = LunaDemoMode.parse(arguments: arguments, environment: environment)
-    let logsCommandRequests = environment["LUNA_DEMO_DEBUG_COMMANDS"] == "1" || arguments.contains("--debug-commands")
+    let launchOptions = LunaDemoLaunchOptions.parse(arguments: arguments, environment: environment)
+    let demoMode = launchOptions.mode
+    let logsCommandRequests = launchOptions.logsCommandRequests
 
-    // Shared demo scene (pure Luna, no platform event decoding).
-    var demo = LunaCPUDemoScene(theme: MothDemoTheme.theme, mode: demoMode)
+    // Shared demo scene (pure Luna, no platform event decoding). Phase 5D can
+    // seed the app-owned workspace adapter with real UTF-8 local files supplied
+    // through --open/path arguments without moving filesystem policy into LunaUI.
+    var demo = LunaCPUDemoScene(
+        theme: MothDemoTheme.theme,
+        mode: demoMode,
+        openLocalFilePaths: launchOptions.openFilePaths
+    )
 
     var framePacer = LunaFramePacer(targetFramesPerSecond: 60, usesExternalVSync: presenter.usesVSync)
     var frameStats = LunaFrameTimingStats()

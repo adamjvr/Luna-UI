@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5C.2.2 MPL-2.0 license migration.
+This protocol is the standing manual regression checklist for the demo app after Phase 5D real file I/O proof.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -50,6 +50,46 @@ Core checks:
 
 ---
 
+
+## Real File I/O Protocol
+
+Phase 5D adds a narrow local-file proof in the demo app. The filesystem adapter lives in `LunaUITestApp`; LunaUI continues to own only product-neutral file/document descriptors, open/save request/result contracts, and routing helpers.
+
+Run the default editor with a real repository file:
+
+```bash
+swift run LunaUITestApp --open README.md
+```
+
+Equivalent launch forms:
+
+```bash
+swift run LunaUITestApp README.md
+LUNA_DEMO_OPEN_FILE=README.md swift run LunaUITestApp
+```
+
+Core checks:
+
+| Action | Expected reaction |
+|---|---|
+| Launch with `--open README.md` | README opens as a real local UTF-8 document and becomes the active tab. |
+| Inspect sidebar | A `Local Files` root appears with the opened file row; existing demo fixture project rows still work. |
+| Type into the local file | The tab/document becomes dirty. |
+| `File > Save` | The local file is written through the app-owned adapter and the dirty marker clears. |
+| Modify local file and an in-memory fixture, then `File > Save All` | Both dirty document types route through the same save request/result seam; local disk errors are reported as status. |
+| Close clean local tab | Targeted close routing removes the local tab and syncs workspace/shell state. |
+| Close dirty local tab | Dirty-close policy still reports the save-prompt decision; destructive discard remains future product UI. |
+| Launch with a missing path | Demo reports a file-not-found status instead of crashing. |
+| Launch proof gallery with a file | `swift run LunaUITestApp --proof-gallery --open README.md` keeps proof surfaces available while opening the real file through the same adapter. |
+
+Boundary rule:
+
+```text
+The demo app owns local filesystem access, path display, extension-to-syntax hints, and disk errors.
+LunaUI owns only product-neutral descriptors, request/result shapes, routing, and projection helpers.
+```
+
+---
 ## Targeted Tab / Document Close Protocol
 
 Phase 5C.2.1 wires tab close affordances into document/workspace close policy. Closing a tab should target the clicked or right-clicked tab, not blindly close whatever document is active.
@@ -196,14 +236,14 @@ Boundary rule:
 ```text
 Luna owns file/project IDs, descriptors, tree snapshots, adapter contracts, and projection helpers.
 The demo adapter owns fake file contents.
-Moth will later own real filesystem/project policy behind the same seam.
+The demo now also owns a small local-filesystem adapter behind this seam; Moth will later replace it with real product filesystem/project policy.
 ```
 
 ---
 
 ## Document / Buffer Protocol
 
-Phase 5A is the first real multi-document proof. The demo still uses in-memory fixture documents, not file I/O, but tabs and open-document state now route through product-neutral `LunaDocumentStore` buffers.
+Phase 5A is the first real multi-document proof. As of Phase 5D, the demo still keeps the original in-memory fixture documents but can also open real local UTF-8 files; both paths route through product-neutral `LunaDocumentStore` buffers.
 
 Open documents to test:
 
@@ -226,8 +266,7 @@ Theme.json
 Boundary rule:
 
 ```text
-Phase 5A does not do file I/O or Moth project policy.
-It proves product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
+Phase 5A itself did not do file I/O or Moth project policy. Phase 5D adds demo-owned local file I/O behind the same document/workspace seam while preserving product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
 ```
 
 ---

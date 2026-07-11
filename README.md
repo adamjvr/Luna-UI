@@ -234,6 +234,15 @@ Run the current CPU demo app:
 swift run LunaUITestApp
 ```
 
+Run the Phase 5D real-file proof with a local UTF-8 text file:
+
+```bash
+swift run LunaUITestApp --open README.md
+# also supported:
+swift run LunaUITestApp README.md
+LUNA_DEMO_OPEN_FILE=README.md swift run LunaUITestApp
+```
+
 On current Linux SwiftPM, SDL2 may emit warnings about filtered `-D_REENTRANT` flags. Those warnings are expected and do not indicate a failed build.
 
 ---
@@ -280,17 +289,18 @@ The current checkpoint has:
 - Phase 5C.1 frame pacing/invalidation runtime boundary implemented with host timing stats, frame requests, invalidation reasons, frame pacing helpers, SDL vsync/delay cleanup, and runtime diagnostics;
 - Phase 5C.2 editor harness split and input coalescing implemented with default editor mode, optional proof-gallery mode, host pointer-motion coalescing, state-change pointer invalidation, quiet command logging by default, and input/event diagnostics;
 - Phase 5C.2.1 targeted tab/document close routing implemented with context-carried target document IDs, tab-close command routing through dirty-close policy, context-menu command attributes, active/workspace/shell state synchronization after close, and regression coverage for command-context targeting;
-- Phase 5C.2.2 MPL-2.0 license migration completed with the repository license text updated, source/test/shim files carrying SPDX headers, and documentation aligned around the new license.
+- Phase 5C.2.2 MPL-2.0 license migration completed with the repository license text updated, source/test/shim files carrying SPDX headers, and documentation aligned around the new license;
+- Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy.
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The next implementation target is:
 
 ```text
-Phase 5D — Real File I/O Proof
+Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5C.2.2 is complete. The next step is to put a narrow real-file proof behind the adapter/runtime/targeted-close/license boundaries while keeping Luna product-neutral and Moth-specific filesystem policy outside the reusable UI library.
+Phase 5D is complete. The editor harness can now be seeded with real UTF-8 local files through `--open` while all filesystem access remains app-owned in `LunaUITestApp`. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

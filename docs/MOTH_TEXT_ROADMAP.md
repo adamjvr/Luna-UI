@@ -449,4 +449,4 @@ Moth can be designed in parallel, but the first real Moth window should wait unt
 
 ## Luna-UI Licensing Baseline
 
-As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. Moth Text remains the product/application layer built on top of Luna boundaries; product policy should stay outside Luna source files unless intentionally contributed to the reusable engine.
+As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. As of Phase 5D, LunaUITestApp has a narrow local-file proof behind Luna workspace/document contracts. Moth Text remains the product/application layer built on top of Luna boundaries; product filesystem/project policy should stay outside Luna source files unless intentionally contributed to the reusable engine.

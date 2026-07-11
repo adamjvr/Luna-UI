@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5C.2.2 MPL-2.0 license migration.
+This document is the working checkpoint after Phase 5D real file I/O proof.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5C.2.2**.
+Luna UI is through **Phase 5D**.
 
 The engine now has:
 
@@ -44,7 +44,8 @@ The engine now has:
 - a host-runtime frame pacing/invalidation foundation with `LunaFrameTimingSample`, `LunaFrameTimingStats`, `LunaInvalidationReason`, `LunaFrameInvalidationSet`, `LunaFrameRequest`, `LunaFramePacer`, `LunaRuntimeTick`, SDL vsync/delay cleanup, and demo status-bar diagnostics for frame timing and invalidation reasons;
 - a split demo harness with editor mode as the default Moth-like performance baseline, proof-gallery mode for earlier visual/stress proofs, pointer-motion coalescing at the host boundary, state-change-based pointer invalidation, quiet command logging by default, input coalescing diagnostics, and proof-era surfaces removed from the default hot path;
 - targeted tab/document close routing that keeps the command product-neutral while carrying a clicked/right-clicked target document through `LunaCommandContext`, reuses dirty-close policy for tab close buttons and tab context menus, and synchronizes document/workspace/shell state after closing a clean document;
-- repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license.
+- repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license;
+- a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral.
 
 ---
 
@@ -153,6 +154,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5C.2 — Editor Harness Split and Input Coalescing: complete.
 - Phase 5C.2.1 — Targeted Tab / Document Close Routing: complete.
 - Phase 5C.2.2 — MPL-2.0 License Migration: complete.
+- Phase 5D — Real File I/O Proof: complete.
 
 ---
 
@@ -163,7 +165,7 @@ Luna does not yet have:
 - minimap rendering;
 - real project/document/tab persistence;
 - real dirty-document save/discard/cancel prompt UI;
-- real file I/O proof using the adapter boundary;
+- tab overflow, pinned-tab refinement, and split/pane groundwork;
 - the actual Moth Text application target.
 
 ---
@@ -171,7 +173,7 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5D — Real File I/O Proof
+Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D should provide a narrow real-file proof behind the Phase 5C adapter boundary, Phase 5C.1/5C.2 runtime and harness boundaries, Phase 5C.2.1 targeted-close boundary, and Phase 5C.2.2 licensing baseline: load/save local text files through an app-owned adapter, keep Luna product-neutral, and avoid turning the demo harness into Moth Text.
+Phase 5D is complete. Phase 5E should build on the now-responsive, file-backed editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.

@@ -48,8 +48,19 @@ final class DemoMacAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
     // MARK: - Demo state
 
     private var fb = LunaFramebuffer(width: 900, height: 600)
-    /// Shared CPU demo logic (pure Swift, no AppKit dependencies).
-    private var demo = LunaCPUDemoScene()
+    /// Shared CPU demo logic (pure Swift, no AppKit dependencies). macOS uses
+    /// the same Phase 5D launch parser as Linux so --open can seed local files
+    /// once AppKit input/event routing catches up with the SDL harness.
+    private var demo = LunaCPUDemoScene(
+        mode: LunaDemoLaunchOptions.parse(
+            arguments: Array(CommandLine.arguments.dropFirst()),
+            environment: ProcessInfo.processInfo.environment
+        ).mode,
+        openLocalFilePaths: LunaDemoLaunchOptions.parse(
+            arguments: Array(CommandLine.arguments.dropFirst()),
+            environment: ProcessInfo.processInfo.environment
+        ).openFilePaths
+    )
     private var frameIndex: UInt64 = 0
 
     // Timer that drives the demo at ~60 Hz.
