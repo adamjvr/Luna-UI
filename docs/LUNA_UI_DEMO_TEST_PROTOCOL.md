@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5D.2 new-file lifecycle proof.
+This protocol is the standing manual regression checklist for the demo app after Phase 5D.3 host dialog boundary.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -139,26 +139,61 @@ The helper flags merely expand to local file paths before the existing Phase 5D 
 
 ## Phase 5D.2 — New File / Untitled Buffer / Save As Proof
 
-Phase 5D.2 completes the basic file lifecycle proof without adding native file dialogs or product-specific Moth policy. Untitled documents are app-owned demo buffers with no file destination until Save As; created empty files and Save As targets are local-file adapter operations owned by `LunaUITestApp`.
+Phase 5D.2 completed the basic file lifecycle proof without adding product-specific Moth policy. Phase 5D.3 now routes visible Open / Save As / dirty-close behavior through an app/host dialog boundary. Untitled documents are app-owned demo buffers with no file destination until Save As; created empty files and Save As targets are local-file adapter operations owned by `LunaUITestApp`.
 
 ```bash
 swift run LunaUITestApp --new-untitled
 mkdir -p /tmp/luna-ui-new-file-proof
 swift run LunaUITestApp --create /tmp/luna-ui-new-file-proof/new-note.txt
 swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/untitled-saved-as.txt
-# Then choose File > Save As Demo File… in the app.
+# Then choose File > Save As… in the app.
 ```
 
 | Action | Expected result |
 |---|---|
 | File > New File or Ctrl+N | Opens `Untitled-N.txt` as an empty, clean, closable tab with no sidebar file selected. |
 | Type into an untitled document | The tab/status dirty state changes exactly like a file-backed document. |
-| Save an untitled dirty document | The demo reports that a destination is required instead of inventing one silently. |
-| Save As Demo File | Writes the active document to a safe demo-owned local path, registers it under `Local Files`, and converts the tab to a file-backed document. |
+| Save an untitled dirty document | The editor requests a Save As destination through the host dialog boundary. With `--save-as`, the scripted dialog supplies the destination repeatably. |
+| Save As… | Writes the active document to the selected local path, registers it under `Local Files`, and converts an untitled tab to a file-backed document. |
 | Launch with `--create path` | Creates a new empty UTF-8 local file, refuses to overwrite by default, registers it under `Local Files`, and opens it as a real file-backed buffer. |
 | Launch with `--overwrite-create --create path` | Explicitly allows replacing the target file for testing only. |
 
+
+## Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close
+
+Phase 5D.3 keeps OS dialogs out of LunaUI while making the editor demo behave like a normal desktop editor. LunaHostCore now exposes neutral dialog request/result types and an injectable `LunaDialogService`. `LunaUITestApp` uses that service for File > Open…, Save-on-untitled, File > Save As…, and dirty close Save / Don’t Save / Cancel decisions.
+
+```bash
+# Script the File > Open… dialog for deterministic testing.
+swift run LunaUITestApp --dialog-open README.md
+
+# Script Save As… for an untitled document.
+mkdir -p /tmp/luna-ui-dialog-proof
+swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-dialog-proof/saved-from-dialog.txt
+
+# Script dirty close choice while keeping the same command path.
+LUNA_DEMO_DIALOG_UNSAVED_DECISION=discard swift run LunaUITestApp --new-untitled
+```
+
+| Action | Expected result |
+|---|---|
+| File > Open… | Interactive runs use the host desktop dialog provider when available; scripted runs use `--dialog-open` / `LUNA_DEMO_DIALOG_OPEN_PATH`. The selected file opens through the existing Phase 5D adapter. |
+| File > Save on a file-backed dirty document | Saves silently to the existing file path through the local-file adapter. |
+| File > Save on an untitled dirty document | Requests a Save As destination through `LunaDialogService`; scripted `--save-as` paths remain available for regression testing. |
+| File > Save As… | Always requests a destination through the dialog service. |
+| Close a dirty tab/document | Requests Save / Don’t Save / Cancel through the dialog service. Save writes before close, Don’t Save closes without saving, Cancel leaves the document open. |
+| Headless or missing desktop helper | The command reports an unavailable/cancelled dialog status and preserves user data. CLI/scripted paths still work. |
+
+Boundary rule:
+
+```text
+LunaUI owns document state, dirty state, command routing, and neutral request/result seams.
+The editor demo/host owns native dialog providers and filesystem path policy.
+Future Luna-rendered file-management widgets can satisfy LunaDialogService later without replacing the host boundary.
+```
+
 ---
+
 ## Targeted Tab / Document Close Protocol
 
 Phase 5C.2.1 wires tab close affordances into document/workspace close policy. Closing a tab should target the clicked or right-clicked tab, not blindly close whatever document is active.
@@ -172,7 +207,7 @@ Core checks:
 | Right-click a tab and choose `Close Tab` | The right-clicked tab/document is the close target. |
 | Keyboard-activate `Close Tab` from a tab context menu | The context menu still uses the tab that opened the menu as the close target. |
 | `File > Close Document` | Closes the active document because the command has no explicit target. |
-| Close dirty document/tab | Demo reports the dirty close/save-prompt decision instead of silently discarding edits. |
+| Close dirty document/tab | Host dialog boundary asks Save / Don’t Save / Cancel; cancel preserves the tab and document contents. |
 | Close non-closable tab | Command is disabled or reports non-closable target. |
 
 Boundary rule:
@@ -312,7 +347,7 @@ The demo now also owns a small local-filesystem adapter behind this seam; Moth w
 
 ## Document / Buffer Protocol
 
-Phase 5A is the first real multi-document proof. As of Phase 5D.2, the demo still keeps the original in-memory fixture documents but can also open real local UTF-8 files, create empty local files, and create untitled buffers; all paths route through product-neutral `LunaDocumentStore` buffers.
+Phase 5A is the first real multi-document proof. As of Phase 5D.3, the demo still keeps the original in-memory fixture documents but can also open real local UTF-8 files, create empty local files, and create untitled buffers; all paths route through product-neutral `LunaDocumentStore` buffers.
 
 Open documents to test:
 
@@ -335,7 +370,7 @@ Theme.json
 Boundary rule:
 
 ```text
-Phase 5A itself did not do file I/O or Moth project policy. Phase 5D adds demo-owned local file I/O behind the same document/workspace seam, and Phase 5D.2 adds untitled/new-file lifecycle coverage while preserving product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
+Phase 5A itself did not do file I/O or Moth project policy. Phase 5D adds demo-owned local file I/O behind the same document/workspace seam, Phase 5D.2 adds untitled/new-file lifecycle coverage, and Phase 5D.3 adds host-dialog routing while preserving product-neutral document identity, open-buffer state, tab projection, dirty tracking, and active-buffer routing.
 ```
 
 ---

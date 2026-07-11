@@ -269,9 +269,25 @@ swift run LunaUITestApp --new-untitled
 mkdir -p /tmp/luna-ui-new-file-proof
 swift run LunaUITestApp --create /tmp/luna-ui-new-file-proof/new-note.txt
 
-# Seed the demo Save As target, then choose File > Save As Demo File… in the app.
+# Seed the scripted Save As dialog target, then choose File > Save As… in the app.
 swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/untitled-saved-as.txt
 ```
+
+Run the Phase 5D.3 native-dialog boundary proof:
+
+```bash
+# File > Open… uses a native desktop helper when available. For repeatable tests, script the dialog result:
+swift run LunaUITestApp --dialog-open README.md
+
+# Save on an untitled dirty document now asks for a Save As destination.
+swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/native-save-as.txt
+
+# Dirty close can be scripted for regression testing; interactive runs use the host dialog provider.
+LUNA_DEMO_DIALOG_UNSAVED_DECISION=discard swift run LunaUITestApp --new-untitled
+```
+
+On Linux, the interactive demo looks for desktop dialog helpers (`zenity`, `yad`, then `kdialog`) and keeps CLI/scripted paths as the deterministic fallback. This is a host/app boundary, not a LunaUI widget dependency; LunaUI still owns only neutral document/workspace/dialog request seams.
+
 
 On current Linux SwiftPM, SDL2 may emit warnings about filtered `-D_REENTRANT` flags. Those warnings are expected and do not indicate a failed build.
 
@@ -323,6 +339,7 @@ The current checkpoint has:
 - Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy;
 - Phase 5D.1 public-domain demo corpus integrated under `Examples/PublicDomainDemoFiles`, with manifest verification, helper launch scripts, and `--open-demo-corpus` options for repeatable real-file demos;
 - Phase 5D.2 new-file lifecycle proof implemented with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty local-file launch support, demo Save As routing, no-overwrite defaults, and untitled/file-backed state transitions kept outside LunaUI filesystem policy;
+- Phase 5D.3 host dialog boundary implemented with neutral LunaHostCore dialog service request/result types, scripted test doubles, interactive Open… / Save As… / dirty-close routing in `LunaUITestApp`, Linux/macOS desktop-helper bridges, and a deliberate seam for future Luna-rendered file-management widgets without making LunaUI own OS dialog policy;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
@@ -332,7 +349,7 @@ The next implementation target is:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.2 is complete. The editor harness now covers the basic file lifecycle: new untitled buffers, open existing local files, create empty local files safely, edit, save, save all, Save As to a demo-owned path, and close through targeted document policy. Filesystem path policy remains app-owned in `LunaUITestApp`; LunaUI still owns only product-neutral document/workspace/request/result seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
+Phase 5D.3 is complete. The editor harness now covers the basic file lifecycle with host-dialog behavior: new untitled buffers, Open… through a host/native dialog boundary, open existing local files, create empty local files safely, edit, Save, Save As…, Save All, dirty-close Save / Don’t Save / Cancel decisions, and targeted tab close. Filesystem path policy and OS dialog integration remain app-owned in `LunaUITestApp`/host code; LunaUI still owns only product-neutral document/workspace/dialog request seams. The next step is editor-shell growth: tab overflow, pinned-tab refinement, and early split/pane groundwork.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

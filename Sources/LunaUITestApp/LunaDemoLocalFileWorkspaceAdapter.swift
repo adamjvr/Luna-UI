@@ -12,6 +12,7 @@
 //
 
 import Foundation
+import LunaHostCore
 import LunaUI
 
 struct LunaDemoLaunchOptions: Hashable, Sendable {
@@ -21,6 +22,9 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
     var createFilePaths: [String]
     var overwritesCreatedFiles: Bool
     var demoSaveAsPath: String?
+    var scriptedDialogOpenPaths: [String]
+    var scriptedUnsavedChangesDecision: LunaUnsavedChangesDecision?
+    var usesNativeDialogs: Bool
     var overwritesSaveAsTarget: Bool
     var logsCommandRequests: Bool
 
@@ -29,6 +33,9 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
         var createFilePaths: [String] = []
         var newUntitledDocumentCount = 0
         var demoSaveAsPath: String? = nil
+        var scriptedDialogOpenPaths: [String] = []
+        var scriptedUnsavedChangesDecision: LunaUnsavedChangesDecision? = nil
+        var usesNativeDialogs = environment["LUNA_DEMO_NATIVE_DIALOGS"] != "0"
         var overwritesCreatedFiles = environment["LUNA_DEMO_OVERWRITE_CREATE"] == "1"
         var overwritesSaveAsTarget = environment["LUNA_DEMO_OVERWRITE_SAVE_AS"] == "1"
         let corpusRoot = environment["LUNA_DEMO_CORPUS_ROOT"] ?? "Examples/PublicDomainDemoFiles"
@@ -77,6 +84,25 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
                 if !value.isEmpty { demoSaveAsPath = value }
             } else if argument == "--overwrite-save-as" {
                 overwritesSaveAsTarget = true
+            } else if argument == "--dialog-open" || argument == "--scripted-open" {
+                let nextIndex = index + 1
+                if nextIndex < arguments.count {
+                    scriptedDialogOpenPaths.append(arguments[nextIndex])
+                    index += 1
+                }
+            } else if argument.hasPrefix("--dialog-open=") {
+                let value = String(argument.dropFirst("--dialog-open=".count))
+                if !value.isEmpty { scriptedDialogOpenPaths.append(value) }
+            } else if argument.hasPrefix("--scripted-open=") {
+                let value = String(argument.dropFirst("--scripted-open=".count))
+                if !value.isEmpty { scriptedDialogOpenPaths.append(value) }
+            } else if argument.hasPrefix("--dialog-unsaved=") {
+                let value = String(argument.dropFirst("--dialog-unsaved=".count))
+                scriptedUnsavedChangesDecision = Self.unsavedDecision(value)
+            } else if argument == "--no-native-dialogs" {
+                usesNativeDialogs = false
+            } else if argument == "--native-dialogs" {
+                usesNativeDialogs = true
             } else if argument == "--open-demo-corpus" {
                 openFilePaths.append(contentsOf: Self.demoCorpusFilePaths(selection: "all", root: corpusRoot))
             } else if argument.hasPrefix("--open-demo-corpus=") {
@@ -109,6 +135,15 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
         if let environmentSaveAsPath = environment["LUNA_DEMO_SAVE_AS_PATH"], !environmentSaveAsPath.isEmpty {
             demoSaveAsPath = environmentSaveAsPath
         }
+        if let environmentDialogOpen = environment["LUNA_DEMO_DIALOG_OPEN_PATH"], !environmentDialogOpen.isEmpty {
+            scriptedDialogOpenPaths.append(environmentDialogOpen)
+        }
+        if let environmentDialogOpenFiles = environment["LUNA_DEMO_DIALOG_OPEN_FILES"], !environmentDialogOpenFiles.isEmpty {
+            scriptedDialogOpenPaths.append(contentsOf: environmentDialogOpenFiles.split(separator: ":").map(String.init).filter { !$0.isEmpty })
+        }
+        if let environmentUnsaved = environment["LUNA_DEMO_DIALOG_UNSAVED_DECISION"], !environmentUnsaved.isEmpty {
+            scriptedUnsavedChangesDecision = Self.unsavedDecision(environmentUnsaved)
+        }
 
         return LunaDemoLaunchOptions(
             mode: LunaDemoMode.parse(arguments: arguments, environment: environment),
@@ -117,9 +152,22 @@ struct LunaDemoLaunchOptions: Hashable, Sendable {
             createFilePaths: Self.uniquedPreservingOrder(createFilePaths),
             overwritesCreatedFiles: overwritesCreatedFiles,
             demoSaveAsPath: demoSaveAsPath,
+            scriptedDialogOpenPaths: Self.uniquedPreservingOrder(scriptedDialogOpenPaths),
+            scriptedUnsavedChangesDecision: scriptedUnsavedChangesDecision,
+            usesNativeDialogs: usesNativeDialogs,
             overwritesSaveAsTarget: overwritesSaveAsTarget,
             logsCommandRequests: environment["LUNA_DEMO_DEBUG_COMMANDS"] == "1" || arguments.contains("--debug-commands")
         )
+    }
+
+
+    private static func unsavedDecision(_ rawValue: String) -> LunaUnsavedChangesDecision? {
+        switch rawValue.lowercased().replacingOccurrences(of: "_", with: "-") {
+        case "save", "yes": return .save
+        case "discard", "dont-save", "don-t-save", "no", "dontsave": return .discard
+        case "cancel", "abort": return .cancel
+        default: return nil
+        }
     }
 
     private static func demoCorpusFilePaths(selection rawSelection: String, root: String) -> [String] {

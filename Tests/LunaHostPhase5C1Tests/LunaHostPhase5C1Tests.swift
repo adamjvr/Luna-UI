@@ -152,3 +152,47 @@ final class LunaHostPhase5C1Tests: XCTestCase {
     }
 
 }
+
+extension LunaHostPhase5C1Tests {
+    func testScriptedDialogServiceReturnsQueuedOpenSaveAndUnsavedResults() {
+        var dialogs = LunaScriptedDialogService(
+            unsavedDecisions: [.discard],
+            openPathSelections: [["/tmp/input.txt"]],
+            savePathSelections: ["/tmp/output.txt"],
+            scriptedSelectionsAllowOverwrite: true
+        )
+
+        let open = dialogs.chooseFileToOpen(
+            LunaFileDialogRequest(purpose: .open, title: "Open…")
+        )
+        XCTAssertEqual(open.outcome, .selected)
+        XCTAssertEqual(open.selectedPaths, ["/tmp/input.txt"])
+        XCTAssertFalse(open.allowsOverwrite)
+
+        let save = dialogs.chooseFileToSave(
+            LunaFileDialogRequest(purpose: .save, title: "Save As…", defaultFileName: "Untitled.txt")
+        )
+        XCTAssertEqual(save.outcome, .selected)
+        XCTAssertEqual(save.firstSelectedPath, "/tmp/output.txt")
+        XCTAssertTrue(save.allowsOverwrite)
+
+        let close = dialogs.confirmUnsavedChanges(
+            LunaUnsavedChangesDialogRequest(title: "Untitled-1.txt", isUntitled: true)
+        )
+        XCTAssertEqual(close.decision, .discard)
+    }
+
+    func testNoOpDialogServiceFailsSafelyWithoutFabricatingPathsOrDiscardingChanges() {
+        var dialogs = LunaNoOpDialogService()
+
+        let open = dialogs.chooseFileToOpen(LunaFileDialogRequest(purpose: .open, title: "Open…"))
+        let save = dialogs.chooseFileToSave(LunaFileDialogRequest(purpose: .save, title: "Save As…"))
+        let close = dialogs.confirmUnsavedChanges(LunaUnsavedChangesDialogRequest(title: "Dirty.txt"))
+
+        XCTAssertEqual(open.outcome, .unavailable)
+        XCTAssertTrue(open.selectedPaths.isEmpty)
+        XCTAssertEqual(save.outcome, .unavailable)
+        XCTAssertTrue(save.selectedPaths.isEmpty)
+        XCTAssertEqual(close.decision, .cancel)
+    }
+}

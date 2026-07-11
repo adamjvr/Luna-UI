@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Phase 5D.2 new-file lifecycle proof.
+This document is the working checkpoint after Phase 5D.3 host dialog boundary.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5D.2**.
+Luna UI is through **Phase 5D.3**.
 
 The engine now has:
 
@@ -47,7 +47,8 @@ The engine now has:
 - repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license;
 - a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral;
 - a Phase 5D.1 checked-in public-domain demo corpus under `Examples/PublicDomainDemoFiles`, manifest verification tooling, launch helpers, and `--open-demo-corpus` selection flags for repeatable real-file editor demos;
-- a Phase 5D.2 new-file lifecycle proof with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty-file launch support, demo Save As routing, and no-overwrite filesystem behavior owned by `LunaUITestApp`.
+- a Phase 5D.2 new-file lifecycle proof with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty-file launch support, demo Save As routing, and no-overwrite filesystem behavior owned by `LunaUITestApp`;
+- a Phase 5D.3 host dialog boundary with LunaHostCore dialog request/result types, injectable scripted dialog service, interactive `Open…`, `Save As…`, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel routing in the demo app, plus Linux/macOS desktop-helper bridges outside LunaUI.
 
 ---
 
@@ -159,6 +160,7 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5D — Real File I/O Proof: complete.
 - Phase 5D.1 — Public-Domain Demo Corpus Integration: complete.
 - Phase 5D.2 — New File / Untitled Buffer / Save As Proof: complete.
+- Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close: complete.
 
 ---
 
@@ -168,8 +170,8 @@ Luna does not yet have:
 
 - minimap rendering;
 - real project/document/tab persistence;
-- native open/save panels and product save-location prompts;
-- real dirty-document save/discard/cancel prompt UI;
+- first-class portal/Win32/AppKit dialog providers beyond the current demo helper bridge;
+- native open/save panels inside LunaUI itself, which remains intentionally out of scope;
 - tab overflow, pinned-tab refinement, and split/pane groundwork;
 - the actual Moth Text application target.
 
@@ -181,4 +183,4 @@ Luna does not yet have:
 Phase 5E — Tab Overflow and Split/Panes
 ```
 
-Phase 5D.2 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.
+Phase 5D.3 is complete. Phase 5E should build on the now-responsive, file-backed, repeatably demoable editor harness by improving editor-shell behavior for more realistic tab pressure: overflow behavior when tabs exceed strip width, pinned-tab layout refinement, and early split/pane groundwork without turning Luna into Moth Text.

@@ -62,7 +62,7 @@ final class DemoMacAppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegat
             openLocalFilePaths: launchOptions.openFilePaths,
             createLocalFilePaths: launchOptions.createFilePaths,
             newUntitledDocumentCount: launchOptions.newUntitledDocumentCount,
-            demoSaveAsPath: launchOptions.demoSaveAsPath,
+            dialogService: launchOptions.dialogService,
             overwritesDemoSaveAsTarget: launchOptions.overwritesSaveAsTarget,
             overwritesCreatedLocalFiles: launchOptions.overwritesCreatedFiles
         )
