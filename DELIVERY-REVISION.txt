@@ -1,4 +1,0 @@
-Luna UI Phase 5F.1 repository overlay
-Baseline: Phase 5E.2
-This overlay contains source and documentation only; no .git or .build data.
-Commit and push this Luna revision before updating Moth's Luna submodule.
