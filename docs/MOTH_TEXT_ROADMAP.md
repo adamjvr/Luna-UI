@@ -435,16 +435,18 @@ Moth Text succeeds when:
 
 ---
 
-## Current Luna Dependency
+## Current Luna Dependency and Convergence Checkpoint
 
-Luna has completed the original minimum UI/text prerequisites and now provides a file-backed editor harness, commands, menus, overlays, tabs, document descriptors, and host dialog seams. Before bootstrapping the real Moth target, Luna should complete:
+The real Moth repository is active and pins Luna through `Dependencies/Luna-UI`. The paired implementation has completed:
 
 ```text
-Luna Phase 5E — Layered Component Boundary and Moth Extraction Seams
-Luna Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
+Luna Phase 5E.2 / Moth M1.1 — document/view adapter seams and shared-buffer ownership
+Luna Phase 5F.2A / Moth M2.2A — pane-bound independent editor views
+Convergence C1A — native cursor, forgiving divider, and pointer-capture behavior
+Convergence C1B — reusable click/Shift-click/drag, word/line selection, and edge autoscroll
 ```
 
-Phase 5E is the critical gate. It establishes which current editor-adjacent features remain optional Luna components and which semantics must be recreated in Moth. Moth design may continue in parallel, but production Moth buffers and editor policy must not be implemented inside LunaUI simply because the demo currently exercises similar behavior.
+The next paired slice is C2: Moth-owned undo/redo history, transaction grouping, redo invalidation, and saved-history checkpoint tracking. Luna should change only when that work exposes a genuinely reusable mechanism; production history, dirty-state policy, and editor meaning remain Moth-owned.
 
 
 ---

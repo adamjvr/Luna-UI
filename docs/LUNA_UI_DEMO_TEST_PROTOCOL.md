@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app after Phase 5D.3.2 proof-gallery frame-cache optimization.
+This protocol is the standing manual regression checklist for the demo app through Convergence C1B. It retains the earlier file/dialog/proof-gallery checks and adds the current pane, cursor, and reusable text-selection interaction checks.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -29,10 +29,37 @@ Theme switching is command-palette-only.
 
 ---
 
+## Convergence C1A/C1B Editor Interaction Protocol
 
+Run the default editor harness with a disposable long-line file or the built-in document:
 
+```bash
+swift run LunaUITestApp
+```
 
+| Action | Expected reaction |
+|---|---|
+| Hover editable text | Native cursor becomes an I-beam. |
+| Hover near the split center rule | The forgiving semantic divider target highlights and shows the horizontal resize cursor. |
+| Drag the divider away from its original bounds | Pointer capture keeps the divider gesture active until release; both panes rewrap. |
+| Click text | Caret moves to the UTF-8-safe hit location. |
+| Shift-click elsewhere | Selection extends from the existing application-owned anchor. |
+| Click-drag across lines and wrapped continuation rows | Selection tracks smoothly and remains clipped to the pane. |
+| Double-click a word containing non-ASCII text | The complete Unicode-aware word run is selected on valid UTF-8 boundaries. |
+| Double-click whitespace or punctuation | Only the contiguous whitespace or punctuation run is selected. |
+| Triple-click a logical line | The full line is selected, including its newline when another line follows. |
+| Drag above or below the text viewport | Time-throttled visual-row autoscroll advances while selection continues. |
+| Alt-Tab or otherwise lose pointer capture during a drag | The text/divider gesture cancels cleanly and does not remain stuck. |
+| Begin a text drag near the divider | Exactly one gesture owns pointer motion; text selection and divider resizing do not compete. |
 
+Boundary rule:
+
+```text
+Luna owns reusable gesture interpretation, cursor/capture mechanics, text coordinates, and autoscroll requests.
+The demo owns editable document state, selection storage, viewport state, and command/file policy.
+```
+
+---
 
 ## License / Project Metadata Protocol
 

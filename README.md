@@ -353,16 +353,17 @@ The current checkpoint has:
 - Phase 5F.1 workspace mechanics implemented with recursive product-neutral pane trees, split geometry, active-pane routing, directional and wrapping focus traversal, divider resizing, pane command context, pinned-tab layout, deterministic tab overflow, and overflow presentation state;
 - Phase 5F.2A pane-bound editor-surface integration implemented with reusable pane content frames, independent clipped text-view bounds, width-correct soft wrapping, visual-row scrolling, UTF-8-safe continuation-row geometry, and live reflow after divider/window changes;
 - Convergence C1A native cursor intent, SDL cursor mapping, drag-time pointer capture, 11-pixel semantic divider controls, thin center rules, and shared hover/drag feedback implemented for LunaUITestApp and downstream Moth integration;
+- Convergence C1B reusable text-selection interaction implemented with click, Shift-click, click-drag, Unicode-aware word selection, logical-line selection, wrapped-row tracking, capture-safe cancellation, and edge autoscroll consumed by both LunaUITestApp and Moth;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C1A — Native cursor intent and reliable divider interaction
+Convergence C1B — Reusable editor mouse selection
 ```
 
-Luna is now on the Moth convergence track. C1A adds the host and pane interaction seams required for native I-beam/resize cursors, forgiving divider acquisition, hover feedback, and drag ownership. The next paired slice is C1B: reusable click-drag, Shift-click, word/line selection, and edge autoscroll behavior consumed immediately by Moth.
+Luna is on the Moth convergence track. C1B extracts the proven demo selection behavior into a product-neutral gesture layer and immediately supplies it to Moth without moving document or editor-view ownership into Luna. The next paired slice is C2: Moth-owned undo/redo history and saved-state tracking; Luna changes only if that product work exposes a genuine reusable seam.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -440,6 +441,8 @@ swift build --target LunaUIPhase5F2ATests
 swift test --filter LunaUIPhase5F2ATests
 swift build --target LunaUIConvergenceC1ATests
 swift test --filter LunaUIConvergenceC1ATests
+swift build --target LunaUIConvergenceC1BTests
+swift test --filter LunaUIConvergenceC1BTests
 ```
 
 Full Linux check:

@@ -247,6 +247,7 @@ public struct LunaCPUDemoScene {
     /// policy and is intentionally not encoded in LunaPaneContainer.
     private var paneWorkspaceState = LunaCPUDemoScene.demoPaneWorkspaceState
     private var paneInteractionState = LunaPaneContainerInteractionState()
+    private var textSelectionInteractionState = LunaTextSelectionInteractionState()
     private var currentCursorIntent: LunaCursorIntent = .arrow
 
     /// Per-pane viewport state for the Phase 5F.2A integration proof. The primary
@@ -265,11 +266,6 @@ public struct LunaCPUDemoScene {
     /// because the app owns when a find UI is open and which document it targets;
     /// LunaUI owns the reusable panel/search primitives.
     private var findPanelState: LunaFindPanelState? = nil
-
-    /// Phase 4B.1 user-selection drag anchor. This lives in the demo app because
-    /// it is transient interaction state, not document content. The reusable
-    /// Luna text model owns the final caret/selection range.
-    private var activeTextSelectionAnchor: LunaTextLocation? = nil
 
     /// Some SDL/input stacks may still emit a committed text event for a control
     /// shortcut key after Luna has already handled the shortcut as a command.
@@ -399,20 +395,23 @@ public struct LunaCPUDemoScene {
     }
 
     public var cursorIntent: LunaCursorIntent { currentCursorIntent }
-    public var wantsPointerCapture: Bool { paneInteractionState.wantsPointerCapture }
+    public var wantsPointerCapture: Bool {
+        paneInteractionState.wantsPointerCapture || textSelectionInteractionState.wantsPointerCapture
+    }
 
     public mutating func cancelPointerInteraction() {
         paneInteractionState.cancelDrag()
         paneInteractionState.hoveredSplitID = nil
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         currentCursorIntent = .arrow
-        lastInteractionStatus = "C1A pointer interaction cancelled after native capture loss"
+        lastInteractionStatus = "C1B pointer interaction cancelled after native capture loss"
     }
 
     private func resolvedCursorIntent(
         at point: LunaPointI,
         framebufferSize: LunaSizeI
     ) -> LunaCursorIntent {
+        if textSelectionInteractionState.isSelecting { return .text }
         if hasActiveTransientOverlay { return .arrow }
         let container = paneContainer(for: framebufferSize, theme: theme)
         if let dividerIntent = container.cursorIntent(at: point) {
@@ -510,7 +509,7 @@ public struct LunaCPUDemoScene {
     }
 
     public var wantsContinuousRendering: Bool {
-        demoMode.usesProofGallerySurfaces
+        demoMode.usesProofGallerySurfaces || textSelectionInteractionState.wantsContinuousUpdates
     }
 
     /// Render one frame into the provided framebuffer.
@@ -521,6 +520,9 @@ public struct LunaCPUDemoScene {
     ///   editor shell, sidebar, status rows, and text viewport are not rebuilt
     ///   every vsync when no UI state changed.
     public mutating func render(into fb: inout LunaFramebuffer) {
+        advanceTextSelectionAutoscroll(
+            framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
+        )
         frameIndex &+= 1
 
         let now = Self.nowMonotonicNanoseconds()
@@ -941,7 +943,7 @@ public struct LunaCPUDemoScene {
             contextMenuState.open(definition, at: event.location)
             menuBarState.close()
             completionPopupState.close()
-            activeTextSelectionAnchor = nil
+            textSelectionInteractionState.cancel()
             lastInteractionStatus = "Phase 4E context menu opened: \(definition.title)"
             return LunaPointerActivationResult(
                 event: event,
@@ -1028,7 +1030,7 @@ public struct LunaCPUDemoScene {
 
             let ownsDividerGesture = wasDragging || interaction.isDraggingDivider || result.resizedSplitID != nil
             if ownsDividerGesture {
-                activeTextSelectionAnchor = nil
+                textSelectionInteractionState.cancel()
                 return LunaPointerActivationResult(
                     event: event,
                     hitNodeID: result.hitNodeID,
@@ -1039,88 +1041,66 @@ public struct LunaCPUDemoScene {
             }
         }
 
-        // Text selection and caret placement are now pane-local geometrically.
-        // The demo intentionally shares one document buffer; Moth remains
-        // responsible for assigning independent product view state to pane IDs.
+        // C1B text selection routing. The reusable Luna gesture state owns
+        // click count, drag capture, UTF-8-safe word/line ranges, and edge
+        // autoscroll requests. The demo continues to own editable document state.
         if event.button == .primary {
-            let textView: LunaStaticTextView?
-            switch event.phase {
-            case .down:
-                textView = paneTextView(
+            let target: (paneID: LunaPaneID, view: LunaStaticTextView)?
+            if event.phase == .down {
+                target = paneTextView(
                     at: event.location,
                     framebufferSize: framebufferSize,
                     theme: theme
-                )?.view
-            case .moved, .up:
-                textView = paneTextView(
-                    for: paneWorkspaceState.activePaneID,
+                )
+            } else {
+                target = paneTextView(
+                    forSurfaceID: textSelectionInteractionState.activeSurfaceID,
                     framebufferSize: framebufferSize,
                     theme: theme
                 )
             }
 
-            guard let textView else {
-                if event.phase == .down { activeTextSelectionAnchor = nil }
-                return LunaPointerActivationResult(event: event, hitNodeID: nil, requestedCommand: nil)
-            }
+            if let target {
+                var interaction = textSelectionInteractionState
+                let result = LunaTextSelectionInteraction.handlePointerEvent(
+                    event,
+                    in: target.view,
+                    currentCaret: staticTextCaret.location,
+                    currentSelection: staticTextSelection?.range,
+                    state: &interaction
+                )
+                textSelectionInteractionState = interaction
+                currentCursorIntent = resolvedCursorIntent(
+                    at: event.location,
+                    framebufferSize: framebufferSize
+                )
 
-            switch event.phase {
-            case .down:
-                if let hit = textView.textHitTest(event.location) {
-                    if event.modifiers.shift {
-                        editableTextState.extendSelection(to: hit.location)
-                        activeTextSelectionAnchor = editableTextState.selection?.range.anchor ?? staticTextCaret.location
-                        lastInteractionStatus = "Phase 5F.2A Shift-click selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
-                    } else {
-                        editableTextState.beginSelection(at: hit.location)
-                        activeTextSelectionAnchor = hit.location
-                        lastInteractionStatus = "Phase 5F.2A caret in \(paneWorkspaceState.activePaneID.rawValue): line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
+                if result.didConsumeEvent {
+                    applyTextSelectionResult(
+                        result,
+                        paneID: target.paneID,
+                        framebufferSize: framebufferSize
+                    )
+                    let selectedBytes = staticTextSelection.map {
+                        staticTextDocument.accessibilityRange(for: $0.range).utf8Length
+                    } ?? 0
+                    let gestureName: String
+                    switch result.granularity ?? interaction.granularity {
+                    case .character: gestureName = result.didEndGesture ? "selection complete" : "drag selection"
+                    case .word: gestureName = "word selection"
+                    case .line: gestureName = "line selection"
                     }
-                    ensureEditableCaretVisible(framebufferSize: framebufferSize)
+                    lastInteractionStatus = "C1B \(gestureName) in \(target.paneID.rawValue): bytes=\(selectedBytes)"
                     return LunaPointerActivationResult(
                         event: event,
-                        hitNodeID: hit.nodeID,
+                        hitNodeID: result.hitNodeID,
                         requestedCommand: nil,
-                        announcementTexts: ["Text caret/selection updated in active pane"],
-                        didChangeVisualState: true
+                        announcementTexts: [selectedBytes > 0 ? "Text selected" : "Caret placed"],
+                        didChangeVisualState: result.didChangeSelection || result.didBeginGesture || result.didEndGesture
                     )
                 }
-                activeTextSelectionAnchor = nil
-
-            case .moved:
-                if let anchor = activeTextSelectionAnchor, let hit = textView.textHitTest(event.location) {
-                    editableTextState.setSelection(LunaTextRange(anchor: anchor, focus: hit.location))
-                    ensureEditableCaretVisible(framebufferSize: framebufferSize)
-                    let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
-                    lastInteractionStatus = "Phase 5F.2A dragging pane selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column), bytes=\(selected)"
-                    return LunaPointerActivationResult(
-                        event: event,
-                        hitNodeID: hit.nodeID,
-                        requestedCommand: nil,
-                        announcementTexts: ["Text selection extended"],
-                        didChangeVisualState: true
-                    )
-                }
-
-            case .up:
-                if let anchor = activeTextSelectionAnchor {
-                    activeTextSelectionAnchor = nil
-                    if let hit = textView.textHitTest(event.location) {
-                        editableTextState.setSelection(LunaTextRange(anchor: anchor, focus: hit.location))
-                        ensureEditableCaretVisible(framebufferSize: framebufferSize)
-                        let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
-                        lastInteractionStatus = selected > 0
-                            ? "Phase 5F.2A pane selection complete: bytes=\(selected)"
-                            : "Phase 5F.2A pane caret placed"
-                        return LunaPointerActivationResult(
-                            event: event,
-                            hitNodeID: hit.nodeID,
-                            requestedCommand: nil,
-                            announcementTexts: [selected > 0 ? "Text selected" : "Caret placed"],
-                            didChangeVisualState: true
-                        )
-                    }
-                }
+            } else if event.phase == .down {
+                textSelectionInteractionState.cancel()
             }
         }
 
@@ -1213,7 +1193,7 @@ public struct LunaCPUDemoScene {
             completionPopupState.close()
         }
 
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         let result = editableTextState.insertText(event.text)
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         lastInteractionStatus = "Phase 3D inserted \(event.text.debugDescription); caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
@@ -1332,7 +1312,7 @@ public struct LunaCPUDemoScene {
             return result.didConsumeEvent
         }
 
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
 
         if let command = Self.demoCommandRuntime.command(
             matching: event.lunaCommandKeyStroke,
@@ -1353,7 +1333,7 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Phase 3D newline: caret line \(result.newCaret.location.lineIndex + 1), col \(result.newCaret.location.utf8Column); rev=\(editableTextState.editRevision)"
             return true
         case .backspace:
-            activeTextSelectionAnchor = nil
+            textSelectionInteractionState.cancel()
             let result = editableTextState.deleteBackward()
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
             lastInteractionStatus = result.didChange
@@ -1361,7 +1341,7 @@ public struct LunaCPUDemoScene {
                 : "Phase 3D backspace: start of document"
             return true
         case .delete:
-            activeTextSelectionAnchor = nil
+            textSelectionInteractionState.cancel()
             let result = editableTextState.deleteForward()
             ensureEditableCaretVisible(framebufferSize: framebufferSize)
             lastInteractionStatus = result.didChange
@@ -1487,7 +1467,7 @@ public struct LunaCPUDemoScene {
         contextMenuState.close()
         quickPanelState = nil
         findPanelState = nil
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
 
         let anchor = completionAnchorRect(framebufferSize: framebufferSize)
         completionPopupState.open(items: Self.demoCompletionItems, anchorRect: anchor)
@@ -1724,7 +1704,7 @@ public struct LunaCPUDemoScene {
         }
         syncWorkspaceAndShellStateToActiveDocument()
         completionPopupState.close()
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         if var find = findPanelState {
             find.refreshResults(in: staticTextDocument, preservingSelectionNear: staticTextCaret.location)
             findPanelState = find
@@ -1760,7 +1740,7 @@ public struct LunaCPUDemoScene {
         let documentID = documentStore.openOrActivate(file: file, text: text)
         syncWorkspaceAndShellStateToActiveDocument()
         completionPopupState.close()
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         ensureEditableCaretVisible(framebufferSize: framebufferSize)
         lastInteractionStatus = result.statusMessage ?? "Phase 5D opened \(file.title) through workspace adapter"
         if documentID != documentStore.activeDocumentID {
@@ -1824,7 +1804,7 @@ public struct LunaCPUDemoScene {
         }
 
         syncWorkspaceAndShellStateToActiveDocument()
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         completionPopupState.close()
 
         if !openedTitles.isEmpty {
@@ -1861,7 +1841,7 @@ public struct LunaCPUDemoScene {
         }
 
         syncWorkspaceAndShellStateToActiveDocument()
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         completionPopupState.close()
 
         if !openedTitles.isEmpty {
@@ -1891,7 +1871,7 @@ public struct LunaCPUDemoScene {
         syncWorkspaceAndShellStateToActiveDocument()
         completionPopupState.close()
         findPanelState = nil
-        activeTextSelectionAnchor = nil
+        textSelectionInteractionState.cancel()
         lastInteractionStatus = "Phase 5D.2 new untitled document: \(title) (\(activationReason))"
         return title
     }
@@ -2313,6 +2293,55 @@ public struct LunaCPUDemoScene {
             lastInteractionStatus = "Demo command: \(command.rawValue)"
         }
         return .handled(lastInteractionStatus)
+    }
+
+    private func paneTextView(
+        forSurfaceID surfaceID: LunaNodeID?,
+        framebufferSize: LunaSizeI,
+        theme: LunaTheme
+    ) -> (paneID: LunaPaneID, view: LunaStaticTextView)? {
+        guard let surfaceID else { return nil }
+        for paneID in paneWorkspaceState.paneIDs {
+            guard let view = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme) else { continue }
+            if view.id == surfaceID { return (paneID, view) }
+        }
+        return nil
+    }
+
+    private mutating func applyTextSelectionResult(
+        _ result: LunaTextSelectionInteractionResult,
+        paneID: LunaPaneID,
+        framebufferSize: LunaSizeI
+    ) {
+        if result.requestedVisualRowDelta != 0,
+           let view = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme) {
+            let scrolled = view.scrolled(byLineDelta: result.requestedVisualRowDelta)
+            setScrollTopLine(scrolled.scrollTopLine, for: paneID)
+            setScrollTopVisualRow(scrolled.scrollTopVisualRow, for: paneID)
+        }
+        if result.didChangeSelection, let selection = result.selection {
+            editableTextState.setSelection(selection)
+        }
+    }
+
+    private mutating func advanceTextSelectionAutoscroll(framebufferSize: LunaSizeI) {
+        guard textSelectionInteractionState.wantsContinuousUpdates,
+              let target = paneTextView(
+                forSurfaceID: textSelectionInteractionState.activeSurfaceID,
+                framebufferSize: framebufferSize,
+                theme: theme
+              )
+        else { return }
+
+        var interaction = textSelectionInteractionState
+        let result = LunaTextSelectionInteraction.advanceAutoscroll(
+            in: target.view,
+            state: &interaction
+        )
+        textSelectionInteractionState = interaction
+        guard result.requestedVisualRowDelta != 0 || result.didChangeSelection else { return }
+        applyTextSelectionResult(result, paneID: target.paneID, framebufferSize: framebufferSize)
+        lastInteractionStatus = "C1B edge autoscroll in \(target.paneID.rawValue)"
     }
 
     private mutating func staticTextPageDelta(framebufferSize: LunaSizeI) -> Int {

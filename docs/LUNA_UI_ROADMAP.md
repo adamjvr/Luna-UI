@@ -1388,7 +1388,7 @@ Definition of done:
 
 ### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
-Status: **Phase 5F.2A and Convergence C1A implemented; the Moth convergence track is active.**
+Status: **Phase 5F.2A plus Convergence C1A and C1B implemented; the Moth convergence track is active.**
 
 Phase 5F.1 delivered:
 
@@ -1408,6 +1408,16 @@ Phase 5F.2A delivered:
 - width-correct soft wrapping that reflows independently after divider/window resize;
 - continuation-row caret, selection, highlight, hit-test, accessibility, and visual-scroll behavior using UTF-8 document coordinates;
 - tests proving pane-local wrapping and geometry without moving document/view ownership into Luna.
+
+Convergence C1A delivered native cursor intent, forgiving semantic dividers, hover/drag feedback, and pointer capture.
+
+Convergence C1B delivered:
+
+- one reusable text-selection gesture state per application interaction lane;
+- click, Shift-click, character drag, Unicode-aware word drag, and logical-line drag behavior;
+- soft-wrapped and UTF-8-safe hit testing through the existing text-view coordinate model;
+- pointer-capture cancellation and time-throttled visual-row edge autoscroll requests;
+- immediate LunaUITestApp and Moth consumption with application-owned document/view state.
 
 Remaining Phase 5F.2 scope:
 
@@ -1471,10 +1481,10 @@ Goal:
 The next implementation target is:
 
 ```text
-Convergence C1B — Sublime-like foundational mouse selection
+Convergence C2 — Moth document-owned undo/redo history
 ```
 
-Phase 5F.2A proves pane-bound text surfaces. Convergence C1A adds native cursor intent, wider semantic dividers, hover/drag feedback, and drag-time pointer capture. C1B now takes priority over split-command and overflow expansion: extract reusable mouse-selection gesture behavior and consume it in Moth before broadening Luna again.
+Phase 5F.2A, C1A, and C1B now provide bounded pane text surfaces, native cursor/capture behavior, reliable dividers, and reusable mouse-selection gestures. C2 moves into Moth's document model: inverse edits, transaction groups, redo invalidation, and saved-history checkpoints. Luna remains in convergence mode and changes only for genuine reusable seams exposed by that product work.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 
@@ -1512,12 +1522,11 @@ Deliverables:
 - public bitmap diagnostic text rendering for downstream Luna application
   bring-up without copying test-app internals.
 
-Phase 5F.1 now supplies the generic mechanics. Phase 5F.2 will deepen the
-interaction layer while product editor-group and cloned-view policy remains Moth-owned.
+Phase 5F.2A now supplies pane-bound wrapping and geometry, while C1A/C1B supply the shared cursor, capture, divider, and text-selection interaction foundation. Product editor-group, history, command, and cloned-view policy remains Moth-owned.
 
 
 ### Moth Convergence Track
 
 Until Moth adopts the major already-proven editor surfaces, Luna work is restricted to Moth-required reusable infrastructure, shared interaction-quality improvements, and extraction of proven demo-only behavior into product-neutral APIs.
 
-C1A delivered native cursor and reliable divider interaction. C1B adds reusable text-selection gestures. Undo/redo, command authority, find/replace, menus, and real workspace/tabs then proceed primarily in Moth, with Luna changing only where a genuine reusable seam is missing.
+C1A delivered native cursor and reliable divider interaction. C1B delivered reusable click/Shift-click/drag, Unicode word, logical-line, capture, and edge-autoscroll mechanics consumed by Moth. C2 now adds document-owned undo/redo and correct saved-state checkpoints in Moth; command authority, find/replace, menus, and real workspace/tabs follow, with Luna changing only where a genuine reusable seam is missing.
