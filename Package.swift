@@ -439,6 +439,16 @@ let package = Package(
         ),
 
         .testTarget(
+            name: "LunaUIPhase5F2ATests",
+            dependencies: [
+                "LunaCore",
+                "LunaUI",
+                "LunaTheme",
+                "LunaRender",
+            ]
+        ),
+
+        .testTarget(
             name: "LunaHostPhase5C1Tests",
             dependencies: [
                 "LunaHostCore",

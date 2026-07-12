@@ -169,9 +169,10 @@ public struct LunaStaticTextVisibleLineRange: Hashable, Sendable {
 
 /// Scroll state for the static/read-only text viewport.
 ///
-/// Phase 3C deliberately scrolls by logical line index. Pixel-fractional scroll,
-/// soft wrap, horizontal scroll, and minimap integration come later. This gives
-/// Luna a stable, testable viewport model before editable text input lands.
+/// Phase 3C deliberately introduced logical-line scrolling first. Soft-wrapped
+/// surfaces may now layer an optional visual-row position on the text view while
+/// this value remains the stable document-level fallback. Pixel-fractional and
+/// horizontal scrolling remain later work.
 public struct LunaStaticTextScrollState: Hashable, Sendable {
     public var scrollTopLine: Int
 
@@ -360,6 +361,17 @@ public struct LunaStaticTextDocument: Hashable, Sendable {
     }
 }
 
+/// Horizontal overflow policy for Luna text surfaces.
+///
+/// `none` preserves the original one-logical-line-per-row behavior and
+/// ellipsizes text that exceeds the viewport. `soft` creates visual continuation
+/// rows whose width is derived from the current text viewport. The backing
+/// document coordinates remain logical-line / UTF-8-column based.
+public enum LunaStaticTextWrapMode: String, Hashable, Sendable, CaseIterable {
+    case none
+    case soft
+}
+
 /// Simple static-text-view metrics while LunaDisplayList still lacks real glyph
 /// commands. These values intentionally match the existing demo 5x7 debug font.
 public struct LunaStaticTextViewMetrics: Hashable, Sendable {
@@ -406,6 +418,13 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
     public var visualText: LunaBoundedTextLine
     public var isCurrentLine: Bool
 
+    /// Zero-based visual continuation index within the logical line.
+    public var wrappedSegmentIndex: Int
+
+    /// UTF-8 columns in the logical line covered by this visual row.
+    public var startUTF8Column: Int
+    public var endUTF8Column: Int
+
     public init(
         nodeID: LunaNodeID,
         line: LunaStaticTextLine,
@@ -414,7 +433,10 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
         textBounds: LunaRectI,
         rowBounds: LunaRectI,
         visualText: LunaBoundedTextLine,
-        isCurrentLine: Bool
+        isCurrentLine: Bool,
+        wrappedSegmentIndex: Int = 0,
+        startUTF8Column: Int = 0,
+        endUTF8Column: Int? = nil
     ) {
         self.nodeID = nodeID
         self.line = line
@@ -424,6 +446,18 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
         self.rowBounds = rowBounds
         self.visualText = visualText
         self.isCurrentLine = isCurrentLine
+        self.wrappedSegmentIndex = max(0, wrappedSegmentIndex)
+        self.startUTF8Column = min(max(0, startUTF8Column), line.utf8Length)
+        self.endUTF8Column = min(max(self.startUTF8Column, endUTF8Column ?? line.utf8Length), line.utf8Length)
+    }
+
+    public var isFirstVisualRowForLine: Bool { wrappedSegmentIndex == 0 }
+
+    public var accessibilityTextRange: LunaAccessibilityTextRange {
+        LunaAccessibilityTextRange(
+            utf8Offset: line.utf8Offset + startUTF8Column,
+            utf8Length: max(0, endUTF8Column - startUTF8Column)
+        )
     }
 }
 
@@ -435,6 +469,12 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     public var visibleLines: [LunaStaticTextVisibleLine]
     public var firstVisibleLineIndex: Int
     public var maxVisibleLineCount: Int
+
+    /// Visual-row metrics. These equal the logical-line metrics when wrapping is
+    /// disabled and expand independently when soft wrapping is enabled.
+    public var firstVisibleVisualRowIndex: Int
+    public var totalVisualRowCount: Int
+    public var maxScrollTopVisualRow: Int
 
     /// Phase 3C line-range and content metrics for the scrolled viewport.
     public var visibleLineRange: LunaStaticTextVisibleLineRange
@@ -465,6 +505,9 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         visibleLines: [LunaStaticTextVisibleLine],
         firstVisibleLineIndex: Int,
         maxVisibleLineCount: Int,
+        firstVisibleVisualRowIndex: Int = 0,
+        totalVisualRowCount: Int? = nil,
+        maxScrollTopVisualRow: Int = 0,
         visibleLineRange: LunaStaticTextVisibleLineRange? = nil,
         contentHeight: Int = 0,
         maxScrollTopLine: Int = 0,
@@ -481,6 +524,9 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
         self.visibleLines = visibleLines
         self.firstVisibleLineIndex = max(0, firstVisibleLineIndex)
         self.maxVisibleLineCount = max(0, maxVisibleLineCount)
+        self.firstVisibleVisualRowIndex = max(0, firstVisibleVisualRowIndex)
+        self.totalVisualRowCount = max(0, totalVisualRowCount ?? visibleLines.count)
+        self.maxScrollTopVisualRow = max(0, maxScrollTopVisualRow)
         self.visibleLineRange = visibleLineRange ?? LunaStaticTextVisibleLineRange(
             startLineIndex: max(0, firstVisibleLineIndex),
             endLineIndexExclusive: max(0, firstVisibleLineIndex) + visibleLines.count
@@ -510,9 +556,16 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     public var bounds: LunaRectI
     public var document: LunaStaticTextDocument
     public var scrollTopLine: Int
+
+    /// Optional visual-row scroll position used by soft-wrapped surfaces.
+    /// When nil, Luna derives the first visual row from `scrollTopLine`, which
+    /// preserves the original logical-line scrolling API for existing callers.
+    public var scrollTopVisualRow: Int?
+
     public var currentLineIndex: Int?
     public var theme: LunaTheme
     public var metrics: LunaStaticTextViewMetrics
+    public var wrapMode: LunaStaticTextWrapMode
     public var isFocused: Bool
 
     /// Whether the backing text model currently accepts edits.
@@ -532,9 +585,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         bounds: LunaRectI,
         document: LunaStaticTextDocument,
         scrollTopLine: Int = 0,
+        scrollTopVisualRow: Int? = nil,
         currentLineIndex: Int? = nil,
         theme: LunaTheme = .lunaDefaultDark,
         metrics: LunaStaticTextViewMetrics = .demo,
+        wrapMode: LunaStaticTextWrapMode = .none,
         isFocused: Bool = false,
         isEditable: Bool = false,
         caret: LunaStaticTextCaret? = nil,
@@ -545,9 +600,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         self.bounds = bounds
         self.document = document
         self.scrollTopLine = max(0, scrollTopLine)
+        self.scrollTopVisualRow = scrollTopVisualRow.map { max(0, $0) }
         self.currentLineIndex = currentLineIndex
         self.theme = theme
         self.metrics = metrics
+        self.wrapMode = wrapMode
         self.isFocused = isFocused
         self.isEditable = isEditable
         self.caret = caret.map { LunaStaticTextCaret(location: document.clampedLocation($0.location)) }
@@ -565,6 +622,19 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         lineNodeIDPrefix.child(lineIndex + 1)
     }
 
+    public func lineNodeID(for lineIndex: Int, wrappedSegmentIndex: Int) -> LunaNodeID {
+        let lineID = lineNodeID(for: lineIndex)
+        return wrappedSegmentIndex == 0 ? lineID : lineID.child("wrap-\(wrappedSegmentIndex + 1)")
+    }
+
+    private struct VisualSegment: Hashable, Sendable {
+        var line: LunaStaticTextLine
+        var wrappedSegmentIndex: Int
+        var text: String
+        var startUTF8Column: Int
+        var endUTF8Column: Int
+    }
+
     public func layout() -> LunaStaticTextViewLayout {
         guard !bounds.isEmpty else {
             return LunaStaticTextViewLayout(
@@ -574,6 +644,9 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                 visibleLines: [],
                 firstVisibleLineIndex: 0,
                 maxVisibleLineCount: 0,
+                firstVisibleVisualRowIndex: 0,
+                totalVisualRowCount: 0,
+                maxScrollTopVisualRow: 0,
                 visibleLineRange: LunaStaticTextVisibleLineRange(startLineIndex: 0, endLineIndexExclusive: 0),
                 contentHeight: 0,
                 maxScrollTopLine: 0,
@@ -590,16 +663,41 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         let bodyH = max(0, bounds.h - topInset - bottomInset)
         let lineHeight = max(1, metrics.lineHeight)
         let maxVisible = max(0, bodyH / lineHeight)
-        let contentHeight = topInset + bottomInset + document.lineCount * lineHeight
-        let maxScrollTopLine = LunaStaticTextScrollState.maximumScrollTopLine(
-            documentLineCount: document.lineCount,
-            maxVisibleLineCount: maxVisible
-        )
-        let scrollState = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
-            .clamped(document: document, maxVisibleLineCount: maxVisible)
+        let baseTextWidth = max(0, bounds.w - gutterW - metrics.gutterPadding - rightInset)
 
-        let hasVerticalOverflow = maxVisible > 0 && document.lineCount > maxVisible
-        let laneW = hasVerticalOverflow ? min(bounds.w, metrics.scrollbarLaneWidth) : 0
+        var segments = visualSegments(textViewportWidth: baseTextWidth)
+        var laneW = maxVisible > 0 && segments.count > maxVisible
+            ? min(bounds.w, metrics.scrollbarLaneWidth)
+            : 0
+
+        // The scrollbar consumes horizontal space and can therefore change the
+        // soft-wrap breakpoints. Recompute exactly once with the final width.
+        if laneW > 0 {
+            segments = visualSegments(textViewportWidth: max(0, baseTextWidth - laneW))
+            if segments.count <= maxVisible {
+                laneW = 0
+                segments = visualSegments(textViewportWidth: baseTextWidth)
+            }
+        }
+
+        let totalVisualRows = segments.count
+        let contentHeight = topInset + bottomInset + totalVisualRows * lineHeight
+        let maxScrollTopVisualRow = max(0, totalVisualRows - maxVisible)
+
+        let requestedLine = min(max(0, scrollTopLine), max(0, document.lineCount - 1))
+        let visualRowForRequestedLine = segments.firstIndex { $0.line.index == requestedLine } ?? 0
+        let requestedVisualRow = wrapMode == .soft
+            ? (scrollTopVisualRow ?? visualRowForRequestedLine)
+            : visualRowForRequestedLine
+        let firstVisibleVisualRow = min(max(0, requestedVisualRow), maxScrollTopVisualRow)
+        let visibleSegments = maxVisible > 0
+            ? Array(segments.dropFirst(firstVisibleVisualRow).prefix(maxVisible))
+            : []
+        let firstVisibleLine = visibleSegments.first?.line.index ?? 0
+        let maxScrollTopLine = segments.indices.contains(maxScrollTopVisualRow)
+            ? segments[maxScrollTopVisualRow].line.index
+            : 0
+
         let scrollbarLaneBounds = LunaRectI(
             x: bounds.x + bounds.w - laneW,
             y: bounds.y,
@@ -608,10 +706,10 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         )
         let scrollbarThumbBounds = Self.scrollbarThumbBounds(
             lane: scrollbarLaneBounds,
-            documentLineCount: document.lineCount,
+            documentLineCount: totalVisualRows,
             maxVisibleLineCount: maxVisible,
-            maxScrollTopLine: maxScrollTopLine,
-            scrollTopLine: scrollState.scrollTopLine,
+            maxScrollTopLine: maxScrollTopVisualRow,
+            scrollTopLine: firstVisibleVisualRow,
             metrics: metrics
         )
 
@@ -628,19 +726,14 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             h: bodyH
         )
 
-        let firstLine = scrollState.scrollTopLine
-        let availableLines = max(0, document.lineCount - firstLine)
-        let count = min(maxVisible, availableLines)
         let numberWidth = max(0, gutterW - metrics.gutterPadding * 2)
         var visible: [LunaStaticTextVisibleLine] = []
-        visible.reserveCapacity(count)
+        visible.reserveCapacity(visibleSegments.count)
         let effectiveCurrentLineIndex = caret?.location.lineIndex ?? currentLineIndex
 
-        for visualIndex in 0..<count {
-            let lineIndex = firstLine + visualIndex
-            guard let line = document[line: lineIndex] else { continue }
+        for (visualIndex, segment) in visibleSegments.enumerated() {
             let rowY = bodyY + visualIndex * lineHeight
-            let rowBounds = LunaRectI(x: bounds.x, y: rowY, w: bounds.w - laneW, h: lineHeight)
+            let rowBounds = LunaRectI(x: bounds.x, y: rowY, w: max(0, bounds.w - laneW), h: lineHeight)
             let lineNumberBounds = LunaRectI(
                 x: bounds.x + metrics.gutterPadding,
                 y: rowY,
@@ -653,31 +746,60 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                 w: textViewportBounds.w,
                 h: lineHeight
             )
-            let visualText = LunaBoundedTextLayout.layout(
-                line.text,
-                in: textBounds,
-                metrics: metrics.glyphMetrics,
-                overflow: .ellipsizeTail
-            ).firstLine ?? LunaBoundedTextLine(text: "", fullText: line.text, bounds: textBounds, isClipped: !line.text.isEmpty)
+
+            let visualText: LunaBoundedTextLine
+            switch wrapMode {
+            case .none:
+                visualText = LunaBoundedTextLayout.layout(
+                    segment.text,
+                    in: textBounds,
+                    metrics: metrics.glyphMetrics,
+                    overflow: .ellipsizeTail
+                ).firstLine ?? LunaBoundedTextLine(
+                    text: "",
+                    fullText: segment.line.text,
+                    bounds: textBounds,
+                    isClipped: !segment.text.isEmpty
+                )
+            case .soft:
+                visualText = LunaBoundedTextLine(
+                    text: segment.text,
+                    fullText: segment.line.text,
+                    bounds: textBounds,
+                    isClipped: false
+                )
+            }
 
             visible.append(
                 LunaStaticTextVisibleLine(
-                    nodeID: lineNodeID(for: lineIndex),
-                    line: line,
-                    lineNumberText: String(line.lineNumber),
+                    nodeID: lineNodeID(
+                        for: segment.line.index,
+                        wrappedSegmentIndex: segment.wrappedSegmentIndex
+                    ),
+                    line: segment.line,
+                    lineNumberText: segment.wrappedSegmentIndex == 0 ? String(segment.line.lineNumber) : "",
                     lineNumberBounds: lineNumberBounds,
                     textBounds: textBounds,
                     rowBounds: rowBounds,
                     visualText: visualText,
-                    isCurrentLine: effectiveCurrentLineIndex == lineIndex
+                    isCurrentLine: effectiveCurrentLineIndex == segment.line.index,
+                    wrappedSegmentIndex: segment.wrappedSegmentIndex,
+                    startUTF8Column: segment.startUTF8Column,
+                    endUTF8Column: segment.endUTF8Column
                 )
             )
         }
 
-        let visibleLineRange = LunaStaticTextVisibleLineRange(
-            startLineIndex: firstLine,
-            endLineIndexExclusive: firstLine + visible.count
-        )
+        let visibleLineRange: LunaStaticTextVisibleLineRange
+        if let first = visible.first, let last = visible.last {
+            visibleLineRange = LunaStaticTextVisibleLineRange(
+                startLineIndex: first.line.index,
+                endLineIndexExclusive: last.line.index + 1
+            )
+        } else {
+            visibleLineRange = LunaStaticTextVisibleLineRange(startLineIndex: 0, endLineIndexExclusive: 0)
+        }
+
         let visibleTextRange = Self.visibleTextRange(for: visible, document: document)
         let computedHighlightRects = self.highlightRects(visibleLines: visible)
         let computedSelectionRects = self.selection.map { self.selectionRects(for: $0, visibleLines: visible) } ?? []
@@ -688,8 +810,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             gutterBounds: gutterBounds,
             textViewportBounds: textViewportBounds,
             visibleLines: visible,
-            firstVisibleLineIndex: firstLine,
+            firstVisibleLineIndex: firstVisibleLine,
             maxVisibleLineCount: maxVisible,
+            firstVisibleVisualRowIndex: firstVisibleVisualRow,
+            totalVisualRowCount: totalVisualRows,
+            maxScrollTopVisualRow: maxScrollTopVisualRow,
             visibleLineRange: visibleLineRange,
             contentHeight: contentHeight,
             maxScrollTopLine: maxScrollTopLine,
@@ -700,6 +825,96 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             highlightRects: computedHighlightRects,
             selectionRects: computedSelectionRects
         )
+    }
+
+    private func visualSegments(textViewportWidth: Int) -> [VisualSegment] {
+        let capacity = max(1, metrics.glyphMetrics.characterCapacity(width: max(0, textViewportWidth)))
+        return document.lines.flatMap { line -> [VisualSegment] in
+            switch wrapMode {
+            case .none:
+                return [VisualSegment(
+                    line: line,
+                    wrappedSegmentIndex: 0,
+                    text: line.text,
+                    startUTF8Column: 0,
+                    endUTF8Column: line.utf8Length
+                )]
+            case .soft:
+                return Self.softWrappedSegments(for: line, maxCharactersPerRow: capacity)
+            }
+        }
+    }
+
+    private static func softWrappedSegments(
+        for line: LunaStaticTextLine,
+        maxCharactersPerRow: Int
+    ) -> [VisualSegment] {
+        let capacity = max(1, maxCharactersPerRow)
+        guard !line.text.isEmpty else {
+            return [VisualSegment(
+                line: line,
+                wrappedSegmentIndex: 0,
+                text: "",
+                startUTF8Column: 0,
+                endUTF8Column: 0
+            )]
+        }
+
+        struct CharacterSpan {
+            var character: Character
+            var startUTF8Column: Int
+            var endUTF8Column: Int
+        }
+
+        var spans: [CharacterSpan] = []
+        spans.reserveCapacity(line.text.count)
+        var utf8Column = 0
+        for character in line.text {
+            let length = String(character).utf8.count
+            spans.append(CharacterSpan(
+                character: character,
+                startUTF8Column: utf8Column,
+                endUTF8Column: utf8Column + length
+            ))
+            utf8Column += length
+        }
+
+        var result: [VisualSegment] = []
+        var cursor = 0
+        var segmentIndex = 0
+
+        while cursor < spans.count {
+            let hardEnd = min(spans.count, cursor + capacity)
+            var end = hardEnd
+
+            if hardEnd < spans.count {
+                // Prefer the final whitespace that still fits. Keeping the
+                // whitespace in the preceding visual row preserves exact UTF-8
+                // coordinate coverage for hit testing and selection geometry.
+                if let breakIndex = (cursor..<hardEnd).reversed().first(where: {
+                    spans[$0].character == " " || spans[$0].character == "\t"
+                }), breakIndex > cursor {
+                    end = breakIndex + 1
+                }
+            }
+
+            let slice = spans[cursor..<end]
+            let text = String(slice.map(\.character))
+            let startColumn = slice.first?.startUTF8Column ?? 0
+            let endColumn = slice.last?.endUTF8Column ?? startColumn
+            result.append(VisualSegment(
+                line: line,
+                wrappedSegmentIndex: segmentIndex,
+                text: text,
+                startUTF8Column: startColumn,
+                endUTF8Column: endColumn
+            ))
+
+            cursor = end
+            segmentIndex += 1
+        }
+
+        return result
     }
 
     private static func scrollbarThumbBounds(
@@ -744,36 +959,97 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             return LunaAccessibilityTextRange(utf8Offset: 0, utf8Length: 0)
         }
 
-        let start = first.line.utf8Offset
-        let end = last.line.utf8Offset + last.line.utf8Length
+        let start = first.line.utf8Offset + first.startUTF8Column
+        let end = last.line.utf8Offset + last.endUTF8Column
         return LunaAccessibilityTextRange(utf8Offset: start, utf8Length: max(0, end - start))
     }
 
-    /// Return a copy of the view scrolled by a logical number of lines.
+    /// Return a copy of the view scrolled by visual rows when soft wrapping is
+    /// enabled, or by logical lines for the original non-wrapped mode.
     public func scrolled(byLineDelta delta: Int) -> LunaStaticTextView {
         let current = layout()
         var copy = self
-        copy.scrollTopLine = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
-            .scrolled(byLineDelta: delta, document: document, maxVisibleLineCount: current.maxVisibleLineCount)
-            .scrollTopLine
+        if wrapMode == .soft {
+            let nextVisualRow = min(
+                max(0, current.firstVisibleVisualRowIndex + delta),
+                current.maxScrollTopVisualRow
+            )
+            copy.scrollTopVisualRow = nextVisualRow
+            let segments = visualSegments(textViewportWidth: current.textViewportBounds.w)
+            if segments.indices.contains(nextVisualRow) {
+                copy.scrollTopLine = segments[nextVisualRow].line.index
+            }
+        } else {
+            copy.scrollTopLine = min(max(0, scrollTopLine + delta), current.maxScrollTopLine)
+            copy.scrollTopVisualRow = nil
+        }
         return copy
     }
 
-    /// Return a copy of the view with the supplied location brought into the visible line range.
+    /// Return a copy of the view with the supplied logical location visible.
+    /// In soft-wrap mode this includes continuation rows within one long line.
     public func ensuringVisible(_ location: LunaTextLocation) -> LunaStaticTextView {
         let current = layout()
+        let clampedLocation = document.clampedLocation(location)
         var copy = self
-        copy.scrollTopLine = LunaStaticTextScrollState(scrollTopLine: scrollTopLine)
-            .ensuringVisible(location, document: document, maxVisibleLineCount: current.maxVisibleLineCount)
-            .scrollTopLine
+
+        if wrapMode == .soft {
+            let segments = visualSegments(textViewportWidth: current.textViewportBounds.w)
+            let targetVisualRow = Self.visualRowIndex(for: clampedLocation, in: segments)
+            let currentTop = current.firstVisibleVisualRowIndex
+            let currentBottom = currentTop + current.maxVisibleLineCount
+            let nextTop: Int
+            if targetVisualRow < currentTop {
+                nextTop = targetVisualRow
+            } else if targetVisualRow >= currentBottom {
+                nextTop = targetVisualRow - max(0, current.maxVisibleLineCount - 1)
+            } else {
+                nextTop = currentTop
+            }
+            copy.scrollTopVisualRow = min(max(0, nextTop), current.maxScrollTopVisualRow)
+            copy.scrollTopLine = clampedLocation.lineIndex
+            return copy
+        }
+
+        let targetLine = clampedLocation.lineIndex
+        if targetLine < current.visibleLineRange.startLineIndex {
+            copy.scrollTopLine = targetLine
+        } else if targetLine >= current.visibleLineRange.endLineIndexExclusive {
+            copy.scrollTopLine = min(targetLine, current.maxScrollTopLine)
+        }
+        copy.scrollTopVisualRow = nil
         return copy
+    }
+
+    private static func visualRowIndex(
+        for location: LunaTextLocation,
+        in segments: [VisualSegment]
+    ) -> Int {
+        let lineSegments = segments.indices.filter { segments[$0].line.index == location.lineIndex }
+        guard let first = lineSegments.first else { return 0 }
+        if location.utf8Column >= segments[first].line.utf8Length {
+            return lineSegments.last ?? first
+        }
+        return lineSegments.first {
+            location.utf8Column >= segments[$0].startUTF8Column &&
+                location.utf8Column < segments[$0].endUTF8Column
+        } ?? (lineSegments.last ?? first)
     }
 
     /// Calculate the caret insertion rectangle for a visible line.
     public func caretRect(for caret: LunaStaticTextCaret, visibleLines: [LunaStaticTextVisibleLine]? = nil) -> LunaRectI? {
         let location = document.clampedLocation(caret.location)
         let lines = visibleLines ?? layout().visibleLines
-        guard let visible = lines.first(where: { $0.line.index == location.lineIndex }) else { return nil }
+        let candidates = lines.filter { $0.line.index == location.lineIndex }
+        guard !candidates.isEmpty else { return nil }
+        let visible: LunaStaticTextVisibleLine
+        if location.utf8Column == candidates[0].line.utf8Length {
+            visible = candidates.last!
+        } else {
+            visible = candidates.first {
+                location.utf8Column >= $0.startUTF8Column && location.utf8Column < $0.endUTF8Column
+            } ?? candidates.last!
+        }
         let x = clampedTextX(forUTF8Column: location.utf8Column, in: visible)
         return LunaRectI(x: x, y: visible.rowBounds.y, w: max(1, metrics.glyphMetrics.scale), h: visible.rowBounds.h)
     }
@@ -803,8 +1079,10 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             let lineIndex = visible.line.index
             guard lineIndex >= range.anchor.lineIndex, lineIndex <= range.focus.lineIndex else { continue }
 
-            let startColumn = lineIndex == range.anchor.lineIndex ? range.anchor.utf8Column : 0
-            let endColumn = lineIndex == range.focus.lineIndex ? range.focus.utf8Column : visible.line.utf8Length
+            let logicalStart = lineIndex == range.anchor.lineIndex ? range.anchor.utf8Column : 0
+            let logicalEnd = lineIndex == range.focus.lineIndex ? range.focus.utf8Column : visible.line.utf8Length
+            let startColumn = max(logicalStart, visible.startUTF8Column)
+            let endColumn = min(logicalEnd, visible.endUTF8Column)
             guard endColumn > startColumn else { continue }
 
             let x0 = clampedTextX(forUTF8Column: startColumn, in: visible)
@@ -839,11 +1117,16 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
 
         let column: Int
         if point.x <= visible.textBounds.x {
-            column = 0
+            column = visible.startUTF8Column
         } else {
             let relativeX = max(0, point.x - visible.textBounds.x)
-            let nearestInsertionColumn = (relativeX + metrics.glyphMetrics.advance / 2) / metrics.glyphMetrics.advance
-            column = min(max(0, nearestInsertionColumn), visible.line.utf8Length)
+            let nearestVisualOffset = (relativeX + metrics.glyphMetrics.advance / 2) / metrics.glyphMetrics.advance
+            column = Self.utf8Column(
+                forVisualCharacterOffset: nearestVisualOffset,
+                segmentText: visible.visualText.text,
+                segmentStartUTF8Column: visible.startUTF8Column,
+                segmentEndUTF8Column: visible.endUTF8Column
+            )
         }
 
         let location = LunaTextLocation(lineIndex: visible.line.index, utf8Column: column)
@@ -857,9 +1140,52 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     }
 
     private func clampedTextX(forUTF8Column column: Int, in visible: LunaStaticTextVisibleLine) -> Int {
-        let clampedColumn = min(max(0, column), visible.line.utf8Length)
-        let unclipped = visible.textBounds.x + clampedColumn * metrics.glyphMetrics.advance
+        let visualCharacterOffset = Self.visualCharacterOffset(
+            forUTF8Column: column,
+            segmentText: visible.visualText.text,
+            segmentStartUTF8Column: visible.startUTF8Column,
+            segmentEndUTF8Column: visible.endUTF8Column
+        )
+        let unclipped = visible.textBounds.x + visualCharacterOffset * metrics.glyphMetrics.advance
         return max(visible.textBounds.x, min(visible.textBounds.x + visible.textBounds.w, unclipped))
+    }
+
+    /// Translate a UTF-8 document coordinate into a monospaced visual insertion
+    /// offset without treating the bytes of a multibyte scalar as extra glyphs.
+    private static func visualCharacterOffset(
+        forUTF8Column column: Int,
+        segmentText: String,
+        segmentStartUTF8Column: Int,
+        segmentEndUTF8Column: Int
+    ) -> Int {
+        let target = min(max(segmentStartUTF8Column, column), segmentEndUTF8Column)
+        var utf8Column = segmentStartUTF8Column
+        var visualOffset = 0
+        for character in segmentText {
+            let next = utf8Column + String(character).utf8.count
+            if target < next { break }
+            utf8Column = next
+            visualOffset += 1
+        }
+        return visualOffset
+    }
+
+    /// Translate a visual insertion offset back to an exact UTF-8 boundary.
+    private static func utf8Column(
+        forVisualCharacterOffset requestedOffset: Int,
+        segmentText: String,
+        segmentStartUTF8Column: Int,
+        segmentEndUTF8Column: Int
+    ) -> Int {
+        let targetOffset = min(max(0, requestedOffset), segmentText.count)
+        var utf8Column = segmentStartUTF8Column
+        var visualOffset = 0
+        for character in segmentText {
+            guard visualOffset < targetOffset else { break }
+            utf8Column += String(character).utf8.count
+            visualOffset += 1
+        }
+        return min(utf8Column, segmentEndUTF8Column)
     }
 
     public func buildDisplayList(into displayList: inout LunaDisplayList) {
@@ -942,14 +1268,14 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             LunaAccessibilityNode(
                 id: visible.nodeID,
                 role: .textRun,
-                label: visible.line.text,
-                value: String(visible.line.lineNumber),
+                label: visible.visualText.text,
+                value: visible.lineNumberText,
                 bounds: visible.rowBounds.asAccessibilityRect,
                 isEnabled: true,
                 isFocused: focusedLineIndex == visible.line.index,
                 children: [],
                 actions: [],
-                textRange: visible.line.textRange
+                textRange: visible.accessibilityTextRange
             )
         }
     }

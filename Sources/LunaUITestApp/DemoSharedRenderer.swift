@@ -247,6 +247,18 @@ public struct LunaCPUDemoScene {
     /// policy and is intentionally not encoded in LunaPaneContainer.
     private var paneWorkspaceState = LunaCPUDemoScene.demoPaneWorkspaceState
 
+    /// Per-pane viewport state for the Phase 5F.2A integration proof. The primary
+    /// pane continues to use the active document's existing scroll state; other
+    /// panes retain independent logical top-line positions.
+    private var paneScrollTopLineOverrides: [LunaPaneID: Int] = [
+        "demo.editor.secondary": 2,
+    ]
+
+    /// Soft wrapping can create several visual rows inside one logical line.
+    /// Keep that row offset per document and pane so a long wrapped line can be
+    /// scrolled independently without changing the app-owned document model.
+    private var paneScrollTopVisualRowOverrides: [String: Int] = [:]
+
     /// Phase 4B generic find/replace panel state. The state lives in the demo
     /// because the app owns when a find UI is open and which document it targets;
     /// LunaUI owns the reusable panel/search primitives.
@@ -276,6 +288,40 @@ public struct LunaCPUDemoScene {
         set { documentStore.replaceActiveScrollState(newValue) }
     }
 
+    private func scrollTopLine(for paneID: LunaPaneID) -> Int {
+        if paneID == "demo.editor.primary" {
+            return staticTextScroll.scrollTopLine
+        }
+        return max(0, paneScrollTopLineOverrides[paneID] ?? 0)
+    }
+
+    private mutating func setScrollTopLine(_ line: Int, for paneID: LunaPaneID) {
+        if paneID == "demo.editor.primary" {
+            staticTextScroll = LunaStaticTextScrollState(scrollTopLine: line)
+        } else {
+            paneScrollTopLineOverrides[paneID] = max(0, line)
+        }
+    }
+
+
+    private func paneViewportKey(for paneID: LunaPaneID) -> String {
+        let documentID = activeDocumentDescriptor?.id.rawValue ?? "no-document"
+        return "\(documentID)::\(paneID.rawValue)"
+    }
+
+    private func scrollTopVisualRow(for paneID: LunaPaneID) -> Int? {
+        paneScrollTopVisualRowOverrides[paneViewportKey(for: paneID)]
+    }
+
+    private mutating func setScrollTopVisualRow(_ row: Int?, for paneID: LunaPaneID) {
+        let key = paneViewportKey(for: paneID)
+        if let row {
+            paneScrollTopVisualRowOverrides[key] = max(0, row)
+        } else {
+            paneScrollTopVisualRowOverrides.removeValue(forKey: key)
+        }
+    }
+
     private var staticTextDocument: LunaStaticTextDocument {
         editableTextState.document.staticDocument
     }
@@ -288,6 +334,64 @@ public struct LunaCPUDemoScene {
     private var staticTextSelection: LunaStaticTextSelection? {
         get { editableTextState.selection }
         set { editableTextState.selection = newValue }
+    }
+
+    private func paneContainer(
+        for framebufferSize: LunaSizeI,
+        theme: LunaTheme
+    ) -> LunaPaneContainer {
+        let paneBounds = Self.layout(for: framebufferSize, mode: demoMode).textViewBounds
+        return LunaPaneContainer(
+            id: "demo.phase5f2a.panes",
+            bounds: paneBounds,
+            state: paneWorkspaceState,
+            theme: theme,
+            metrics: LunaPaneContainerMetrics(
+                dividerThickness: 5,
+                minimumPaneExtent: 80,
+                activePaneBorderThickness: 2
+            )
+        )
+    }
+
+    private func paneTextView(
+        for paneID: LunaPaneID,
+        framebufferSize: LunaSizeI,
+        theme: LunaTheme
+    ) -> LunaStaticTextView? {
+        let container = paneContainer(for: framebufferSize, theme: theme)
+        guard let frame = container.layout().contentFrame(
+            for: paneID,
+            metrics: LunaPaneContentMetrics(headerHeight: 22)
+        ) else { return nil }
+        let isActive = paneID == paneWorkspaceState.activePaneID
+        return Self.staticTextView(
+            id: frame.nodeID,
+            bounds: frame.contentBounds,
+            document: staticTextDocument,
+            scrollTopLine: scrollTopLine(for: paneID),
+            scrollTopVisualRow: scrollTopVisualRow(for: paneID),
+            caret: isActive ? staticTextCaret : nil,
+            selection: isActive ? staticTextSelection : nil,
+            highlights: findHighlights(theme: theme),
+            theme: theme,
+            wrapMode: .soft
+        )
+    }
+
+    private func paneTextView(
+        at point: LunaPointI,
+        framebufferSize: LunaSizeI,
+        theme: LunaTheme
+    ) -> (paneID: LunaPaneID, view: LunaStaticTextView)? {
+        let container = paneContainer(for: framebufferSize, theme: theme)
+        let contentFrames = container.layout().contentFrames(
+            metrics: LunaPaneContentMetrics(headerHeight: 22)
+        )
+        guard let frame = contentFrames.first(where: { $0.contentBounds.contains(x: point.x, y: point.y) }),
+              let view = paneTextView(for: frame.paneID, framebufferSize: framebufferSize, theme: theme)
+        else { return nil }
+        return (frame.paneID, view)
     }
 
     private var activeDocumentDescriptor: LunaDocumentDescriptor? {
@@ -335,17 +439,14 @@ public struct LunaCPUDemoScene {
     /// hit testing. Active modals are stateful, so the manager explicitly
     /// recalculates their panel/choice/accessibility bounds here.
     public mutating func handleWindowResize(_ size: LunaSizeI) {
-        let view = Self.staticTextView(
-            for: size,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
-        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
-            .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
+        let activePaneID = paneWorkspaceState.activePaneID
+        if let view = paneTextView(for: activePaneID, framebufferSize: size, theme: theme) {
+            let layout = view.layout()
+            setScrollTopLine(min(scrollTopLine(for: activePaneID), layout.maxScrollTopLine), for: activePaneID)
+            if let visualRow = scrollTopVisualRow(for: activePaneID) {
+                setScrollTopVisualRow(min(visualRow, layout.maxScrollTopVisualRow), for: activePaneID)
+            }
+        }
         proofGalleryStaticFrameCache = nil
         modalManager.reflow(viewportSize: size)
         lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
@@ -478,21 +579,20 @@ public struct LunaCPUDemoScene {
         if demoMode.usesProofGallerySurfaces {
             drawProofPanelChrome(into: &fb, layout: renderLayout, theme: renderTheme)
         }
-        drawStaticTextViewProof(
-            into: &fb,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            highlights: findHighlights(theme: renderTheme),
-            theme: renderTheme,
-            mode: demoMode
+        let paneScrollPositions = Dictionary(
+            uniqueKeysWithValues: paneWorkspaceState.paneIDs.map { paneID in
+                (paneID, (line: scrollTopLine(for: paneID), visualRow: scrollTopVisualRow(for: paneID)))
+            }
         )
-
-        drawPaneContainerProof(
+        drawPaneBoundTextViews(
             into: &fb,
             state: paneWorkspaceState,
             bounds: renderLayout.textViewBounds,
+            document: staticTextDocument,
+            scrollPositions: paneScrollPositions,
+            caret: staticTextCaret,
+            selection: staticTextSelection,
+            highlights: findHighlights(theme: renderTheme),
             theme: renderTheme
         )
         if demoMode.usesProofGallerySurfaces {
@@ -863,22 +963,11 @@ public struct LunaCPUDemoScene {
             }
         }
 
-        // Phase 5F.1 pane routing. Divider presses resize the split and are
-        // consumed. Pane presses update active-pane routing but continue into
-        // the text surface so ordinary caret placement still works.
+        // Phase 5F.2A pane routing. Divider presses resize the split. Pane
+        // presses activate the target leaf, and text hit testing then runs only
+        // against that leaf's own bounded/wrapped text surface.
         if event.button == .primary, event.phase == .down {
-            let paneBounds = Self.layout(for: framebufferSize, mode: demoMode).textViewBounds
-            let container = LunaPaneContainer(
-                id: "demo.phase5f1.panes",
-                bounds: paneBounds,
-                state: paneWorkspaceState,
-                theme: theme,
-                metrics: LunaPaneContainerMetrics(
-                    dividerThickness: 5,
-                    minimumPaneExtent: 80,
-                    activePaneBorderThickness: 2
-                )
-            )
+            let container = paneContainer(for: framebufferSize, theme: theme)
             let paneLayout = container.layout()
             let hit = container.hitTest(event.location)
             if paneLayout.dividerFrames.contains(where: { $0.nodeID == hit }) {
@@ -886,37 +975,46 @@ public struct LunaCPUDemoScene {
                 let result = container.handlePointerEvent(event, state: &state)
                 paneWorkspaceState = state
                 if let split = result.resizedSplitID {
-                    lastInteractionStatus = "Phase 5F.1 resized split: \(split.rawValue)"
+                    lastInteractionStatus = "Phase 5F.2A resized split and reflowed pane text: \(split.rawValue)"
                 }
                 return LunaPointerActivationResult(
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: nil,
-                    announcementTexts: ["Split divider resized"],
+                    announcementTexts: ["Split divider resized; pane text reflowed"],
                     didChangeVisualState: result.didChangeState
                 )
             }
-            if let pane = paneLayout.paneFrames.first(where: { $0.nodeID == hit }) {
-                if paneWorkspaceState.activate(pane.paneID) {
-                    lastInteractionStatus = "Phase 5F.1 active pane: \(pane.paneID.rawValue)"
-                }
+            if let pane = paneLayout.paneFrames.first(where: { $0.nodeID == hit }),
+               paneWorkspaceState.activate(pane.paneID) {
+                lastInteractionStatus = "Phase 5F.2A active pane: \(pane.paneID.rawValue)"
             }
         }
 
-        // Phase 4B.1 text surface routing: ordinary clicks move the caret,
-        // Shift-click extends the current selection, and click-drag creates a
-        // real editor-style user selection range. Text mutation still happens
-        // only from committed text/key events.
+        // Text selection and caret placement are now pane-local geometrically.
+        // The demo intentionally shares one document buffer; Moth remains
+        // responsible for assigning independent product view state to pane IDs.
         if event.button == .primary {
-            let textView = Self.staticTextView(
-                for: framebufferSize,
-                document: staticTextDocument,
-                scrollTopLine: staticTextScroll.scrollTopLine,
-                caret: staticTextCaret,
-                selection: staticTextSelection,
-                theme: theme,
-                mode: demoMode
-            )
+            let textView: LunaStaticTextView?
+            switch event.phase {
+            case .down:
+                textView = paneTextView(
+                    at: event.location,
+                    framebufferSize: framebufferSize,
+                    theme: theme
+                )?.view
+            case .moved, .up:
+                textView = paneTextView(
+                    for: paneWorkspaceState.activePaneID,
+                    framebufferSize: framebufferSize,
+                    theme: theme
+                )
+            }
+
+            guard let textView else {
+                if event.phase == .down { activeTextSelectionAnchor = nil }
+                return LunaPointerActivationResult(event: event, hitNodeID: nil, requestedCommand: nil)
+            }
 
             switch event.phase {
             case .down:
@@ -924,18 +1022,18 @@ public struct LunaCPUDemoScene {
                     if event.modifiers.shift {
                         editableTextState.extendSelection(to: hit.location)
                         activeTextSelectionAnchor = editableTextState.selection?.range.anchor ?? staticTextCaret.location
-                        lastInteractionStatus = "Phase 4B.1 Shift-click selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
+                        lastInteractionStatus = "Phase 5F.2A Shift-click selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
                     } else {
                         editableTextState.beginSelection(at: hit.location)
                         activeTextSelectionAnchor = hit.location
-                        lastInteractionStatus = "Phase 4B.1 caret: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column); drag to select text"
+                        lastInteractionStatus = "Phase 5F.2A caret in \(paneWorkspaceState.activePaneID.rawValue): line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column)"
                     }
                     ensureEditableCaretVisible(framebufferSize: framebufferSize)
                     return LunaPointerActivationResult(
                         event: event,
                         hitNodeID: hit.nodeID,
                         requestedCommand: nil,
-                        announcementTexts: ["Text caret/selection updated at line \(hit.location.lineIndex + 1), column \(hit.location.utf8Column)"],
+                        announcementTexts: ["Text caret/selection updated in active pane"],
                         didChangeVisualState: true
                     )
                 }
@@ -946,7 +1044,7 @@ public struct LunaCPUDemoScene {
                     editableTextState.setSelection(LunaTextRange(anchor: anchor, focus: hit.location))
                     ensureEditableCaretVisible(framebufferSize: framebufferSize)
                     let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
-                    lastInteractionStatus = "Phase 4B.1 dragging selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column), bytes=\(selected)"
+                    lastInteractionStatus = "Phase 5F.2A dragging pane selection: line \(hit.location.lineIndex + 1), col \(hit.location.utf8Column), bytes=\(selected)"
                     return LunaPointerActivationResult(
                         event: event,
                         hitNodeID: hit.nodeID,
@@ -964,8 +1062,8 @@ public struct LunaCPUDemoScene {
                         ensureEditableCaretVisible(framebufferSize: framebufferSize)
                         let selected = staticTextSelection.map { staticTextDocument.accessibilityRange(for: $0.range).utf8Length } ?? 0
                         lastInteractionStatus = selected > 0
-                            ? "Phase 4B.1 selection complete: bytes=\(selected), caret line \(staticTextCaret.location.lineIndex + 1), col \(staticTextCaret.location.utf8Column)"
-                            : "Phase 4B.1 caret placed: line \(staticTextCaret.location.lineIndex + 1), col \(staticTextCaret.location.utf8Column)"
+                            ? "Phase 5F.2A pane selection complete: bytes=\(selected)"
+                            : "Phase 5F.2A pane caret placed"
                         return LunaPointerActivationResult(
                             event: event,
                             hitNodeID: hit.nodeID,
@@ -1354,16 +1452,11 @@ public struct LunaCPUDemoScene {
     }
 
     private func completionAnchorRect(framebufferSize: LunaSizeI) -> LunaRectI {
-        let textView = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
-        if let caretRect = textView.layout().caretRect {
+        if let textView = paneTextView(
+            for: paneWorkspaceState.activePaneID,
+            framebufferSize: framebufferSize,
+            theme: theme
+        ), let caretRect = textView.layout().caretRect {
             return caretRect
         }
         let layout = Self.layout(for: framebufferSize, mode: demoMode)
@@ -1395,16 +1488,11 @@ public struct LunaCPUDemoScene {
         )
         let shellLayout = shell.layout()
         let shellHit = shell.hitTest(point)
-        let textView = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: renderTheme,
-            mode: demoMode
-        )
-        let textHit = textView.textHitTest(point)
+        let textHit = paneTextView(
+            at: point,
+            framebufferSize: framebufferSize,
+            theme: renderTheme
+        )?.view.textHitTest(point)
 
         let themeItems = demoThemeContextMenuItems(for: renderTheme)
         let commandContext = demoCommandContext(framebufferSize: framebufferSize, source: "context-menu")
@@ -2003,7 +2091,9 @@ public struct LunaCPUDemoScene {
             let canClose = documentID.flatMap { documentStore.document(with: $0)?.descriptor.isClosable } ?? false
             return LunaCommandAvailability(isEnabled: canClose, disabledReason: canClose ? nil : "Target tab is not closable in this demo")
         case "luna.demo.scroll.top":
-            return LunaCommandAvailability(isEnabled: staticTextScroll.scrollTopLine > 0, disabledReason: staticTextScroll.scrollTopLine > 0 ? nil : "Already at top")
+            let paneID = paneWorkspaceState.activePaneID
+            let isAwayFromTop = (scrollTopVisualRow(for: paneID) ?? 0) > 0 || scrollTopLine(for: paneID) > 0
+            return LunaCommandAvailability(isEnabled: isAwayFromTop, disabledReason: isAwayFromTop ? nil : "Already at top")
         case "luna.demo.scroll.end":
             return .enabled
         default:
@@ -2178,68 +2268,46 @@ public struct LunaCPUDemoScene {
     }
 
     private mutating func staticTextPageDelta(framebufferSize: LunaSizeI) -> Int {
-        let view = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
+        guard let view = paneTextView(
+            for: paneWorkspaceState.activePaneID,
+            framebufferSize: framebufferSize,
+            theme: theme
+        ) else { return 1 }
         return max(1, view.layout().maxVisibleLineCount - 1)
     }
 
     private mutating func scrollStaticTextView(byLineDelta delta: Int, framebufferSize: LunaSizeI) {
-        let view = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
-        let layout = view.layout()
-        staticTextScroll = staticTextScroll.scrolled(
-            byLineDelta: delta,
-            document: staticTextDocument,
-            maxVisibleLineCount: layout.maxVisibleLineCount
-        )
-        lastInteractionStatus = "Phase 3C scroll: top line \(staticTextScroll.scrollTopLine + 1) / \(staticTextDocument.lineCount)"
+        let paneID = paneWorkspaceState.activePaneID
+        guard let view = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme) else { return }
+        let scrolled = view.scrolled(byLineDelta: delta)
+        setScrollTopLine(scrolled.scrollTopLine, for: paneID)
+        setScrollTopVisualRow(scrolled.scrollTopVisualRow, for: paneID)
+        let layout = scrolled.layout()
+        lastInteractionStatus = "Phase 5F.2A pane scroll: \(paneID.rawValue), visual row \(layout.firstVisibleVisualRowIndex + 1) / \(max(1, layout.totalVisualRowCount))"
     }
 
     private mutating func setStaticTextScrollTopLine(_ line: Int, framebufferSize: LunaSizeI, reason: String) {
-        let view = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
-        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: line)
-            .clamped(document: staticTextDocument, maxVisibleLineCount: view.layout().maxVisibleLineCount)
-        lastInteractionStatus = "Phase 3C scroll \(reason): top line \(staticTextScroll.scrollTopLine + 1) / \(staticTextDocument.lineCount)"
+        let paneID = paneWorkspaceState.activePaneID
+        guard let view = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme) else { return }
+        let layout = view.layout()
+        if line == Int.max {
+            setScrollTopLine(layout.maxScrollTopLine, for: paneID)
+            setScrollTopVisualRow(layout.maxScrollTopVisualRow, for: paneID)
+        } else {
+            let nextLine = min(max(0, line), layout.maxScrollTopLine)
+            setScrollTopLine(nextLine, for: paneID)
+            setScrollTopVisualRow(line == 0 ? 0 : nil, for: paneID)
+        }
+        let updated = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme)?.layout()
+        lastInteractionStatus = "Phase 5F.2A pane scroll \(reason): \(paneID.rawValue), visual row \((updated?.firstVisibleVisualRowIndex ?? 0) + 1) / \(max(1, updated?.totalVisualRowCount ?? 1))"
     }
 
     private mutating func ensureEditableCaretVisible(framebufferSize: LunaSizeI) {
-        let view = Self.staticTextView(
-            for: framebufferSize,
-            document: staticTextDocument,
-            scrollTopLine: staticTextScroll.scrollTopLine,
-            caret: staticTextCaret,
-            selection: staticTextSelection,
-            theme: theme,
-            mode: demoMode
-        )
-        staticTextScroll = LunaStaticTextScrollState(scrollTopLine: staticTextScroll.scrollTopLine)
-            .ensuringVisible(
-                staticTextCaret.location,
-                document: staticTextDocument,
-                maxVisibleLineCount: view.layout().maxVisibleLineCount
-            )
+        let paneID = paneWorkspaceState.activePaneID
+        guard let view = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme) else { return }
+        let adjusted = view.ensuringVisible(staticTextCaret.location)
+        setScrollTopLine(adjusted.scrollTopLine, for: paneID)
+        setScrollTopVisualRow(adjusted.scrollTopVisualRow, for: paneID)
     }
 
 
@@ -2446,6 +2514,37 @@ public struct LunaCPUDemoScene {
         )
     }
 
+    /// Build a static text-view proof in explicit product-neutral bounds.
+    public static func staticTextView(
+        id: LunaNodeID,
+        bounds: LunaRectI,
+        document: LunaStaticTextDocument,
+        scrollTopLine: Int = 0,
+        scrollTopVisualRow: Int? = nil,
+        caret: LunaStaticTextCaret? = nil,
+        selection: LunaStaticTextSelection? = nil,
+        highlights: [LunaStaticTextHighlight] = [],
+        theme: LunaTheme = MothDemoTheme.theme,
+        wrapMode: LunaStaticTextWrapMode = .none
+    ) -> LunaStaticTextView {
+        LunaStaticTextView(
+            id: id,
+            bounds: bounds,
+            document: document,
+            scrollTopLine: scrollTopLine,
+            scrollTopVisualRow: scrollTopVisualRow,
+            currentLineIndex: caret?.location.lineIndex ?? 3,
+            theme: theme,
+            metrics: .demo,
+            wrapMode: wrapMode,
+            isFocused: caret != nil,
+            isEditable: true,
+            caret: caret,
+            selection: selection,
+            highlights: highlights
+        )
+    }
+
     /// Build the Phase 3A/3B static text-view proof for a framebuffer size.
     public static func staticTextView(
         for framebufferSize: LunaSizeI,
@@ -2458,19 +2557,16 @@ public struct LunaCPUDemoScene {
         mode: LunaDemoMode = .editor
     ) -> LunaStaticTextView {
         let layout = Self.layout(for: framebufferSize, mode: mode)
-        return LunaStaticTextView(
+        return staticTextView(
             id: LunaCPUDemoSceneLayout.textViewID,
             bounds: layout.textViewBounds,
             document: document,
             scrollTopLine: scrollTopLine,
-            currentLineIndex: 3,
-            theme: theme,
-            metrics: .demo,
-            isFocused: caret != nil,
-            isEditable: true,
             caret: caret,
             selection: selection,
-            highlights: highlights
+            highlights: highlights,
+            theme: theme,
+            wrapMode: .none
         )
     }
 
@@ -2990,26 +3086,11 @@ private func drawBackground(into fb: inout LunaFramebuffer, theme: LunaTheme) {
 /// Rect/background/current-line geometry comes from `LunaStaticTextView`'s
 /// display-list output. Glyphs still use the demo 5x7 font until LunaRender
 /// grows backend-neutral text/glyph commands.
-private func drawStaticTextViewProof(
+private func drawStaticTextView(
     into fb: inout LunaFramebuffer,
-    document: LunaStaticTextDocument,
-    scrollTopLine: Int,
-    caret: LunaStaticTextCaret?,
-    selection: LunaStaticTextSelection?,
-    highlights: [LunaStaticTextHighlight],
-    theme: LunaTheme,
-    mode: LunaDemoMode = .editor
+    view: LunaStaticTextView,
+    theme: LunaTheme
 ) {
-    let view = LunaCPUDemoScene.staticTextView(
-        for: LunaSizeI(width: fb.width, height: fb.height),
-        document: document,
-        scrollTopLine: scrollTopLine,
-        caret: caret,
-        selection: selection,
-        highlights: highlights,
-        theme: theme,
-        mode: mode
-    )
     guard !view.bounds.isEmpty else { return }
 
     var displayList = LunaDisplayList()
@@ -3018,27 +3099,30 @@ private func drawStaticTextViewProof(
 
     let layout = view.layout()
     for line in layout.visibleLines {
-        drawText5x7Color(
-            into: &fb,
-            x: line.lineNumberBounds.x,
-            y: line.lineNumberBounds.y,
-            text: line.lineNumberText,
-            scale: 1,
-            color: theme.ui.editor.gutterForeground
-        )
-        drawText5x7Color(
-            into: &fb,
-            x: line.visualText.bounds.x,
-            y: line.visualText.bounds.y,
-            text: line.visualText.text,
-            scale: 1,
-            color: theme.ui.editor.foreground
-        )
+        if !line.lineNumberText.isEmpty && line.lineNumberBounds.w > 0 {
+            drawText5x7Color(
+                into: &fb,
+                x: line.lineNumberBounds.x,
+                y: line.lineNumberBounds.y,
+                text: line.lineNumberText,
+                scale: 1,
+                color: theme.ui.editor.gutterForeground
+            )
+        }
+        if line.visualText.bounds.w > 0 {
+            drawText5x7Color(
+                into: &fb,
+                x: line.visualText.bounds.x,
+                y: line.visualText.bounds.y,
+                text: line.visualText.text,
+                scale: 1,
+                color: theme.ui.editor.foreground
+            )
+        }
     }
 
     // Draw the caret again over debug-font pixels. The widget display list also
-    // contains the caret rect so pure Luna tests can validate geometry without
-    // touching this demo-only font path.
+    // contains the caret rect so pure Luna tests validate the same geometry.
     if let caretRect = layout.caretRect {
         fillRectColor(
             into: &fb,
@@ -3051,19 +3135,26 @@ private func drawStaticTextViewProof(
     }
 }
 
-/// Draw the Phase 5F.1 split-container proof over the editor surface.
+/// Phase 5F.2A proof: each pane leaf owns a real bounded text-view instance.
 ///
-/// The divider and active-pane border are real LunaPaneContainer output. Small
-/// pane labels remain demo-font annotations until display-list text lands.
-private func drawPaneContainerProof(
+/// Both views consume the same immutable document snapshot, but their viewport
+/// bounds and scroll positions are independent. Soft-wrap breakpoints therefore
+/// recompute from each pane's own content width whenever the divider moves.
+private func drawPaneBoundTextViews(
     into fb: inout LunaFramebuffer,
     state: LunaPaneWorkspaceState,
     bounds: LunaRectI,
+    document: LunaStaticTextDocument,
+    scrollPositions: [LunaPaneID: (line: Int, visualRow: Int?)],
+    caret: LunaStaticTextCaret?,
+    selection: LunaStaticTextSelection?,
+    highlights: [LunaStaticTextHighlight],
     theme: LunaTheme
 ) {
     guard !bounds.isEmpty else { return }
+
     let container = LunaPaneContainer(
-        id: "demo.phase5f1.panes",
+        id: "demo.phase5f2a.panes",
         bounds: bounds,
         state: state,
         theme: theme,
@@ -3073,23 +3164,63 @@ private func drawPaneContainerProof(
             activePaneBorderThickness: 2
         )
     )
+    let contentMetrics = LunaPaneContentMetrics(
+        headerHeight: 22,
+        contentInsets: LunaInsetsI(top: 0, right: 0, bottom: 0, left: 0)
+    )
+    let paneLayout = container.layout()
+
+    for frame in paneLayout.contentFrames(metrics: contentMetrics) {
+        let isActive = frame.paneID == state.activePaneID
+        let view = LunaCPUDemoScene.staticTextView(
+            id: frame.nodeID,
+            bounds: frame.contentBounds,
+            document: document,
+            scrollTopLine: scrollPositions[frame.paneID]?.line ?? 0,
+            scrollTopVisualRow: scrollPositions[frame.paneID]?.visualRow,
+            caret: isActive ? caret : nil,
+            selection: isActive ? selection : nil,
+            highlights: highlights,
+            theme: theme,
+            wrapMode: .soft
+        )
+        drawStaticTextView(into: &fb, view: view, theme: theme)
+
+        fillRectColor(
+            into: &fb,
+            x: frame.headerBounds.x,
+            y: frame.headerBounds.y,
+            w: frame.headerBounds.w,
+            h: frame.headerBounds.h,
+            color: isActive ? theme.ui.panelTitleBackground : theme.ui.chrome.tabStripBackground
+        )
+        if frame.headerBounds.h > 0 {
+            fillRectColor(
+                into: &fb,
+                x: frame.headerBounds.x,
+                y: frame.headerBounds.y + frame.headerBounds.h - 1,
+                w: frame.headerBounds.w,
+                h: 1,
+                color: theme.ui.chrome.separator
+            )
+        }
+
+        let rawTitle = isActive ? "ACTIVE VIEW • SOFT WRAP" : "SECONDARY VIEW • SOFT WRAP"
+        let titleCapacity = max(0, (frame.headerBounds.w - 16) / LunaDebugTextMetrics.body.advance)
+        let title = LunaBoundedTextLayout.ellipsized(rawTitle, maxCharacters: titleCapacity)
+        drawText5x7Color(
+            into: &fb,
+            x: frame.headerBounds.x + 8,
+            y: frame.headerBounds.y + 5,
+            text: title,
+            scale: 1,
+            color: isActive ? theme.ui.statusBar.accent : theme.ui.editor.gutterForeground
+        )
+    }
+
     var displayList = LunaDisplayList()
     container.buildDisplayList(into: &displayList)
     LunaCPURenderer().render(displayList: displayList, into: &fb)
-
-    for frame in container.layout().paneFrames {
-        let title = frame.paneID == state.activePaneID ? "ACTIVE PANE" : "SECONDARY PANE"
-        drawText5x7Color(
-            into: &fb,
-            x: frame.bounds.x + 8,
-            y: frame.bounds.y + 6,
-            text: title,
-            scale: 1,
-            color: frame.paneID == state.activePaneID
-                ? theme.ui.statusBar.accent
-                : theme.ui.editor.gutterForeground
-        )
-    }
 }
 
 /// Draw a moving rectangle whose motion is driven by time inside the demo proof panel.

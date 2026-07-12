@@ -347,6 +347,47 @@ public struct LunaPaneFrame: Hashable, Sendable {
     }
 }
 
+/// Product-neutral content regions derived from one pane leaf.
+///
+/// Luna owns the geometry and clipping contract. Applications remain free to
+/// place an editor, terminal, preview, or any other surface in `contentBounds`.
+public struct LunaPaneContentFrame: Hashable, Sendable {
+    public var paneID: LunaPaneID
+    public var paneBounds: LunaRectI
+    public var headerBounds: LunaRectI
+    public var contentBounds: LunaRectI
+    public var nodeID: LunaNodeID
+
+    public init(
+        paneID: LunaPaneID,
+        paneBounds: LunaRectI,
+        headerBounds: LunaRectI,
+        contentBounds: LunaRectI,
+        nodeID: LunaNodeID
+    ) {
+        self.paneID = paneID
+        self.paneBounds = paneBounds
+        self.headerBounds = headerBounds
+        self.contentBounds = contentBounds
+        self.nodeID = nodeID
+    }
+}
+
+public struct LunaPaneContentMetrics: Hashable, Sendable {
+    public var headerHeight: Int
+    public var contentInsets: LunaInsetsI
+
+    public init(
+        headerHeight: Int = 22,
+        contentInsets: LunaInsetsI = LunaInsetsI(top: 0, right: 0, bottom: 0, left: 0)
+    ) {
+        self.headerHeight = max(0, headerHeight)
+        self.contentInsets = contentInsets
+    }
+
+    public static let editor = LunaPaneContentMetrics()
+}
+
 public struct LunaSplitDividerFrame: Hashable, Sendable {
     public var splitID: LunaSplitID
     public var axis: LunaSplitAxis
@@ -401,6 +442,47 @@ public struct LunaPaneContainerLayout: Hashable, Sendable {
 
     public func dividerFrame(for splitID: LunaSplitID) -> LunaSplitDividerFrame? {
         dividerFrames.first { $0.splitID == splitID }
+    }
+
+    public func contentFrames(
+        metrics: LunaPaneContentMetrics = .editor
+    ) -> [LunaPaneContentFrame] {
+        paneFrames.map { pane in
+            let headerH = min(max(0, metrics.headerHeight), pane.bounds.h)
+            let header = LunaRectI(
+                x: pane.bounds.x,
+                y: pane.bounds.y,
+                w: pane.bounds.w,
+                h: headerH
+            )
+            let rawContent = LunaRectI(
+                x: pane.bounds.x,
+                y: pane.bounds.y + headerH,
+                w: pane.bounds.w,
+                h: max(0, pane.bounds.h - headerH)
+            )
+            let insets = metrics.contentInsets
+            let content = LunaRectI(
+                x: rawContent.x + max(0, insets.left),
+                y: rawContent.y + max(0, insets.top),
+                w: max(0, rawContent.w - max(0, insets.left) - max(0, insets.right)),
+                h: max(0, rawContent.h - max(0, insets.top) - max(0, insets.bottom))
+            )
+            return LunaPaneContentFrame(
+                paneID: pane.paneID,
+                paneBounds: pane.bounds,
+                headerBounds: header,
+                contentBounds: content,
+                nodeID: pane.nodeID.child("content")
+            )
+        }
+    }
+
+    public func contentFrame(
+        for paneID: LunaPaneID,
+        metrics: LunaPaneContentMetrics = .editor
+    ) -> LunaPaneContentFrame? {
+        contentFrames(metrics: metrics).first { $0.paneID == paneID }
     }
 
     public func nearestPane(

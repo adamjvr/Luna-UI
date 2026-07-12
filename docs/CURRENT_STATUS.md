@@ -1,18 +1,19 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Luna UI Phase 5F.1.
+This document is the working checkpoint after Luna UI Phase 5F.2A.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5F.1**.
+Luna UI is through **Phase 5F.2A**.
 
 The newest paired-application contracts are:
 
 - Phase 5E.1 public SDL application lifecycle, now including an application-owned termination veto for unsaved-document workflows;
 - Phase 5E.2 immutable text-storage snapshots, independent document-view presentation state, revision invalidation, and injected find sessions;
 - Phase 5F.1 recursive pane trees, horizontal/vertical split geometry, active-pane state, visual and wrapping traversal, divider resizing, neutral pane command context, pinned tabs, deterministic tab overflow, and reusable overflow state;
+- Phase 5F.2A product-neutral pane content frames plus pane-bound text surfaces with width-correct soft wrapping, visual-row scrolling, UTF-8-safe caret/selection/hit-testing geometry, and per-pane reflow after divider or window changes;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -32,7 +33,7 @@ The engine now has:
 - a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
 - a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children;
 - non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
-- logical-line scroll state, visible line ranges, content height, scrollbar/minimap-lane placeholder geometry, scrolled hit testing, and accessibility visible text range metadata;
+- logical-line and soft-wrapped visual-row scroll state, visible line/row ranges, content height, scrollbar/minimap-lane placeholder geometry, wrapped hit testing, and accessibility visible text range metadata;
 - a small editable text document/state layer with insertion, newline, backspace/delete, selection replacement, caret movement, host text-input events, and editable accessibility metadata;
 - a command palette / quick-panel foundation with filtering, keyboard navigation, command activation, theme-driven rows, pointer selection, and accessibility nodes;
 - a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor;
@@ -194,10 +195,10 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5F.2 — Split/tab interaction polish and downstream integration hardening
+Phase 5F.2B — Visible split commands and keyboard pane navigation
 ```
 
-Phase 5F.1 has established the product-neutral pane tree, split geometry, focus traversal, command context, pinned-tab, and overflow contracts. The next Luna slice should expose visible split actions and keyboard affordances, deepen overflow presentation, and harden these seams against Moth editor-group integration without importing product policy.
+Phase 5F.2A binds reusable text surfaces to each pane leaf and proves that wrapping, clipping, caret/selection geometry, hit testing, accessibility ranges, and visual-row scrolling all respond to the pane's own width. The next Luna slice should expose visible product-neutral split actions and keyboard affordances before tab-overflow presentation polish.
 
 ---
 
@@ -250,6 +251,24 @@ Delivered:
 `LunaEditableTextDocument` remains a small deterministic reusable proof model.
 It is not the future Moth Text source buffer.
 
+
+---
+
+## Phase 5F.2A — Pane-Bound Text Surfaces and Width-Correct Wrapping
+
+**Status: complete in this revision.**
+
+Delivered:
+
+- product-neutral `LunaPaneContentFrame` geometry for pane headers and clipped content regions;
+- one real `LunaStaticTextView` per demo pane instead of one full-width editor painted beneath split chrome;
+- width-derived soft wrapping that recomputes independently for every pane and after divider/window resize;
+- UTF-8-boundary-safe caret placement, selection/highlight rectangles, pointer hit testing, and accessibility ranges across continuation rows;
+- visual-row scrolling so a single long wrapped line can scroll through all continuation rows;
+- independent per-document/per-pane viewport positions in `LunaUITestApp`;
+- focused regression coverage for pane containment, reflow, wrapped coordinates, Unicode boundaries, and continuation-row scrolling.
+
+The application still owns which document or editor view occupies each pane. Luna owns only reusable geometry, clipping, wrapping, rendering, input coordinates, and accessibility behavior.
 
 ---
 

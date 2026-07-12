@@ -1388,7 +1388,7 @@ Definition of done:
 
 ### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
-Status: **Phase 5F.1 implemented; Phase 5F.2 remains.**
+Status: **Phase 5F.2A implemented; Phase 5F.2B/5F.2C remain.**
 
 Phase 5F.1 delivered:
 
@@ -1401,14 +1401,19 @@ Phase 5F.1 delivered:
 - host termination veto support so product dirty-document policy can cancel native window close;
 - regression tests and a LunaUITestApp split-pane proof.
 
+Phase 5F.2A delivered:
+
+- product-neutral pane header/content frames derived from each leaf's geometry;
+- pane-local text-view bounds, clipping, pointer routing, and active-pane focus presentation;
+- width-correct soft wrapping that reflows independently after divider/window resize;
+- continuation-row caret, selection, highlight, hit-test, accessibility, and visual-scroll behavior using UTF-8 document coordinates;
+- tests proving pane-local wrapping and geometry without moving document/view ownership into Luna.
+
 Remaining Phase 5F.2 scope:
 
-- overflow behavior when tabs exceed strip width;
-- pinned-tab layout and interaction refinement;
-- generic split-container and pane identity groundwork;
-- keyboard-accessible tab and pane traversal;
-- active pane/group routing through product-neutral context;
-- tests proving that Luna owns pane mechanics while Moth will own editor-group and cloned-view policy.
+- **5F.2B:** visible product-neutral split actions and keyboard-accessible pane focus/navigation;
+- **5F.2C:** polished tab-overflow popup/list presentation and pinned-tab interaction refinement;
+- integration hardening for Moth editor groups and cloned views while preserving Moth ownership of product policy.
 
 ---
 
@@ -1466,10 +1471,10 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5F.2 — Split/tab interaction polish and downstream integration hardening
+Phase 5F.2B — Visible split commands and keyboard pane navigation
 ```
 
-Phase 5F.1 establishes the reusable pane tree, geometry, focus, command-target, pinned-tab, and overflow contracts. Phase 5F.2 should add visible split actions and keyboard affordances, polish overflow presentation, and harden those contracts against the next Moth workspace/editor-group slice without moving Moth policy into Luna.
+Phase 5F.2A now proves that real text surfaces are bounded, clipped, wrapped, scrolled, hit-tested, and exposed accessibly inside each pane leaf. Phase 5F.2B should add visible split actions and keyboard affordances; Phase 5F.2C will then polish overflow presentation before the next Moth workspace/editor-group integration slice.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 

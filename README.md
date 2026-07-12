@@ -351,16 +351,17 @@ The current checkpoint has:
 - Phase 5E.1 reusable SDL application lifecycle implemented with a public downstream scene contract, normalized host events, invalidation-driven presentation, and an application-owned termination veto seam for unsaved-document policy;
 - Phase 5E.2 document/view adapter seams implemented with immutable UTF-8 snapshots, stable revisions, independent presentation state, injected find sessions, and public diagnostic bitmap text rendering;
 - Phase 5F.1 workspace mechanics implemented with recursive product-neutral pane trees, split geometry, active-pane routing, directional and wrapping focus traversal, divider resizing, pane command context, pinned-tab layout, deterministic tab overflow, and overflow presentation state;
+- Phase 5F.2A pane-bound editor-surface integration implemented with reusable pane content frames, independent clipped text-view bounds, width-correct soft wrapping, visual-row scrolling, UTF-8-safe continuation-row geometry, and live reflow after divider/window changes;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Phase 5F.1 — Product-neutral pane, focus, pinned-tab, and overflow mechanics
+Phase 5F.2A — Pane-bound text surfaces and width-correct soft wrapping
 ```
 
-Luna now supplies reusable workspace anatomy while leaving document groups, cloned editor views, file policy, and product command semantics to Moth. The next Luna slice is Phase 5F.2: visible split commands, keyboard affordances, tab-overflow presentation polish, and integration hardening against Moth M2.2/M3 needs.
+Luna now supplies reusable pane geometry plus correctly bounded text-surface anatomy while leaving document groups, cloned editor views, file policy, and product command semantics to Moth. The next Luna slice is Phase 5F.2B: visible split commands and keyboard pane navigation, followed by Phase 5F.2C tab-overflow presentation polish.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -434,6 +435,8 @@ swift build --target LunaHostPhase5C1Tests
 swift test --filter LunaHostPhase5C1Tests
 swift build --target LunaUIPhase5F1Tests
 swift test --filter LunaUIPhase5F1Tests
+swift build --target LunaUIPhase5F2ATests
+swift test --filter LunaUIPhase5F2ATests
 ```
 
 Full Linux check:
