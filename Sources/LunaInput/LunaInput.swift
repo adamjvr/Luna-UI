@@ -135,6 +135,9 @@ public struct LunaTextInputEvent: Hashable, Sendable {
 public enum LunaHostInputEvent: Hashable, Sendable {
     case quit
     case windowResized(LunaSizeI)
+    /// The native host lost pointer-drag ownership, usually because the window
+    /// lost focus. Scenes must cancel any active capture gesture immediately.
+    case pointerCaptureLost
     case pointer(LunaPointerEvent)
     case keyboard(LunaKeyboardEvent)
     case textInput(LunaTextInputEvent)

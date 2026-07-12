@@ -1388,7 +1388,7 @@ Definition of done:
 
 ### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
-Status: **Phase 5F.2A implemented; Phase 5F.2B/5F.2C remain.**
+Status: **Phase 5F.2A and Convergence C1A implemented; the Moth convergence track is active.**
 
 Phase 5F.1 delivered:
 
@@ -1471,10 +1471,10 @@ Goal:
 The next implementation target is:
 
 ```text
-Phase 5F.2B — Visible split commands and keyboard pane navigation
+Convergence C1B — Sublime-like foundational mouse selection
 ```
 
-Phase 5F.2A now proves that real text surfaces are bounded, clipped, wrapped, scrolled, hit-tested, and exposed accessibly inside each pane leaf. Phase 5F.2B should add visible split actions and keyboard affordances; Phase 5F.2C will then polish overflow presentation before the next Moth workspace/editor-group integration slice.
+Phase 5F.2A proves pane-bound text surfaces. Convergence C1A adds native cursor intent, wider semantic dividers, hover/drag feedback, and drag-time pointer capture. C1B now takes priority over split-command and overflow expansion: extract reusable mouse-selection gesture behavior and consume it in Moth before broadening Luna again.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 
@@ -1514,3 +1514,10 @@ Deliverables:
 
 Phase 5F.1 now supplies the generic mechanics. Phase 5F.2 will deepen the
 interaction layer while product editor-group and cloned-view policy remains Moth-owned.
+
+
+### Moth Convergence Track
+
+Until Moth adopts the major already-proven editor surfaces, Luna work is restricted to Moth-required reusable infrastructure, shared interaction-quality improvements, and extraction of proven demo-only behavior into product-neutral APIs.
+
+C1A delivered native cursor and reliable divider interaction. C1B adds reusable text-selection gestures. Undo/redo, command authority, find/replace, menus, and real workspace/tabs then proceed primarily in Moth, with Luna changing only where a genuine reusable seam is missing.

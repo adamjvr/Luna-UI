@@ -41,6 +41,9 @@ public struct LunaSDLInputTranslator {
                     )
                 )
             }
+            if event.window.event == UInt8(SDL_WINDOWEVENT_FOCUS_LOST.rawValue) {
+                return .pointerCaptureLost
+            }
             return nil
 
         case SDL_MOUSEMOTION:

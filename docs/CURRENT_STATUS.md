@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Luna UI Phase 5F.2A.
+This document is the working checkpoint after Luna UI Convergence C1A.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Phase 5F.2A**.
+Luna UI is through **Convergence C1A** on the Moth convergence track.
 
 The newest paired-application contracts are:
 
@@ -14,6 +14,7 @@ The newest paired-application contracts are:
 - Phase 5E.2 immutable text-storage snapshots, independent document-view presentation state, revision invalidation, and injected find sessions;
 - Phase 5F.1 recursive pane trees, horizontal/vertical split geometry, active-pane state, visual and wrapping traversal, divider resizing, neutral pane command context, pinned tabs, deterministic tab overflow, and reusable overflow state;
 - Phase 5F.2A product-neutral pane content frames plus pane-bound text surfaces with width-correct soft wrapping, visual-row scrolling, UTF-8-safe caret/selection/hit-testing geometry, and per-pane reflow after divider or window changes;
+- Convergence C1A platform-neutral cursor intent, SDL system-cursor caching, drag-time native pointer capture, persistent product-neutral pane hover/drag state, wider semantic divider controls, and thin responsive divider rules;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -195,10 +196,10 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Phase 5F.2B — Visible split commands and keyboard pane navigation
+Convergence C1B — Sublime-like foundational mouse selection
 ```
 
-Phase 5F.2A binds reusable text surfaces to each pane leaf and proves that wrapping, clipping, caret/selection geometry, hit testing, accessibility ranges, and visual-row scrolling all respond to the pane's own width. The next Luna slice should expose visible product-neutral split actions and keyboard affordances before tab-overflow presentation polish.
+C1A fixes the immediate interaction-quality gap shared by LunaUITestApp and Moth: the host now presents semantic native cursors, divider controls expose a forgiving visible target, and divider drags retain ownership until release. C1B should extract the demo's proven text-selection behavior into a reusable gesture layer for immediate Moth consumption; unrelated Luna expansion remains deferred.
 
 ---
 
@@ -286,3 +287,20 @@ Delivered:
 - pinned-tab compact geometry, active-tab visibility, hidden-tab reporting, and overflow-button state;
 - regression tests proving Luna owns mechanics while applications own pane meaning;
 - an SDL scene termination veto so applications can cancel native window close for unsaved documents.
+
+---
+
+## Convergence C1A — Cursor and Divider Interaction
+
+Delivered:
+
+- `LunaCursorIntent` in LunaHostCore;
+- cached SDL arrow, I-beam, horizontal/vertical resize, hand, and prohibited cursors;
+- application-requested pointer capture during active drags with safe release;
+- persistent `LunaPaneContainerInteractionState` for divider hover and drag identity;
+- 11-pixel semantic divider geometry with a thin centered resting rule;
+- hover/drag rendering and axis-correct resize cursor intent;
+- matching LunaUITestApp and Moth consumption paths;
+- focused regression coverage for geometry, cursor intent, capture lifecycle, and accessibility bounds.
+
+C1A intentionally does not add split commands, tab-overflow UI, undo, menus, or find/replace.

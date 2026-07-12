@@ -3,9 +3,7 @@
 // DemoLinux.swift
 // LunaUITestApp
 //
-// Linux entry point using the reusable LunaHostSDL application runner. Keeping
-// the test app on the same public host API used by downstream applications
-// prevents the framework demo from depending on a private one-off event loop.
+// Linux entry point using the reusable LunaHostSDL application runner.
 
 #if os(Linux)
 
@@ -22,9 +20,9 @@ private struct LunaDemoSDLScene: LunaSDLApplicationScene {
     var demo: LunaCPUDemoScene
     let logsCommandRequests: Bool
 
-    var wantsContinuousRendering: Bool {
-        demo.wantsContinuousRendering
-    }
+    var wantsContinuousRendering: Bool { demo.wantsContinuousRendering }
+    var cursorIntent: LunaCursorIntent { demo.cursorIntent }
+    var wantsPointerCapture: Bool { demo.wantsPointerCapture }
 
     mutating func handleHostEvent(
         _ event: LunaHostInputEvent,
@@ -37,6 +35,10 @@ private struct LunaDemoSDLScene: LunaSDLApplicationScene {
         case .windowResized(let size):
             demo.handleWindowResize(size)
             return LunaFrameInvalidationSet(.windowResized)
+
+        case .pointerCaptureLost:
+            demo.cancelPointerInteraction()
+            return LunaFrameInvalidationSet(.input)
 
         case .pointer(let pointerEvent):
             let result = demo.handlePointerEvent(

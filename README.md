@@ -352,16 +352,17 @@ The current checkpoint has:
 - Phase 5E.2 document/view adapter seams implemented with immutable UTF-8 snapshots, stable revisions, independent presentation state, injected find sessions, and public diagnostic bitmap text rendering;
 - Phase 5F.1 workspace mechanics implemented with recursive product-neutral pane trees, split geometry, active-pane routing, directional and wrapping focus traversal, divider resizing, pane command context, pinned-tab layout, deterministic tab overflow, and overflow presentation state;
 - Phase 5F.2A pane-bound editor-surface integration implemented with reusable pane content frames, independent clipped text-view bounds, width-correct soft wrapping, visual-row scrolling, UTF-8-safe continuation-row geometry, and live reflow after divider/window changes;
+- Convergence C1A native cursor intent, SDL cursor mapping, drag-time pointer capture, 11-pixel semantic divider controls, thin center rules, and shared hover/drag feedback implemented for LunaUITestApp and downstream Moth integration;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Phase 5F.2A — Pane-bound text surfaces and width-correct soft wrapping
+Convergence C1A — Native cursor intent and reliable divider interaction
 ```
 
-Luna now supplies reusable pane geometry plus correctly bounded text-surface anatomy while leaving document groups, cloned editor views, file policy, and product command semantics to Moth. The next Luna slice is Phase 5F.2B: visible split commands and keyboard pane navigation, followed by Phase 5F.2C tab-overflow presentation polish.
+Luna is now on the Moth convergence track. C1A adds the host and pane interaction seams required for native I-beam/resize cursors, forgiving divider acquisition, hover feedback, and drag ownership. The next paired slice is C1B: reusable click-drag, Shift-click, word/line selection, and edge autoscroll behavior consumed immediately by Moth.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -437,6 +438,8 @@ swift build --target LunaUIPhase5F1Tests
 swift test --filter LunaUIPhase5F1Tests
 swift build --target LunaUIPhase5F2ATests
 swift test --filter LunaUIPhase5F2ATests
+swift build --target LunaUIConvergenceC1ATests
+swift test --filter LunaUIConvergenceC1ATests
 ```
 
 Full Linux check:

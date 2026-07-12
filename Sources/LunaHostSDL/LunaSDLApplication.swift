@@ -5,9 +5,8 @@
 // Reusable Linux SDL application runner for Luna consumers.
 //
 // The platform host owns SDL initialization, window lifetime, event polling,
-// framebuffer presentation, frame pacing, and shutdown. Application code owns
-// only a platform-neutral scene that consumes normalized Luna host events and
-// renders into a Luna framebuffer.
+// framebuffer presentation, native cursor/capture state, frame pacing, and
+// shutdown. Application code owns only a platform-neutral scene.
 
 #if os(Linux)
 
@@ -44,9 +43,17 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
 public protocol LunaSDLApplicationScene {
     var wantsContinuousRendering: Bool { get }
 
+    /// Platform-neutral native cursor requested by the scene's current semantic
+    /// hover or drag target.
+    var cursorIntent: LunaCursorIntent { get }
+
+    /// Requests native pointer capture while a Luna drag owns pointer movement.
+    /// Hosts may decline capture, so scene gesture state must remain safe if the
+    /// platform cannot provide it.
+    var wantsPointerCapture: Bool { get }
+
     /// Gives the application a synchronous opportunity to cancel native-window
-    /// termination, for example while an unsaved-document confirmation is
-    /// active. Hosts remain product-neutral: the scene owns all close policy.
+    /// termination, for example while an unsaved-document confirmation is active.
     mutating func shouldTerminate() -> Bool
 
     mutating func handleHostEvent(
@@ -65,6 +72,8 @@ public protocol LunaSDLApplicationScene {
 
 public extension LunaSDLApplicationScene {
     var wantsContinuousRendering: Bool { false }
+    var cursorIntent: LunaCursorIntent { .arrow }
+    var wantsPointerCapture: Bool { false }
     mutating func shouldTerminate() -> Bool { true }
 
     mutating func updateFrameRuntimeDiagnostics(
@@ -79,11 +88,56 @@ private func lunaSDLLogError(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
+private final class LunaSDLCursorController {
+    private let arrow = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_ARROW)
+    private let text = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_IBEAM)
+    private let resizeHorizontal = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZEWE)
+    private let resizeVertical = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_SIZENS)
+    private let pointingHand = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_HAND)
+    private let prohibited = SDL_CreateSystemCursor(SDL_SYSTEM_CURSOR_NO)
+
+    private var appliedIntent: LunaCursorIntent?
+    private var captureIsApplied = false
+
+    deinit {
+        [arrow, text, resizeHorizontal, resizeVertical, pointingHand, prohibited]
+            .compactMap { $0 }
+            .forEach(SDL_FreeCursor)
+    }
+
+    func apply(cursorIntent: LunaCursorIntent, wantsPointerCapture: Bool) {
+        if appliedIntent != cursorIntent {
+            if let cursor = cursor(for: cursorIntent) {
+                SDL_SetCursor(cursor)
+                appliedIntent = cursorIntent
+            }
+        }
+
+        if captureIsApplied != wantsPointerCapture {
+            _ = SDL_CaptureMouse(wantsPointerCapture ? SDL_TRUE : SDL_FALSE)
+            captureIsApplied = wantsPointerCapture
+        }
+    }
+
+    func releaseCapture() {
+        guard captureIsApplied else { return }
+        _ = SDL_CaptureMouse(SDL_FALSE)
+        captureIsApplied = false
+    }
+
+    private func cursor(for intent: LunaCursorIntent) -> OpaquePointer? {
+        switch intent {
+        case .arrow: return arrow
+        case .text: return text
+        case .resizeHorizontal: return resizeHorizontal
+        case .resizeVertical: return resizeVertical
+        case .pointingHand: return pointingHand
+        case .prohibited: return prohibited
+        }
+    }
+}
+
 /// Runs a complete Luna application using the Linux SDL host.
-///
-/// The function does not return until the user closes the window or SDL emits a
-/// quit event. A zero result indicates normal shutdown. Non-zero values indicate
-/// host initialization failure.
 @discardableResult
 public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
     configuration: LunaSDLApplicationConfiguration,
@@ -110,6 +164,13 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
 
     SDL_StartTextInput()
     defer { SDL_StopTextInput() }
+
+    let cursorController = LunaSDLCursorController()
+    defer { cursorController.releaseCapture() }
+    cursorController.apply(
+        cursorIntent: scene.cursorIntent,
+        wantsPointerCapture: scene.wantsPointerCapture
+    )
 
     var framebuffer = LunaFramebuffer(
         width: configuration.initialWidth,
@@ -157,6 +218,10 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
             let size = LunaSizeI(width: framebuffer.width, height: framebuffer.height)
             pendingInvalidations.formUnion(
                 scene.handleHostEvent(event, framebufferSize: size)
+            )
+            cursorController.apply(
+                cursorIntent: scene.cursorIntent,
+                wantsPointerCapture: scene.wantsPointerCapture
             )
         }
 

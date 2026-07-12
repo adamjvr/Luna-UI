@@ -246,6 +246,8 @@ public struct LunaCPUDemoScene {
     /// presentation regions only; document/view cloning remains application
     /// policy and is intentionally not encoded in LunaPaneContainer.
     private var paneWorkspaceState = LunaCPUDemoScene.demoPaneWorkspaceState
+    private var paneInteractionState = LunaPaneContainerInteractionState()
+    private var currentCursorIntent: LunaCursorIntent = .arrow
 
     /// Per-pane viewport state for the Phase 5F.2A integration proof. The primary
     /// pane continues to use the active document's existing scroll state; other
@@ -345,9 +347,11 @@ public struct LunaCPUDemoScene {
             id: "demo.phase5f2a.panes",
             bounds: paneBounds,
             state: paneWorkspaceState,
+            interactionState: paneInteractionState,
             theme: theme,
             metrics: LunaPaneContainerMetrics(
-                dividerThickness: 5,
+                dividerThickness: 11,
+                dividerRuleThickness: 1,
                 minimumPaneExtent: 80,
                 activePaneBorderThickness: 2
             )
@@ -392,6 +396,32 @@ public struct LunaCPUDemoScene {
               let view = paneTextView(for: frame.paneID, framebufferSize: framebufferSize, theme: theme)
         else { return nil }
         return (frame.paneID, view)
+    }
+
+    public var cursorIntent: LunaCursorIntent { currentCursorIntent }
+    public var wantsPointerCapture: Bool { paneInteractionState.wantsPointerCapture }
+
+    public mutating func cancelPointerInteraction() {
+        paneInteractionState.cancelDrag()
+        paneInteractionState.hoveredSplitID = nil
+        activeTextSelectionAnchor = nil
+        currentCursorIntent = .arrow
+        lastInteractionStatus = "C1A pointer interaction cancelled after native capture loss"
+    }
+
+    private func resolvedCursorIntent(
+        at point: LunaPointI,
+        framebufferSize: LunaSizeI
+    ) -> LunaCursorIntent {
+        if hasActiveTransientOverlay { return .arrow }
+        let container = paneContainer(for: framebufferSize, theme: theme)
+        if let dividerIntent = container.cursorIntent(at: point) {
+            return dividerIntent
+        }
+        if paneTextView(at: point, framebufferSize: framebufferSize, theme: theme) != nil {
+            return .text
+        }
+        return .arrow
     }
 
     private var activeDocumentDescriptor: LunaDocumentDescriptor? {
@@ -709,6 +739,11 @@ public struct LunaCPUDemoScene {
         _ event: LunaPointerEvent,
         framebufferSize: LunaSizeI
     ) -> LunaPointerActivationResult {
+        currentCursorIntent = resolvedCursorIntent(
+            at: event.location,
+            framebufferSize: framebufferSize
+        )
+
         // Phase 2/2B routing rule: active modal overlays see pointer events
         // before background widgets. Even a miss is consumed while a modal is
         // open, preventing accidental background activation.
@@ -963,31 +998,44 @@ public struct LunaCPUDemoScene {
             }
         }
 
-        // Phase 5F.2A pane routing. Divider presses resize the split. Pane
-        // presses activate the target leaf, and text hit testing then runs only
-        // against that leaf's own bounded/wrapped text surface.
-        if event.button == .primary, event.phase == .down {
+        // C1A pane routing. The reusable interaction state owns hover and drag
+        // identity. A divider drag consumes pointer motion until mouse-up and
+        // requests native capture through the SDL scene contract.
+        do {
+            let wasDragging = paneInteractionState.isDraggingDivider
             let container = paneContainer(for: framebufferSize, theme: theme)
-            let paneLayout = container.layout()
-            let hit = container.hitTest(event.location)
-            if paneLayout.dividerFrames.contains(where: { $0.nodeID == hit }) {
-                var state = paneWorkspaceState
-                let result = container.handlePointerEvent(event, state: &state)
-                paneWorkspaceState = state
-                if let split = result.resizedSplitID {
-                    lastInteractionStatus = "Phase 5F.2A resized split and reflowed pane text: \(split.rawValue)"
-                }
+            var workspace = paneWorkspaceState
+            var interaction = paneInteractionState
+            let result = container.handlePointerEvent(
+                event,
+                state: &workspace,
+                interactionState: &interaction
+            )
+            paneWorkspaceState = workspace
+            paneInteractionState = interaction
+            currentCursorIntent = resolvedCursorIntent(
+                at: event.location,
+                framebufferSize: framebufferSize
+            )
+
+            if let split = result.resizedSplitID {
+                lastInteractionStatus = interaction.isDraggingDivider
+                    ? "C1A dragging split with pointer capture: \(split.rawValue)"
+                    : "C1A split drag completed: \(split.rawValue)"
+            } else if let pane = result.activatedPaneID {
+                lastInteractionStatus = "C1A active pane: \(pane.rawValue)"
+            }
+
+            let ownsDividerGesture = wasDragging || interaction.isDraggingDivider || result.resizedSplitID != nil
+            if ownsDividerGesture {
+                activeTextSelectionAnchor = nil
                 return LunaPointerActivationResult(
                     event: event,
                     hitNodeID: result.hitNodeID,
                     requestedCommand: nil,
-                    announcementTexts: ["Split divider resized; pane text reflowed"],
-                    didChangeVisualState: result.didChangeState
+                    announcementTexts: [interaction.isDraggingDivider ? "Split divider dragging" : "Split divider resized"],
+                    didChangeVisualState: true
                 )
-            }
-            if let pane = paneLayout.paneFrames.first(where: { $0.nodeID == hit }),
-               paneWorkspaceState.activate(pane.paneID) {
-                lastInteractionStatus = "Phase 5F.2A active pane: \(pane.paneID.rawValue)"
             }
         }
 

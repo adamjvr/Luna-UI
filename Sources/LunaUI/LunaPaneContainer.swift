@@ -13,6 +13,7 @@ import LunaAccessibility
 import LunaCommands
 import LunaCore
 import LunaInput
+import LunaHostCore
 import LunaRender
 import LunaTheme
 
@@ -419,6 +420,31 @@ public struct LunaSplitDividerFrame: Hashable, Sendable {
             return Double(point.y - availableBounds.y) / Double(availableBounds.h)
         }
     }
+
+    /// The visible center rule is intentionally narrower than the full semantic
+    /// divider control. The complete `bounds` remain the draw, hit-test, cursor,
+    /// drag, accessibility, and pointer-capture region.
+    public func centerRuleBounds(thickness: Int) -> LunaRectI {
+        let rule = max(1, thickness)
+        switch axis {
+        case .horizontal:
+            let width = min(rule, max(0, bounds.w))
+            return LunaRectI(
+                x: bounds.x + max(0, (bounds.w - width) / 2),
+                y: bounds.y,
+                w: width,
+                h: bounds.h
+            )
+        case .vertical:
+            let height = min(rule, max(0, bounds.h))
+            return LunaRectI(
+                x: bounds.x,
+                y: bounds.y + max(0, (bounds.h - height) / 2),
+                w: bounds.w,
+                h: height
+            )
+        }
+    }
 }
 
 public struct LunaPaneContainerLayout: Hashable, Sendable {
@@ -442,6 +468,10 @@ public struct LunaPaneContainerLayout: Hashable, Sendable {
 
     public func dividerFrame(for splitID: LunaSplitID) -> LunaSplitDividerFrame? {
         dividerFrames.first { $0.splitID == splitID }
+    }
+
+    public func dividerFrame(at point: LunaPointI) -> LunaSplitDividerFrame? {
+        dividerFrames.reversed().first { $0.bounds.contains(x: point.x, y: point.y) }
     }
 
     public func contentFrames(
@@ -529,21 +559,48 @@ public struct LunaPaneContainerLayout: Hashable, Sendable {
 }
 
 public struct LunaPaneContainerMetrics: Hashable, Sendable {
+    /// Full semantic divider-control thickness. This is deliberately wider than
+    /// the center rule so users do not have to hunt for a single pixel.
     public var dividerThickness: Int
+    public var dividerRuleThickness: Int
     public var minimumPaneExtent: Int
     public var activePaneBorderThickness: Int
 
     public init(
-        dividerThickness: Int = 5,
+        dividerThickness: Int = 11,
+        dividerRuleThickness: Int = 1,
         minimumPaneExtent: Int = 40,
         activePaneBorderThickness: Int = 2
     ) {
-        self.dividerThickness = max(1, dividerThickness)
+        self.dividerThickness = max(3, dividerThickness)
+        self.dividerRuleThickness = min(max(1, dividerRuleThickness), self.dividerThickness)
         self.minimumPaneExtent = max(1, minimumPaneExtent)
         self.activePaneBorderThickness = max(0, activePaneBorderThickness)
     }
 
     public static let demo = LunaPaneContainerMetrics()
+}
+
+/// Transient pointer state for one pane container. Applications own the value so
+/// it survives reconstruction of Luna's value-semantic widget each frame.
+public struct LunaPaneContainerInteractionState: Hashable, Sendable {
+    public var hoveredSplitID: LunaSplitID?
+    public var draggedSplitID: LunaSplitID?
+
+    public init(
+        hoveredSplitID: LunaSplitID? = nil,
+        draggedSplitID: LunaSplitID? = nil
+    ) {
+        self.hoveredSplitID = hoveredSplitID
+        self.draggedSplitID = draggedSplitID
+    }
+
+    public var isDraggingDivider: Bool { draggedSplitID != nil }
+    public var wantsPointerCapture: Bool { isDraggingDivider }
+
+    public mutating func cancelDrag() {
+        draggedSplitID = nil
+    }
 }
 
 public struct LunaPaneContainerInteractionResult: Hashable, Sendable {
@@ -574,6 +631,7 @@ public struct LunaPaneContainer: LunaWidget, Hashable, Sendable {
     public var id: LunaNodeID
     public var bounds: LunaRectI
     public var state: LunaPaneWorkspaceState
+    public var interactionState: LunaPaneContainerInteractionState
     public var theme: LunaTheme
     public var metrics: LunaPaneContainerMetrics
 
@@ -581,12 +639,14 @@ public struct LunaPaneContainer: LunaWidget, Hashable, Sendable {
         id: LunaNodeID,
         bounds: LunaRectI,
         state: LunaPaneWorkspaceState,
+        interactionState: LunaPaneContainerInteractionState = LunaPaneContainerInteractionState(),
         theme: LunaTheme,
         metrics: LunaPaneContainerMetrics = .demo
     ) {
         self.id = id
         self.bounds = bounds
         self.state = state
+        self.interactionState = interactionState
         self.theme = theme
         self.metrics = metrics
     }
@@ -652,10 +712,21 @@ public struct LunaPaneContainer: LunaWidget, Hashable, Sendable {
     public func buildDisplayList(into displayList: inout LunaDisplayList) {
         let layout = layout()
         let separator = theme.ui.chrome.separator.asRenderColor
+        let dividerSurface = theme.ui.editor.background.asRenderColor
+        let dividerHover = theme.ui.chrome.menuBarHoveredBackground.asRenderColor
         let active = theme.ui.statusBar.accent.asRenderColor
 
         for divider in layout.dividerFrames where !divider.bounds.isEmpty {
-            displayList.append(.rect(divider.bounds, separator))
+            let isDragged = interactionState.draggedSplitID == divider.splitID
+            let isHovered = interactionState.hoveredSplitID == divider.splitID
+            displayList.append(.rect(
+                divider.bounds,
+                isDragged ? active : (isHovered ? dividerHover : dividerSurface)
+            ))
+            displayList.append(.rect(
+                divider.centerRuleBounds(thickness: metrics.dividerRuleThickness),
+                isDragged || isHovered ? active : separator
+            ))
         }
 
         if metrics.activePaneBorderThickness > 0,
@@ -708,7 +779,7 @@ public struct LunaPaneContainer: LunaWidget, Hashable, Sendable {
 
     public func hitTest(_ point: LunaPointI) -> LunaNodeID? {
         let layout = layout()
-        if let divider = layout.dividerFrames.reversed().first(where: { $0.bounds.contains(x: point.x, y: point.y) }) {
+        if let divider = layout.dividerFrame(at: point) {
             return divider.nodeID
         }
         if let pane = layout.paneFrames.reversed().first(where: { $0.bounds.contains(x: point.x, y: point.y) }) {
@@ -717,44 +788,102 @@ public struct LunaPaneContainer: LunaWidget, Hashable, Sendable {
         return bounds.contains(x: point.x, y: point.y) ? id : nil
     }
 
+    public func cursorIntent(at point: LunaPointI) -> LunaCursorIntent? {
+        let layout = layout()
+        let divider = interactionState.draggedSplitID.flatMap { layout.dividerFrame(for: $0) }
+            ?? layout.dividerFrame(at: point)
+        guard let divider else { return nil }
+        return divider.axis == .horizontal ? .resizeHorizontal : .resizeVertical
+    }
+
+    public var wantsPointerCapture: Bool { interactionState.wantsPointerCapture }
+
+    /// Backward-compatible stateless entry point retained for callers that only
+    /// need press activation. New interactive consumers should preserve the
+    /// explicit interaction state using the overload below.
     public func handlePointerEvent(
         _ event: LunaPointerEvent,
         state mutableState: inout LunaPaneWorkspaceState
     ) -> LunaPaneContainerInteractionResult {
-        let layout = layout()
-        let hit = hitTest(event.location)
-        guard event.button == .primary || event.phase == .moved else {
-            return LunaPaneContainerInteractionResult(didConsumeEvent: hit != nil, hitNodeID: hit)
-        }
+        var transient = LunaPaneContainerInteractionState()
+        return handlePointerEvent(event, state: &mutableState, interactionState: &transient)
+    }
 
-        if event.phase == .down,
-           let pane = layout.paneFrames.first(where: { $0.nodeID == hit }) {
-            let changed = mutableState.activate(pane.paneID)
+    public func handlePointerEvent(
+        _ event: LunaPointerEvent,
+        state mutableState: inout LunaPaneWorkspaceState,
+        interactionState mutableInteraction: inout LunaPaneContainerInteractionState
+    ) -> LunaPaneContainerInteractionResult {
+        let layout = layout()
+        let hoveredDivider = layout.dividerFrame(at: event.location)
+        let previousHover = mutableInteraction.hoveredSplitID
+        mutableInteraction.hoveredSplitID = hoveredDivider?.splitID
+
+        if event.phase == .moved,
+           let splitID = mutableInteraction.draggedSplitID,
+           let divider = layout.dividerFrame(for: splitID) {
+            mutableInteraction.hoveredSplitID = splitID
+            let changed = mutableState.setSplitFraction(
+                divider.fraction(for: event.location),
+                for: splitID
+            )
             return LunaPaneContainerInteractionResult(
                 didConsumeEvent: true,
-                didChangeState: changed,
-                activatedPaneID: pane.paneID,
-                hitNodeID: hit
+                didChangeState: changed || previousHover != mutableInteraction.hoveredSplitID,
+                resizedSplitID: splitID,
+                hitNodeID: divider.nodeID
             )
         }
 
-        if event.phase == .down,
-           let divider = layout.dividerFrames.first(where: { $0.nodeID == hit }) {
-            let changed = mutableState.setSplitFraction(
+        if event.phase == .up, let splitID = mutableInteraction.draggedSplitID {
+            let divider = layout.dividerFrame(for: splitID)
+            mutableInteraction.draggedSplitID = nil
+            return LunaPaneContainerInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true,
+                resizedSplitID: splitID,
+                hitNodeID: divider?.nodeID
+            )
+        }
+
+        guard event.button == .primary || event.phase == .moved else {
+            return LunaPaneContainerInteractionResult(
+                didConsumeEvent: hoveredDivider != nil,
+                didChangeState: previousHover != mutableInteraction.hoveredSplitID,
+                hitNodeID: hoveredDivider?.nodeID
+            )
+        }
+
+        if event.phase == .down, let divider = hoveredDivider {
+            mutableInteraction.draggedSplitID = divider.splitID
+            mutableInteraction.hoveredSplitID = divider.splitID
+            _ = mutableState.setSplitFraction(
                 divider.fraction(for: event.location),
                 for: divider.splitID
             )
             return LunaPaneContainerInteractionResult(
                 didConsumeEvent: true,
-                didChangeState: changed,
+                didChangeState: true,
                 resizedSplitID: divider.splitID,
-                hitNodeID: hit
+                hitNodeID: divider.nodeID
+            )
+        }
+
+        if event.phase == .down,
+           let pane = layout.paneFrames.first(where: { $0.bounds.contains(x: event.location.x, y: event.location.y) }) {
+            let changed = mutableState.activate(pane.paneID)
+            return LunaPaneContainerInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: changed,
+                activatedPaneID: pane.paneID,
+                hitNodeID: pane.nodeID
             )
         }
 
         return LunaPaneContainerInteractionResult(
-            didConsumeEvent: hit != nil && hit != id,
-            hitNodeID: hit
+            didConsumeEvent: hoveredDivider != nil,
+            didChangeState: previousHover != mutableInteraction.hoveredSplitID,
+            hitNodeID: hoveredDivider?.nodeID
         )
     }
 
