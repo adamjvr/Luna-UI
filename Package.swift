@@ -14,6 +14,7 @@ let package = Package(
         .library(name: "LunaAccessibility", targets: ["LunaAccessibility"]),
         .library(name: "LunaCommands", targets: ["LunaCommands"]),
         .library(name: "LunaTextCore", targets: ["LunaTextCore"]),
+        .library(name: "LunaTextRender", targets: ["LunaTextRender"]),
         .library(name: "LunaInput", targets: ["LunaInput"]),
         .library(name: "LunaLayout", targets: ["LunaLayout"]),
         .library(name: "LunaRender", targets: ["LunaRender"]),
@@ -116,6 +117,15 @@ let package = Package(
                 "HarfBuzz",
                 "LunaTextCore",
                 "LunaTheme",
+            ]
+        ),
+
+        .target(
+            name: "LunaTextRender",
+            dependencies: [
+                "LunaText",
+                "LunaTextCore",
+                "LunaRender",
             ]
         ),
 
@@ -468,6 +478,14 @@ let package = Package(
                 "LunaInput",
                 "LunaUI",
                 "LunaTheme",
+                "LunaRender",
+            ]
+        ),
+
+        .testTarget(
+            name: "LunaTextRenderTests",
+            dependencies: [
+                "LunaTextRender",
                 "LunaRender",
             ]
         ),

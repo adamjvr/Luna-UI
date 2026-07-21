@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Convergence C2.
+This document is the working checkpoint after Convergence C2.1.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C2** on the paired Moth track. C2 intentionally required no Luna production source change.
+Luna UI is through **Convergence C2.1** on the paired Moth track. C2.1 adds a reusable shaped Unicode framebuffer painter after graphical validation exposed that the earlier ASCII diagnostic renderer was still being used for production Moth text.
 
 The newest paired-application contracts are:
 
@@ -16,7 +16,8 @@ The newest paired-application contracts are:
 - Phase 5F.2A pane content frames and pane-bound text surfaces with independent clipping, width-correct soft wrapping, wrapped visual-row scrolling, UTF-8-safe geometry, and reflow after divider/window changes;
 - Convergence C1A platform-neutral cursor intent, SDL system-cursor caching, native pointer capture, persistent product-neutral pane hover/drag state, and forgiving divider controls;
 - Convergence C1B reusable text-selection interaction state for click/Shift-click/drag, Unicode-aware word/logical-line ranges, captured gesture cancellation, wrapped-row tracking, and edge autoscroll;
-- Convergence C2 boundary validation: Moth implements document-owned history, grouping, inverse replay, multi-view restoration, and saved checkpoints while Luna's production C1B API remains unchanged;
+- Convergence C2 boundary validation: Moth implements document-owned history, grouping, inverse replay, multi-view restoration, and saved checkpoints;
+- Convergence C2.1 `LunaTextRender`: HarfBuzz UTF-8 shaping, FreeType glyph masks, cached CPU framebuffer painting, explicit missing-glyph boxes, monospaced font discovery, and cluster/advance data for editor geometry;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -198,10 +199,10 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Moth M2.2B — Command and visible-find convergence
+Convergence C2.1 graphical validation, then Moth M2.2B
 ```
 
-C2 proves Luna's C1B cursor, capture, pane, wrapped-text, and selection contracts are sufficient for document-owned Undo/Redo. Broad Luna expansion remains paused. Luna should change next only when Moth M2.2B exposes a product-neutral command availability, menu/palette, or find-presentation seam that another application could also use.
+C2.1 must first prove that accented Latin text, combining marks, Greek, Cyrillic, filenames, status messages, and missing glyphs paint visibly in Moth while caret/selection/wrapping retain one monospaced coordinate system. Full bidirectional layout and multi-font fallback remain later text-system work. After C2.1 passes, broad Luna expansion pauses again and Moth proceeds to M2.2B.
 
 ---
 

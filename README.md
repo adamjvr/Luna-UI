@@ -354,17 +354,18 @@ The current checkpoint has:
 - Phase 5F.2A pane-bound editor surfaces implemented with product-neutral content frames, independent clipped bounds, width-correct soft wrapping, visual-row scrolling, and per-pane reflow;
 - Convergence C1A native cursor intent, SDL cursor mapping, drag-time pointer capture, forgiving semantic divider controls, and shared pane hover/drag state implemented;
 - Convergence C1B reusable text-selection gesture interpretation implemented with click, Shift-click, captured drag, Unicode word/logical-line units, wrapped-row tracking, and edge autoscroll;
-- Convergence C2 completed as a deliberate Luna source freeze: Moth now owns document history, inverse edits, grouping, view restoration, and saved-checkpoint semantics without requiring a new Luna production API;
+- Convergence C2 completed with Moth-owned document history and saved checkpoints;
+- Convergence C2.1 adds the optional `LunaTextRender` product: HarfBuzz shaping, FreeType rasterization, glyph caching, monospaced editor metrics, visible missing-glyph fallback, and UTF-8 cluster placement for downstream framebuffer text;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C2 — Moth document-owned undo/redo, Luna source-frozen
+Convergence C2.1 — Unicode text painting and visible-state correction
 ```
 
-Luna's C1B public surface proved sufficient for C2. Moth now owns monotonic-revision-safe Undo/Redo, deterministic transaction grouping, multi-view restoration, redo branching, and saved-history checkpoint semantics. No Luna production source was changed for C2. The next paired slice is Moth M2.2B command and visible-find convergence; Luna changes only for a genuinely reusable presentation or command seam.
+C2.1 responds to graphical validation of Moth C2. The former ASCII-only debug bitmap path remains available for diagnostics, while production editor text can now use `LunaTextRender` for shaped Unicode glyphs. Moth consumes that reusable painter without moving document, history, workspace, or product policy into Luna. The next product slice remains Moth M2.2B after C2.1 passes graphical validation.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 

@@ -97,4 +97,29 @@ public enum LunaFontLocator {
         // so the caller can still try (and produce a clear error if it truly doesn't exist).
         return chosen ?? baseCandidates.first ?? ""
     }
+    /// Return a deterministic monospaced development face for editor surfaces.
+    /// The ordered candidates cover accented Latin, Greek, Cyrillic, and common
+    /// UI symbols on the supported development platforms.
+    public static func bestMonospacedFontPath() -> String {
+        #if os(Linux)
+        let candidates = [
+            "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansMono-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
+        ]
+        #else
+        let candidates = [
+            "/System/Library/Fonts/Menlo.ttc",
+            "/System/Library/Fonts/Monaco.ttf",
+            "/System/Library/Fonts/SFNSMono.ttf",
+            "/System/Library/Fonts/Supplemental/Courier New.ttf",
+        ]
+        #endif
+
+        let manager = FileManager.default
+        return candidates.first(where: manager.fileExists(atPath:))
+            ?? bestFontPath(for: .latin)
+    }
+
 }

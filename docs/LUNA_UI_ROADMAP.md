@@ -1388,7 +1388,7 @@ Definition of done:
 
 ### Phase 5F — Tab Overflow, Pinned Tabs, and Split/Panes
 
-Status: **Phase 5F.1, Phase 5F.2A, Convergence C1A, Convergence C1B, and Convergence C2 complete.**
+Status: **Phase 5F.1, Phase 5F.2A, Convergence C1A, C1B, C2, and C2.1 complete in this revision.**
 
 Phase 5F.1 delivered:
 
@@ -1419,7 +1419,7 @@ Remaining later interaction scope:
 
 ---
 
-## Convergence C1A, C1B, and C2 — Downstream Editor Interaction
+## Convergence C1A, C1B, C2, and C2.1 — Downstream Editor Interaction
 
 **Status: complete.**
 
@@ -1433,6 +1433,17 @@ C2 architectural result:
 Luna owns reusable editor anatomy and input interpretation.
 Moth owns history, grouping, dirty state, and editor meaning.
 ```
+
+C2.1 graphical-correction result:
+
+- `LunaDebugBitmapTextRenderer` remains an ASCII-only diagnostic tool;
+- `LunaTextRender` is an optional reusable product for production CPU text painting;
+- HarfBuzz cluster advances and FreeType glyph masks are cached per renderer/font;
+- unsupported glyphs paint an explicit box instead of an invisible advanced cell;
+- downstream monospaced editors can derive their cell advance from a shaped run so painting and caret/wrap geometry use one metric;
+- application-specific dirty/active icons remain application-owned geometry.
+
+C2.1 intentionally does not claim complete bidirectional layout, script segmentation, or multi-font fallback. Those remain later LunaText work.
 
 No Luna production source API is added merely to mirror Moth's product model.
 
@@ -1492,10 +1503,10 @@ Goal:
 The next implementation target is:
 
 ```text
-Moth M2.2B — Command and visible-find convergence over stable Luna C1B seams
+C2.1 graphical validation, then Moth M2.2B command and visible-find convergence
 ```
 
-Convergence C2 intentionally leaves Luna production source unchanged. The next Luna work must be driven by a reusable presentation or command seam exposed by Moth M2.2B, not by importing Moth history, dirty-state, or editor policy.
+C2.1 is the narrow reusable exception revealed by graphical testing: Unicode text painting belongs in Luna, while dirty-state meaning and icons remain Moth-owned. After C2.1 passes, the next Luna work is again demand-driven by reusable M2.2B presentation or command seams.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 

@@ -8,6 +8,17 @@ This split is the central design decision.
 
 ---
 
+## Current paired checkpoint — Convergence C2.1
+
+C2 history remains accepted. C2.1 corrects the production rendering path discovered during graphical validation:
+
+- Moth editor text, filenames, and status strings use Luna's shaped Unicode painter instead of the ASCII debug bitmap renderer;
+- accented and combining text is preserved visually as well as semantically;
+- dirty and active indicators are explicit Moth-owned geometry rather than Unicode bullet characters;
+- monospaced shaped advance is fed back into the existing text-view cell metrics;
+- Ctrl+N remains M2.2B scope, and real tabs/open-file rows remain M3 scope.
+
+
 ## Product Definition
 
 Moth Text is:
