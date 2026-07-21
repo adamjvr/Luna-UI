@@ -1,21 +1,22 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Luna UI Convergence C1B.
+This document is the working checkpoint after Convergence C2.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C1B** on the Moth convergence track.
+Luna UI is through **Convergence C2** on the paired Moth track. C2 intentionally required no Luna production source change.
 
 The newest paired-application contracts are:
 
 - Phase 5E.1 public SDL application lifecycle, now including an application-owned termination veto for unsaved-document workflows;
 - Phase 5E.2 immutable text-storage snapshots, independent document-view presentation state, revision invalidation, and injected find sessions;
 - Phase 5F.1 recursive pane trees, horizontal/vertical split geometry, active-pane state, visual and wrapping traversal, divider resizing, neutral pane command context, pinned tabs, deterministic tab overflow, and reusable overflow state;
-- Phase 5F.2A product-neutral pane content frames plus pane-bound text surfaces with width-correct soft wrapping, visual-row scrolling, UTF-8-safe caret/selection/hit-testing geometry, and per-pane reflow after divider or window changes;
-- Convergence C1A platform-neutral cursor intent, SDL system-cursor caching, drag-time native pointer capture, persistent product-neutral pane hover/drag state, wider semantic divider controls, and thin responsive divider rules;
-- Convergence C1B reusable text-selection gesture state, click/Shift-click/drag handling, Unicode-aware word and logical-line ranges, capture-safe cancellation, wrapped-row tracking, and time-throttled edge autoscroll;
+- Phase 5F.2A pane content frames and pane-bound text surfaces with independent clipping, width-correct soft wrapping, wrapped visual-row scrolling, UTF-8-safe geometry, and reflow after divider/window changes;
+- Convergence C1A platform-neutral cursor intent, SDL system-cursor caching, native pointer capture, persistent product-neutral pane hover/drag state, and forgiving divider controls;
+- Convergence C1B reusable text-selection interaction state for click/Shift-click/drag, Unicode-aware word/logical-line ranges, captured gesture cancellation, wrapped-row tracking, and edge autoscroll;
+- Convergence C2 boundary validation: Moth implements document-owned history, grouping, inverse replay, multi-view restoration, and saved checkpoints while Luna's production C1B API remains unchanged;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -35,13 +36,12 @@ The engine now has:
 - a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
 - a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children;
 - non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
-- logical-line and soft-wrapped visual-row scroll state, visible line/row ranges, content height, scrollbar/minimap-lane placeholder geometry, wrapped hit testing, and accessibility visible text range metadata;
+- logical-line scroll state, visible line ranges, content height, scrollbar/minimap-lane placeholder geometry, scrolled hit testing, and accessibility visible text range metadata;
 - a small editable text document/state layer with insertion, newline, backspace/delete, selection replacement, caret movement, host text-input events, and editable accessibility metadata;
 - a command palette / quick-panel foundation with filtering, keyboard navigation, command activation, theme-driven rows, pointer selection, and accessibility nodes;
 - a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor;
 - a generic find / replace foundation with product-neutral query/options/results, literal and regex scanning, whole-word/case toggles, text-view match highlights, replace-current/replace-all operations, keyboard/pointer interaction, theme-driven panel visuals, and accessibility nodes;
 - completed interactive user text selection with click-drag selection, Shift-click/Shift-arrow extension, selection replacement/delete behavior, and pointer modifier propagation through LunaInput;
-- a reusable `LunaTextSelectionInteraction` layer that translates click count, pointer capture, wrapped hit testing, Unicode-aware word/line units, and edge autoscroll into application-owned selection results;
 - command-palette-only demo theme switching so bare `1`, `2`, and `3` can be typed into the editor as text;
 - Select All through both `Ctrl+A` and the command palette, backed by a product-neutral editable text selection primitive;
 - tightened active overlay/input ownership so palette and find-panel keyboard events do not leak into the editor underneath;
@@ -176,12 +176,6 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close: complete.
 - Phase 5D.3.1 — Proof Gallery Animation Pacing: complete.
 - Phase 5D.3.2 — Proof Gallery Static Frame Cache: complete.
-- Phase 5E.1 — Reusable SDL Application Host: complete.
-- Phase 5E.2 — Document/View Adapter Seams: complete.
-- Phase 5F.1 — Pane and Tab Mechanics: complete.
-- Phase 5F.2A — Pane-Bound Text Surfaces and Width-Correct Wrapping: complete.
-- Convergence C1A — Cursor and Divider Interaction: complete.
-- Convergence C1B — Reusable Text Selection Interaction: complete.
 
 ---
 
@@ -204,10 +198,10 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Convergence C2 — Moth document-owned undo/redo history
+Moth M2.2B — Command and visible-find convergence
 ```
 
-C1B completes the shared pointer-selection foundation in LunaUITestApp and Moth. The next slice moves primarily into Moth: document-owned inverse edits, transaction grouping, redo invalidation, and saved-history checkpoint tracking. Broad Luna expansion remains paused; Luna changes only if C2 reveals a reusable contract that cannot remain product-owned.
+C2 proves Luna's C1B cursor, capture, pane, wrapped-text, and selection contracts are sufficient for document-owned Undo/Redo. Broad Luna expansion remains paused. Luna should change next only when Moth M2.2B exposes a product-neutral command availability, menu/palette, or find-presentation seam that another application could also use.
 
 ---
 
@@ -263,24 +257,6 @@ It is not the future Moth Text source buffer.
 
 ---
 
-## Phase 5F.2A — Pane-Bound Text Surfaces and Width-Correct Wrapping
-
-**Status: complete in this revision.**
-
-Delivered:
-
-- product-neutral `LunaPaneContentFrame` geometry for pane headers and clipped content regions;
-- one real `LunaStaticTextView` per demo pane instead of one full-width editor painted beneath split chrome;
-- width-derived soft wrapping that recomputes independently for every pane and after divider/window resize;
-- UTF-8-boundary-safe caret placement, selection/highlight rectangles, pointer hit testing, and accessibility ranges across continuation rows;
-- visual-row scrolling so a single long wrapped line can scroll through all continuation rows;
-- independent per-document/per-pane viewport positions in `LunaUITestApp`;
-- focused regression coverage for pane containment, reflow, wrapped coordinates, Unicode boundaries, and continuation-row scrolling.
-
-The application still owns which document or editor view occupies each pane. Luna owns only reusable geometry, clipping, wrapping, rendering, input coordinates, and accessibility behavior.
-
----
-
 ## Phase 5F.1 — Pane and Tab Mechanics
 
 **Status: complete in this revision.**
@@ -295,39 +271,3 @@ Delivered:
 - pinned-tab compact geometry, active-tab visibility, hidden-tab reporting, and overflow-button state;
 - regression tests proving Luna owns mechanics while applications own pane meaning;
 - an SDL scene termination veto so applications can cancel native window close for unsaved documents.
-
----
-
-## Convergence C1A — Cursor and Divider Interaction
-
-Delivered:
-
-- `LunaCursorIntent` in LunaHostCore;
-- cached SDL arrow, I-beam, horizontal/vertical resize, hand, and prohibited cursors;
-- application-requested pointer capture during active drags with safe release;
-- persistent `LunaPaneContainerInteractionState` for divider hover and drag identity;
-- 11-pixel semantic divider geometry with a thin centered resting rule;
-- hover/drag rendering and axis-correct resize cursor intent;
-- matching LunaUITestApp and Moth consumption paths;
-- focused regression coverage for geometry, cursor intent, capture lifecycle, and accessibility bounds.
-
-C1A intentionally does not add split commands, tab-overflow UI, undo, menus, or find/replace.
-
----
-
-## Convergence C1B — Reusable Text Selection Interaction
-
-Delivered:
-
-- `LunaTextSelectionInteractionState` with one explicit active text-surface gesture and pointer-capture intent;
-- single-click caret placement and Shift-click extension from the application-owned selection anchor;
-- click-drag selection across logical lines and soft-wrapped continuation rows;
-- double-click Unicode-aware word/whitespace/punctuation run selection;
-- triple-click logical-line selection, including the newline when another line follows;
-- clamped text hit testing that keeps captured drags valid above, below, and horizontally outside the visible glyph area;
-- time-throttled edge autoscroll requests expressed as visual-row deltas instead of application-owned scrolling policy;
-- safe gesture cancellation after pointer-capture loss;
-- immediate consumption by LunaUITestApp and Moth while both applications retain their own document, caret, selection, and viewport state;
-- focused regression coverage for Unicode boundaries, reverse word dragging, punctuation runs, wrapped rows, capture, and autoscroll.
-
-C1B intentionally does not add undo/redo, clipboard commands, multiple cursors, menus, find UI, real tabs, or split-creation commands.

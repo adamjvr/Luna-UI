@@ -437,16 +437,19 @@ Moth Text succeeds when:
 
 ## Current Luna Dependency and Convergence Checkpoint
 
-The real Moth repository is active and pins Luna through `Dependencies/Luna-UI`. The paired implementation has completed:
+The real Moth repository pins Luna through `Dependencies/Luna-UI`. The paired implementation has completed:
 
 ```text
-Luna Phase 5E.2 / Moth M1.1 — document/view adapter seams and shared-buffer ownership
+Luna Phase 5E.2 / Moth M1.1 — document/view adapter seams
 Luna Phase 5F.2A / Moth M2.2A — pane-bound independent editor views
-Convergence C1A — native cursor, forgiving divider, and pointer-capture behavior
-Convergence C1B — reusable click/Shift-click/drag, word/line selection, and edge autoscroll
+Convergence C1A — native cursor, forgiving divider, pointer capture
+Convergence C1B — reusable click/Shift-click/drag, word/line selection, autoscroll
+Convergence C2 — Moth document-owned Undo/Redo with Luna source frozen
 ```
 
-The next paired slice is C2: Moth-owned undo/redo history, transaction grouping, redo invalidation, and saved-history checkpoint tracking. Luna should change only when that work exposes a genuinely reusable mechanism; production history, dirty-state policy, and editor meaning remain Moth-owned.
+C2 separates monotonic buffer revisions from logical history states, adds deterministic transaction grouping, redo branching, multi-pane view restoration, bounded retained history, and exact saved checkpoints in Moth. Luna owns no production history or dirty-state policy.
+
+The next paired slice is Moth M2.2B command and visible-find convergence. Luna should change only when that work exposes a genuinely reusable command availability or presentation seam.
 
 
 ---

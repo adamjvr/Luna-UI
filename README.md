@@ -351,19 +351,20 @@ The current checkpoint has:
 - Phase 5E.1 reusable SDL application lifecycle implemented with a public downstream scene contract, normalized host events, invalidation-driven presentation, and an application-owned termination veto seam for unsaved-document policy;
 - Phase 5E.2 document/view adapter seams implemented with immutable UTF-8 snapshots, stable revisions, independent presentation state, injected find sessions, and public diagnostic bitmap text rendering;
 - Phase 5F.1 workspace mechanics implemented with recursive product-neutral pane trees, split geometry, active-pane routing, directional and wrapping focus traversal, divider resizing, pane command context, pinned-tab layout, deterministic tab overflow, and overflow presentation state;
-- Phase 5F.2A pane-bound editor-surface integration implemented with reusable pane content frames, independent clipped text-view bounds, width-correct soft wrapping, visual-row scrolling, UTF-8-safe continuation-row geometry, and live reflow after divider/window changes;
-- Convergence C1A native cursor intent, SDL cursor mapping, drag-time pointer capture, 11-pixel semantic divider controls, thin center rules, and shared hover/drag feedback implemented for LunaUITestApp and downstream Moth integration;
-- Convergence C1B reusable text-selection interaction implemented with click, Shift-click, click-drag, Unicode-aware word selection, logical-line selection, wrapped-row tracking, capture-safe cancellation, and edge autoscroll consumed by both LunaUITestApp and Moth;
+- Phase 5F.2A pane-bound editor surfaces implemented with product-neutral content frames, independent clipped bounds, width-correct soft wrapping, visual-row scrolling, and per-pane reflow;
+- Convergence C1A native cursor intent, SDL cursor mapping, drag-time pointer capture, forgiving semantic divider controls, and shared pane hover/drag state implemented;
+- Convergence C1B reusable text-selection gesture interpretation implemented with click, Shift-click, captured drag, Unicode word/logical-line units, wrapped-row tracking, and edge autoscroll;
+- Convergence C2 completed as a deliberate Luna source freeze: Moth now owns document history, inverse edits, grouping, view restoration, and saved-checkpoint semantics without requiring a new Luna production API;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C1B — Reusable editor mouse selection
+Convergence C2 — Moth document-owned undo/redo, Luna source-frozen
 ```
 
-Luna is on the Moth convergence track. C1B extracts the proven demo selection behavior into a product-neutral gesture layer and immediately supplies it to Moth without moving document or editor-view ownership into Luna. The next paired slice is C2: Moth-owned undo/redo history and saved-state tracking; Luna changes only if that product work exposes a genuine reusable seam.
+Luna's C1B public surface proved sufficient for C2. Moth now owns monotonic-revision-safe Undo/Redo, deterministic transaction grouping, multi-view restoration, redo branching, and saved-history checkpoint semantics. No Luna production source was changed for C2. The next paired slice is Moth M2.2B command and visible-find convergence; Luna changes only for a genuinely reusable presentation or command seam.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
