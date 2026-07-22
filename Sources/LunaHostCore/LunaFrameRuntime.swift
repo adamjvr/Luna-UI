@@ -128,8 +128,8 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
     public var updateNanoseconds: UInt64
     public var renderNanoseconds: UInt64
     public var presentNanoseconds: UInt64
-    /// Time from the start of the input poll that produced this frame through
-    /// completion of presentation. Zero when the frame was not input-driven.
+    /// Time from acquisition of the oldest semantic event dispatched for this
+    /// frame through completion of presentation. Zero for non-input-driven frames.
     public var inputToPresentNanoseconds: UInt64
     public var totalNanoseconds: UInt64
     public var invalidations: LunaFrameInvalidationSet

@@ -1004,7 +1004,7 @@ Verify:
 - C2.2 does not add horizontal editor scrolling, bidi layout, font fallback chains, or product document tabs.
 
 
-## Convergence C2.3 rapid-input and long-scroll regression
+## Convergence C2.4 interactive-runtime regression
 
 The default document contains more than 340 deterministic rows. Verify full-range
 wheel movement, touchpad accumulation, scrollbar paging, thumb dragging, blank
@@ -1012,8 +1012,13 @@ rows, long soft-wrap paragraphs, tabs, precomposed/decomposed accents, Greek, an
 Cyrillic text.
 
 In `--editor` mode, hold a printable key for at least ten seconds and type rapidly
-on a long row. The visible text and caret must not accumulate a multi-character
-backlog or rhythmic stutter. The diagnostics should show bounded input batches,
-merged committed-text events when applicable, polling time, and input-to-present
-latency. Arrow keys, Backspace, Delete, commands, pointer events, resize, and focus
-changes must remain ordering barriers and must never be merged into text.
+on a long row. Then immediately trigger Ctrl+S, arrow navigation, menu activation,
+and pointer clicks. Repeat with a pointer-motion storm before a click and a long
+scroll gesture before menu activation. Every barrier action must react promptly;
+there must be no series of unrelated full-frame presentations before it.
+
+The diagnostics should report acquisition and semantic batch data plus
+input-to-present latency. A raw polling limit may cause another acquisition pass,
+but must never itself cause a frame. Arrow keys, Backspace, Delete, commands,
+pointer events, resize, focus, and capture loss remain ordering barriers and must
+never be merged into text.

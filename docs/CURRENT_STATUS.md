@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint for Convergence C2.3 input-to-pixel latency and Luna demo restoration after C2.2 exact text geometry and scrolling.
+This document is the working checkpoint for Convergence C2.4 interactive runtime and presentation scheduling after C2.3 failed graphical responsiveness acceptance.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C2.3** on the paired Moth track. C2.2 fixed exact text geometry and normal vertical scrolling; C2.3 bounds host event polling, coalesces adjacent committed text without crossing semantic barriers, records input-to-present latency, and restores the complete kitchen-sink visual demo as the default launch mode.
+Luna UI is through **Convergence C2.4** on the paired Moth track. C2.2 fixed exact text geometry and scrolling. C2.3 restored the kitchen-sink demo and added useful diagnostics, but its stateless polling/presentation coupling failed native graphical acceptance. C2.4 replaces it with persistent semantic scheduling and presentation deadlines independent from raw acquisition limits.
 
 The newest paired-application contracts are:
 
@@ -21,7 +21,8 @@ The newest paired-application contracts are:
 - Stabilization S1 Ubuntu CI, native-dependency verification, full SwiftPM build/test validation, and monthly GitHub Actions dependency maintenance;
 - M2.2B1 searchable disabled quick-panel items, preserving disabled presentation and accessibility metadata while allowing product-owned availability reasons;
 - Convergence C2.2 shaped-row geometry with UTF-8 insertion boundaries and 26.6 positions, exact soft-wrap/caret/selection/hit-test convergence, platform-neutral scroll events, SDL wheel and trackpad translation, precise-delta accumulation, scrollbar paging, and thumb dragging;
-- Convergence C2.3 frame-fair SDL input polling, plain-printable key deferral to committed text input, adjacent text-event coalescing, input-to-present timing, conservative backlog handling, and default kitchen-sink demo restoration with a 340-row scrolling corpus;
+- Convergence C2.3 demo restoration, 340-row scroll corpus, committed-text authority, and latency diagnostics retained; its raw-batch presentation policy is documented as rejected;
+- Convergence C2.4 persistent cross-pass semantic scheduling, pointer/text coalescing, click/command ordering barriers, idle/threshold/deadline text dispatch, and raw-acquisition limits that never define frame boundaries;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -208,17 +209,14 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Moth M3A — document sheets and real tabs
+A1 — paired Luna/Moth architecture and quality audit
 ```
 
-C2.3 closes the remaining rapid-input responsiveness gap without changing the
-C2.2 coordinate model. SDL polling is bounded by event count and elapsed time,
-committed text batches remain ordered around commands/navigation/pointer events,
-and presentation occurs before conservative backlog processing resumes. M3A now
-builds Moth-owned document sheets and projects them through Luna's existing tab
-mechanics. Visible Find/Replace remains the following product slice. Horizontal
-scrolling, full bidirectional layout, script segmentation, and multi-font fallback
-remain later text-system work.
+C2.4 must first pass native interaction acceptance: clicks, menus, commands,
+navigation, text input, scrolling, resizing, and dialogs must react promptly with
+no growing backlog. After both repositories are committed, the next work is an
+audit of runtime ownership, Swift/API quality, tests, documentation, and measured
+performance debt. M3A real tabs begins only after that audit is reviewed.
 
 ---
 

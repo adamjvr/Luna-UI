@@ -74,14 +74,17 @@ this contract.
 
 ## C2.3 latency follow-up
 
-C2.3 does not change the C2.2 shaped coordinate model. It changes how host input
-reaches that model under sustained load:
+C2.3 did not change the C2.2 shaped coordinate model. Its retained contributions
+are committed-text authority, timing diagnostics, and the restored demo corpus.
+Its raw-batch presentation policy failed native acceptance and is superseded by
+C2.4. No text-geometry consumer may infer presentation timing from native polling
+limits.
 
-- SDL polling stops after 96 raw events or approximately 2 ms by default;
-- presentation occurs before a conservative backlog is resumed;
-- plain printable key-down events defer to committed text input;
-- contiguous committed text events merge into one ordered host event;
-- every non-text semantic event is a hard merge barrier;
-- frame timing includes input-to-present latency;
-- products can inspect polling, merge, and backlog statistics without moving edit
-  or history policy into Luna.
+
+## C2.4 runtime correction
+
+C2.4 does not change C2.2 shaped coordinates or scroll ownership. It changes when
+semantic input reaches those systems and when their visible state is presented.
+Raw native acquisition boundaries are no longer frame boundaries. Exact text and
+caret geometry, wheel/trackpad routing, pane-local viewport state, and scrollbar
+interaction remain unchanged and stay in the permanent regression gate.

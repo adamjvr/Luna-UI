@@ -8,21 +8,23 @@ This split is the central design decision.
 
 ---
 
-## Current paired checkpoint — Convergence C2.3
+## Current paired checkpoint — Convergence C2.4
 
-M2.2B1 and C2.2 are accepted. C2.3 adds:
+M2.2B1 and C2.2 are accepted. C2.3 restored the demo and diagnostics but failed interaction-latency acceptance. C2.4 adds:
 
 - frame-fair SDL polling capped by raw-event count and elapsed monotonic time;
 - authoritative committed text input with plain printable key-down deferral;
 - adjacent committed text coalescing that preserves command/navigation/pointer barriers;
-- input-to-present timing and polling/backlog diagnostics;
+- persistent semantic scheduling across native acquisition passes;
+- click/command ordering barriers and text idle/threshold/deadline dispatch;
+- input-to-present timing without raw polling boundaries becoming frames;
 - bounded LRU shaped-layout retention with cache hit/miss and shaping-time diagnostics;
 - four new Moth latency regressions, for 115 expected Moth tests;
 - restored default Luna kitchen-sink demo with a 340-row scroll corpus and moving-square proof.
 
 C2.2 exact geometry and scrolling remain part of the permanent acceptance gate.
 
-Real document sheets and tabs remain unimplemented. M3A is next and changes New
+Real document sheets and tabs remain unimplemented. A paired repository audit is next. M3A follows audit acceptance and changes New
 File from protected single-document replacement into creation of a new active tab.
 
 

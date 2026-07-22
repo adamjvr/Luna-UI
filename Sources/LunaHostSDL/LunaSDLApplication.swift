@@ -25,6 +25,7 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
     public var targetFramesPerSecond: Double
     public var usesVSync: Bool
     public var inputPollingBudget: LunaInputPollingBudget
+    public var inputPresentationPolicy: LunaInteractivePresentationPolicy
 
     public init(
         title: String,
@@ -32,7 +33,8 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         initialHeight: Int = 640,
         targetFramesPerSecond: Double = 60,
         usesVSync: Bool = true,
-        inputPollingBudget: LunaInputPollingBudget = .interactive
+        inputPollingBudget: LunaInputPollingBudget = .interactive,
+        inputPresentationPolicy: LunaInteractivePresentationPolicy = .interactive
     ) {
         self.title = title
         self.initialWidth = max(1, initialWidth)
@@ -40,6 +42,7 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         self.targetFramesPerSecond = max(1, targetFramesPerSecond)
         self.usesVSync = usesVSync
         self.inputPollingBudget = inputPollingBudget
+        self.inputPresentationPolicy = inputPresentationPolicy
     }
 }
 
@@ -181,7 +184,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
     )
     let presenter = LunaSDLPresenter(window: window, useVSync: configuration.usesVSync)
     var inputTranslator = LunaSDLInputTranslator()
-    let inputCoalescer = LunaHostInputCoalescer()
+    var inputScheduler = LunaInteractiveInputScheduler()
 
     var framePacer = LunaFramePacer(
         targetFramesPerSecond: configuration.targetFramesPerSecond,
@@ -195,42 +198,67 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
 
     while running {
         let inputStart = LunaMonotonicClock.nowNanoseconds()
-        var didReceiveEvent = false
+        var scheduledBatch: LunaScheduledInputBatch?
+        var nativeSourceIsIdle = false
+        var didAcquireRawEvent = false
 
-        let polledInput = inputTranslator.pollEvents(
-            budget: configuration.inputPollingBudget
-        )
-        let inputBatch = inputCoalescer.coalesce(
-            polledInput.events,
-            pollingStats: polledInput.stats
-        )
-        latestInputStats = inputBatch.stats
+        // Raw acquisition may require several bounded passes. Those passes are
+        // safety boundaries only: they never force an intermediate presentation.
+        // The persistent semantic scheduler decides when an ordered interaction
+        // batch is ready, so a click or command cannot be stranded behind stale
+        // motion/text solely because a native polling limit was reached.
+        repeat {
+            let acquisitionStartedAt = LunaMonotonicClock.nowNanoseconds()
+            let polledInput = inputTranslator.pollEvents(
+                budget: configuration.inputPollingBudget
+            )
+            didAcquireRawEvent = didAcquireRawEvent || polledInput.stats.rawEventCount > 0
+            nativeSourceIsIdle = !polledInput.stats.mayHavePendingEvents
+            inputScheduler.ingest(
+                polledInput.events,
+                acquiredAtNanoseconds: acquisitionStartedAt,
+                pollingStats: polledInput.stats
+            )
+            scheduledBatch = inputScheduler.nextDispatchBatch(
+                nowNanoseconds: LunaMonotonicClock.nowNanoseconds(),
+                sourceIsIdle: nativeSourceIsIdle,
+                policy: configuration.inputPresentationPolicy
+            )
+        } while scheduledBatch == nil && !nativeSourceIsIdle
 
-        for event in inputBatch.events {
-            didReceiveEvent = true
+        var oldestDispatchedInputNanoseconds: UInt64?
+        var didReceiveSemanticEvent = false
 
-            if case .quit = event {
-                if scene.shouldTerminate() {
-                    running = false
-                } else {
-                    pendingInvalidations.insert(.input)
+        if let scheduledBatch {
+            latestInputStats = scheduledBatch.stats
+            oldestDispatchedInputNanoseconds = scheduledBatch.oldestEventNanoseconds
+
+            for event in scheduledBatch.events {
+                didReceiveSemanticEvent = true
+
+                if case .quit = event {
+                    if scene.shouldTerminate() {
+                        running = false
+                    } else {
+                        pendingInvalidations.insert(.input)
+                    }
+                    continue
                 }
-                continue
-            }
 
-            if case .windowResized(let size) = event,
-               size.width != framebuffer.width || size.height != framebuffer.height {
-                framebuffer = LunaFramebuffer(width: size.width, height: size.height)
-            }
+                if case .windowResized(let size) = event,
+                   size.width != framebuffer.width || size.height != framebuffer.height {
+                    framebuffer = LunaFramebuffer(width: size.width, height: size.height)
+                }
 
-            let size = LunaSizeI(width: framebuffer.width, height: framebuffer.height)
-            pendingInvalidations.formUnion(
-                scene.handleHostEvent(event, framebufferSize: size)
-            )
-            cursorController.apply(
-                cursorIntent: scene.cursorIntent,
-                wantsPointerCapture: scene.wantsPointerCapture
-            )
+                let size = LunaSizeI(width: framebuffer.width, height: framebuffer.height)
+                pendingInvalidations.formUnion(
+                    scene.handleHostEvent(event, framebufferSize: size)
+                )
+                cursorController.apply(
+                    cursorIntent: scene.cursorIntent,
+                    wantsPointerCapture: scene.wantsPointerCapture
+                )
+            }
         }
 
         let inputEnd = LunaMonotonicClock.nowNanoseconds()
@@ -244,13 +272,17 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         )
 
         guard frameRequest.shouldRender else {
-            // A budget-limited batch may contain only raw events that translate
-            // to no semantic Luna event (for example printable SDL_KEYDOWN events
-            // that correctly defer to SDL_TEXTINPUT). Do not add an idle delay in
-            // that case: the committed text may be the next queued raw event.
-            if !latestInputStats.polling.mayHavePendingEvents {
-                SDL_Delay(didReceiveEvent ? 1 : framePacer.sleepMillisecondsWhenIdle())
+            // Pending semantic state or a conservative native backlog is resumed
+            // immediately. Sleep only when there is genuinely no input work,
+            // invalidation, animation, or presentation deadline outstanding.
+            if inputScheduler.hasPendingInput || !nativeSourceIsIdle {
+                continue
             }
+            SDL_Delay(
+                (didAcquireRawEvent || didReceiveSemanticEvent)
+                    ? 1
+                    : framePacer.sleepMillisecondsWhenIdle()
+            )
             continue
         }
 
@@ -276,6 +308,14 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         presenter.present(framebuffer: framebuffer)
         let presentEnd = LunaMonotonicClock.nowNanoseconds()
 
+        let inputToPresentNanoseconds: UInt64
+        if let oldestDispatchedInputNanoseconds,
+           presentEnd >= oldestDispatchedInputNanoseconds {
+            inputToPresentNanoseconds = presentEnd - oldestDispatchedInputNanoseconds
+        } else {
+            inputToPresentNanoseconds = 0
+        }
+
         frameStats.record(
             LunaFrameTimingSample(
                 frameIndex: frameIndex,
@@ -283,16 +323,19 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 inputNanoseconds: inputNanoseconds,
                 renderNanoseconds: renderEnd >= renderStart ? renderEnd - renderStart : 0,
                 presentNanoseconds: presentEnd >= presentStart ? presentEnd - presentStart : 0,
-                inputToPresentNanoseconds: didReceiveEvent && presentEnd >= inputStart
-                    ? presentEnd - inputStart
-                    : 0,
+                inputToPresentNanoseconds: inputToPresentNanoseconds,
                 totalNanoseconds: presentEnd >= frameStart ? presentEnd - frameStart : 0,
                 invalidations: invalidationsForFrame
             )
         )
 
         framePacer.markFrameEnded(atNanoseconds: presentEnd)
-        if !latestInputStats.polling.mayHavePendingEvents {
+
+        // VSync owns pacing when the presenter provides it. Without external
+        // VSync, apply the software pacer only after the scheduler has no pending
+        // semantic work; never sleep while a click, command, or text deadline is
+        // waiting to be serviced.
+        if !inputScheduler.hasPendingInput && nativeSourceIsIdle {
             let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
             if sleepMilliseconds > 0 {
                 SDL_Delay(sleepMilliseconds)

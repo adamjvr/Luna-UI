@@ -266,7 +266,7 @@ final class LunaHostPhase5C1Tests: XCTestCase {
         XCTAssertEqual(batch.stats.receivedTextInputUTF8ByteCount, 5)
     }
 
-    func testInputCoalescerCarriesPollingBacklogDiagnostics() {
+    func testInputCoalescerCarriesAcquisitionContinuationDiagnostics() {
         let polling = LunaInputPollingStats(
             rawEventCount: 96,
             translatedEventCount: 70,
@@ -281,7 +281,7 @@ final class LunaHostPhase5C1Tests: XCTestCase {
 
         XCTAssertTrue(batch.stats.polling.mayHavePendingEvents)
         XCTAssertEqual(batch.stats.polling.rawEventCount, 96)
-        XCTAssertTrue(batch.stats.statusText.contains("backlog"))
+        XCTAssertTrue(batch.stats.statusText.contains("acquire"))
     }
 
     func testFrameTimingTracksInputToPresentLatency() {

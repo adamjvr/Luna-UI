@@ -177,3 +177,29 @@ input/render performance harness.
 After Luna is committed, Moth advances the gitlink and validates frame-fair text
 input, ordered batching, cache diagnostics, and the complete paired suite. M3A
 real document tabs remains the next product slice.
+
+
+## C2.4 interactive runtime checkpoint
+
+C2.3 failed native interaction acceptance because a raw polling limit became a
+presentation boundary. C2.4 must therefore be committed Luna-first and validated
+with the persistent scheduler before Moth advances its gitlink.
+
+Luna gate:
+
+```bash
+swift build
+swift test --filter LunaInteractiveRuntimeTests
+swift test --filter LunaHostPhase5C1Tests
+swift test --filter LunaHostSDLApplicationTests
+swift test
+./scripts/validate-iteration.sh
+swift run LunaUITestApp
+swift run LunaUITestApp --editor
+git diff --check
+```
+
+Moth then advances the exact Luna commit, validates the dictionary-based layout-cache hit path without linear
+ordering-array maintenance and complete paired suite, and performs native interaction acceptance.
+After both repositories are accepted, stop for the A1 paired audit. Do not begin
+M3A automatically.

@@ -20,7 +20,8 @@ The project direction is split into two roadmap documents:
 - [`docs/LUNA_LAYERED_ARCHITECTURE.md`](docs/LUNA_LAYERED_ARCHITECTURE.md) — governing boundary between Luna foundation, general UI, optional document/editor components, and Moth product policy.
 - [`docs/PAIRED_ITERATION_PROTOCOL.md`](docs/PAIRED_ITERATION_PROTOCOL.md) — required Luna-first build, test, commit, and Moth submodule-consumption workflow.
 - [`docs/TEXT_GEOMETRY_AND_SCROLLING.md`](docs/TEXT_GEOMETRY_AND_SCROLLING.md) — C2.2 shaped-row and scroll-input contract.
-- [`docs/INPUT_LATENCY_AND_DEMO_MODES.md`](docs/INPUT_LATENCY_AND_DEMO_MODES.md) — C2.3 frame-fair input batching, latency diagnostics, and demo-mode contract.
+- [`docs/INPUT_LATENCY_AND_DEMO_MODES.md`](docs/INPUT_LATENCY_AND_DEMO_MODES.md) — C2.3 diagnosis, demo restoration, and the rejected stateless polling policy.
+- [`docs/INTERACTIVE_RUNTIME_SCHEDULING.md`](docs/INTERACTIVE_RUNTIME_SCHEDULING.md) — C2.4 persistent semantic scheduling and presentation contract.
 
 The short version:
 
@@ -360,25 +361,28 @@ The current checkpoint has:
 - Convergence C2.1 adds the optional `LunaTextRender` product: HarfBuzz shaping, FreeType rasterization, glyph caching, monospaced editor metrics, visible missing-glyph fallback, and UTF-8 cluster placement for downstream framebuffer text;
 - M2.2B1 quick-panel convergence keeps matching disabled command items searchable while preserving disabled presentation and accessibility metadata;
 - Convergence C2.2 adds exact shaped-row insertion geometry shared by wrapping, caret placement, selection, hit testing, and production painting, plus platform-neutral scroll events, SDL wheel/trackpad translation, deterministic visual-row scrolling, and interactive scrollbar mechanics;
-- Convergence C2.3 restores the complete kitchen-sink demo as the default, adds a deterministic 340-row scrolling corpus, bounds SDL event polling by count and time, coalesces adjacent committed text, preserves shortcut barriers, and records input-to-present latency;
+- Convergence C2.3 restored the complete kitchen-sink demo and diagnostics, but its stateless bounded-polling policy failed graphical acceptance because raw acquisition boundaries became presentation boundaries;
+- Convergence C2.4 replaces that policy with a persistent semantic input scheduler, ordering barriers, presentation deadlines independent from raw polling, and a Moth layout-cache hit path without linear ordering-array maintenance;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C2.3 — input-to-pixel latency and demo restoration
+Convergence C2.4 — interactive runtime and presentation scheduling
 ```
 
-C2.2 remains accepted. C2.3 addresses the remaining rapid-input lag by making the
-SDL host frame-fair: one loop polls at most 96 raw events or approximately 2 ms,
-presents the current state, and immediately resumes any conservative backlog.
-Plain printable key-down events defer to authoritative SDL committed-text input,
-adjacent text events coalesce without crossing command/navigation/pointer barriers,
-and frame timing now records input-to-present latency. The default LunaUITestApp
-is again the complete kitchen-sink visual demo with the moving-square proof and a
-large scrolling corpus; `--editor` selects the lean performance harness. M3A real
-document tabs remains the next paired product slice.
+C2.2 exact shaped geometry and scrolling remain accepted. C2.3's kitchen-sink
+restoration, long scroll corpus, text-input authority, and timing diagnostics also
+remain. Its stateless polling policy is explicitly rejected: a raw SDL acquisition
+limit must never force a frame. C2.4 installs a persistent semantic scheduler that
+coalesces across acquisition passes, flushes before ordering barriers, dispatches
+pointer activation and fresh/modified keys promptly, and bounds sustained text,
+repeat, scroll, and resize streams by idle state, semantic thresholds, or a
+monotonic latency deadline. Presentation follows visible semantic work rather than
+arbitrary queue chunks.
+After native acceptance, the next phase is the paired repository audit; M3A tabs
+remain blocked until that audit is reviewed.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -392,9 +396,10 @@ Run the same build and test gate used by GitHub Actions:
 ./scripts/validate-iteration.sh
 ```
 
-Run the focused C2.3 input/runtime and demo-regression suites with:
+Run the focused C2.4 scheduler, SDL-host, and demo-regression suites with:
 
 ```bash
+swift test --filter LunaInteractiveRuntimeTests
 swift test --filter LunaHostPhase5C1Tests
 swift test --filter LunaHostSDLApplicationTests
 swift test --filter LunaUIPhase5CTests

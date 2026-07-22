@@ -15,12 +15,12 @@ import LunaInput
 public struct LunaSDLInputTranslator {
     public init() {}
 
-    /// Poll queued SDL events within a frame-fair budget.
+    /// Poll one bounded native-acquisition pass.
     ///
-    /// Sustained text input and key repeat must not keep the host inside SDL's
-    /// queue until presentation is starved. Reaching either limit is reported as
-    /// a conservative backlog signal; the application runner renders the current
-    /// state, skips any additional sleep, and resumes polling on the next loop.
+    /// The limit protects the host thread from an unbounded call into SDL. It is
+    /// not a frame boundary. `LunaInteractiveInputScheduler` preserves semantic
+    /// coalescing across passes and the application runner continues acquisition
+    /// until an ordering barrier, idle source, or presentation deadline is ready.
     public mutating func pollEvents(
         budget: LunaInputPollingBudget = .interactive,
         nowNanoseconds: () -> UInt64 = LunaMonotonicClock.nowNanoseconds

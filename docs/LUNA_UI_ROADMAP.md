@@ -1470,14 +1470,12 @@ C2.2 exact-geometry and scrolling result:
 
 C2.3 input-to-pixel latency and demo-restoration result:
 
-- `LunaInputPollingBudget` bounds host polling by raw event count and elapsed monotonic time;
-- `LunaHostSDL` presents after each bounded batch and skips additional pacing sleep while a conservative backlog may remain;
-- plain printable SDL key-down events defer to authoritative committed text input while command-modified and special keys remain semantic events;
-- adjacent committed text events coalesce only when no keyboard, command, pointer, resize, focus, or other semantic barrier intervenes;
-- input coalescing diagnostics report merged text events, polling time, and conservative backlog state;
-- frame timing records input-to-present latency in addition to input, render, present, and frame time;
-- `LunaUITestApp` defaults to the complete kitchen-sink presentation with the moving-square proof and a deterministic 340-row scrolling corpus;
-- `--editor` remains the lean event-driven performance harness, while `--proof-gallery` remains a compatibility spelling for focused proof checks.
+- retained: plain printable SDL key-down events defer to authoritative committed text input while command-modified and special keys remain semantic events;
+- retained: input-to-present timing and coalescing diagnostics;
+- retained: default kitchen-sink presentation, moving-square proof, and deterministic 340-row scrolling corpus;
+- retained: explicit `--editor` performance harness and `--proof-gallery` compatibility mode;
+- rejected after native graphical acceptance: presenting after each bounded raw polling batch;
+- architectural lesson: raw acquisition limits are safety boundaries only and may never define frame boundaries.
 
 ---
 
@@ -1530,55 +1528,37 @@ Goal:
 
 ---
 
+
+## Convergence C2.4 — Interactive runtime and presentation scheduling
+
+**Status: implemented; native graphical acceptance required.**
+
+C2.3's demo restoration and diagnostics remain valid, but its stateless bounded
+polling policy is rejected. C2.4 introduces a persistent semantic scheduler across
+raw acquisition passes, makes clicks/commands ordering barriers, dispatches text by
+idle state, threshold, or deadline, and makes presentation depend on visible scene
+invalidation rather than native queue chunking. VSync and software pacing no
+longer sleep while semantic input remains pending.
+
+The focused scheduler suite contains seven regressions. The complete Luna test
+inventory is 261 tests across XCTest and Swift Testing; native text-render tests
+require real FreeType/HarfBuzz/font dependencies.
+
+Exit condition:
+
+> Raw acquisition limits never cause intermediate frames. Clicks, commands,
+> navigation, scrolling, and dialogs remain prompt under motion/text backlogs, and
+> sustained text presents within the configured latency deadline without event
+> loss or reordering.
+
 ## Immediate Next Implementation Target
 
-The next implementation target is:
-
 ```text
-Moth M3A document sheets and real tabs, with Luna source demand-driven
+A1 paired Luna/Moth architecture and quality audit
 ```
 
-C2.3 is complete at the paired checkpoint. Luna supplies exact reusable row
-geometry, normal vertical scrolling, frame-fair host polling, ordered committed
-text coalescing, and input-to-present diagnostics. Moth owns document offsets,
-viewports, history, and product policy. The next Luna work is demand-driven by M3A
-tab and sheet integration. Existing Luna tab mechanics should be reused unless
-Moth reveals a genuinely generic missing seam.
-
-### Phase 5E.1 — Reusable SDL Application Lifecycle
-
-**Status:** implemented in this iteration.
-
-Deliverables:
-
-- public `LunaHostSDL` SwiftPM product;
-- reusable `LunaSDLApplicationConfiguration`;
-- reusable `LunaSDLApplicationScene` contract;
-- reusable invalidation-driven SDL event loop;
-- LunaUITestApp migrated away from its private host loop;
-- host configuration and scene-default tests.
-
-Definition of done:
-
-- LunaUITestApp still opens and runs until its window closes;
-- a downstream package can create a Luna window without importing SDL2;
-- application scenes consume only normalized Luna events and framebuffers;
-- host initialization failures return explicit non-zero codes;
-- the CPU renderer remains the correctness path.
-
-### Phase 5E.2 — Document/View Adapter Seams
-
-**Status:** implemented in this iteration.
-
-Deliverables:
-
-- immutable text-storage snapshots with stable document identity and revision;
-- absolute UTF-8 range access at the storage boundary;
-- independent document-view presentation state and revision invalidation;
-- injected find-result provider and product-session contracts;
-- tests proving two views retain independent caret/selection/scroll state over
-  one shared document;
-- public bitmap diagnostic text rendering for downstream Luna application
-  bring-up without copying test-app internals.
-
-Phase 5F.2A plus C1A/C1B now supply the generic mechanics. C2 confirms history remains Moth-owned; future Luna changes are demand-driven by reusable downstream seams.
+After C2.4 native acceptance, audit runtime/presentation ownership, Swift API and
+value/reference semantics, lock and allocation hot paths, test quality, roadmap
+consistency, and accepted technical debt. Luna changes during M3A remain
+demand-driven by genuinely reusable gaps. M3A is blocked until the audit is
+reviewed.
