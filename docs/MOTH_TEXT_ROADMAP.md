@@ -8,19 +8,19 @@ This split is the central design decision.
 
 ---
 
-## Current paired checkpoint — Convergence C2.2
+## Current paired checkpoint — Convergence C2.3
 
-M2.2B1 is accepted with 103 expected Moth tests. C2.2 adds:
+M2.2B1 and C2.2 are accepted. C2.3 adds:
 
-- exact shaped UTF-8 insertion positions retained in 26.6 coordinates;
-- one row geometry for soft wrapping, caret, selection, hit testing, and painting;
-- source/rendered offset mapping for tab expansion;
-- caret paint after glyph paint;
-- platform-neutral wheel/trackpad events and SDL translation;
-- pane-local precise-delta accumulation;
-- hovered-pane wheel routing without changing active editing ownership;
-- scrollbar lane paging and captured thumb dragging;
-- eight new Moth regressions, for 111 expected Moth tests.
+- frame-fair SDL polling capped by raw-event count and elapsed monotonic time;
+- authoritative committed text input with plain printable key-down deferral;
+- adjacent committed text coalescing that preserves command/navigation/pointer barriers;
+- input-to-present timing and polling/backlog diagnostics;
+- bounded LRU shaped-layout retention with cache hit/miss and shaping-time diagnostics;
+- four new Moth latency regressions, for 115 expected Moth tests;
+- restored default Luna kitchen-sink demo with a 340-row scroll corpus and moving-square proof.
+
+C2.2 exact geometry and scrolling remain part of the permanent acceptance gate.
 
 Real document sheets and tabs remain unimplemented. M3A is next and changes New
 File from protected single-document replacement into creation of a new active tab.
@@ -465,19 +465,22 @@ Convergence C1B — reusable click/Shift-click/drag, word/line selection, autosc
 Convergence C2 — Moth document-owned Undo/Redo with Luna source frozen
 M2.2B1 — unified Moth commands plus searchable disabled Luna quick-panel items
 Convergence C2.2 — exact shaped row geometry plus wheel/trackpad and scrollbar interaction
+Convergence C2.3 — frame-fair input batching, latency diagnostics, and demo restoration
 ```
 
 C2 separates monotonic buffer revisions from logical history states, adds deterministic transaction grouping, redo branching, multi-pane view restoration, bounded retained history, and exact saved checkpoints in Moth. Luna owns no production history or dirty-state policy.
 
 C2.2 corrects caret/render drift and completes normal pane-local vertical
-scrolling. The next paired slice is M3A document sheets and real tabs so New File
-creates a new tab rather than replacing the current document. Visible Find/Replace
-follows after M3A. Luna should change only when either slice exposes a genuinely
-reusable presentation or focus-management seam.
+scrolling. C2.3 prevents sustained committed text and key repeat from starving
+presentation by bounding host polling and applying adjacent text as one ordered
+transaction per batch. The next paired slice is M3A document sheets and real tabs
+so New File creates a new tab rather than replacing the current document. Visible
+Find/Replace follows after M3A. Luna should change only when either slice exposes
+a genuinely reusable presentation or focus-management seam.
 
 
 ---
 
 ## Luna-UI Licensing Baseline
 
-As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. As of Phase 5D, LunaUITestApp has a narrow local-file proof behind Luna workspace/document contracts. As of Phase 5D.1, the repo also includes a repeatable public-domain UTF-8 corpus for demoing and regression-testing file-backed editor behavior. As of Phase 5D.2, the Luna demo also proves new untitled buffers, safe empty local-file creation, and Save As routing. As of Phase 5D.3, Open…, Save As…, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel flow through a host dialog boundary outside LunaUI, leaving room for Moth to provide true product-native dialog policy later. As of Phase 5D.3.1, proof-gallery animation uses host-owned logical animation timing with clamped deltas while the default editor harness remains event-driven. As of Phase 5D.3.2, proof-gallery animation-only frames restore a cached static proof frame and redraw only dynamic proof surfaces, keeping stress/demo animation behavior out of the Moth-like editor baseline. Moth Text remains the product/application layer built on top of Luna boundaries; product filesystem/project policy should stay outside Luna source files unless intentionally contributed to the reusable engine.
+As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. As of Phase 5D, LunaUITestApp has a narrow local-file proof behind Luna workspace/document contracts. As of Phase 5D.1, the repo also includes a repeatable public-domain UTF-8 corpus for demoing and regression-testing file-backed editor behavior. As of Phase 5D.2, the Luna demo also proves new untitled buffers, safe empty local-file creation, and Save As routing. As of Phase 5D.3, Open…, Save As…, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel flow through a host dialog boundary outside LunaUI, leaving room for Moth to provide true product-native dialog policy later. As of Phase 5D.3.1, proof-gallery animation uses host-owned logical animation timing with clamped deltas while the editor harness remains event-driven. As of Phase 5D.3.2, proof-gallery animation-only frames restore a cached static proof frame and redraw only dynamic proof surfaces. C2.3 later restores that cached kitchen-sink presentation as the default while keeping `--editor` as the Moth-like performance baseline. Moth Text remains the product/application layer built on top of Luna boundaries; product filesystem/project policy should stay outside Luna source files unless intentionally contributed to the reusable engine.

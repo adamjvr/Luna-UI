@@ -1192,14 +1192,14 @@ Applications/services may do async work, but async results return to the UI lane
 
 Status: complete.
 
-Phase 5C.2 separates the default LunaUITestApp from the older proof-gallery/stress surfaces. The default mode is now a small Moth-like editor harness used as the performance baseline. Proof-gallery mode keeps the earlier phase visuals available without forcing the moving block, semantic proof panel, and debug HUD onto the default hot path.
+Phase 5C.2 originally separated the default LunaUITestApp from the older proof-gallery/stress surfaces so a small Moth-like editor harness could be measured independently. C2.3 keeps that lean harness behind explicit `--editor` selection but restores the complete kitchen-sink presentation as the default user-facing demo.
 
 Completed scope:
 
-- `LunaDemoMode.editor` as the default run mode;
+- `LunaDemoMode.editor` as the original Phase 5C.2 default run mode, superseded by C2.3 kitchen-sink defaulting;
 - `LunaDemoMode.proofGallery` selectable with `--proof-gallery`, `--proof`, or `LUNA_DEMO_MODE=proof`;
 - editor-mode layout gives the editor surface the shell content area instead of reserving side proof-panel space;
-- proof panel, moving block, semantic-widget proof, and HUD are hidden by default but remain available in proof-gallery mode;
+- proof panel, moving block, semantic-widget proof, and HUD are visible in the default C2.3 kitchen-sink mode; `--editor` hides them for performance measurements;
 - `LunaHostInputCoalescer` coalesces contiguous pointer-motion runs to the latest event while preserving button, key, text, resize, and quit boundaries;
 - Linux host loop uses coalesced input batches and exposes coalesced-event diagnostics to the status bar;
 - pointer redraw invalidation is based on meaningful state changes/commands/non-motion phases rather than mere geometric hits;
@@ -1211,9 +1211,9 @@ Architecture rule:
 
 ```text
 Luna remains state-driven and deterministic.
-The default app is an editor harness, not a proof collage.
-Proof-gallery mode stays first-class for visual/stress regression coverage.
-Pointer motion can be coalesced; button/key/text/resize/quit semantics cannot be dropped.
+The explicit `--editor` mode is the lean performance harness.
+Kitchen-sink and proof-gallery modes stay first-class for visual/stress regression coverage.
+Pointer motion and adjacent committed text can be coalesced; semantic ordering barriers cannot be dropped.
 ```
 
 ### Phase 5C.2.1 — Targeted Tab / Document Close Routing
@@ -1326,7 +1326,7 @@ Phase 5D.3 deliverables:
 
 Status: **complete**.
 
-Phase 5D.3.1 fixes the remaining proof-gallery-only animation roughness without changing the default editor harness back into a continuously redrawn proof collage. LunaHostCore now exposes a small `LunaAnimationClock`/`LunaAnimationFrame` primitive for host/demo animation timing. The proof-gallery moving square advances from clamped logical animation time, so modal dialogs, debugger pauses, event backlog, or host scheduling stalls do not cause a large position jump on the next frame.
+At the Phase 5D.3.1 checkpoint, the proof-gallery-only animation roughness was fixed without changing the then-default editor harness into a continuously redrawn proof collage. C2.3 later restored the cached kitchen-sink mode as the user-facing default. LunaHostCore now exposes a small `LunaAnimationClock`/`LunaAnimationFrame` primitive for host/demo animation timing. The proof-gallery moving square advances from clamped logical animation time, so modal dialogs, debugger pauses, event backlog, or host scheduling stalls do not cause a large position jump on the next frame.
 
 Phase 5D.3.1 deliverables:
 
@@ -1334,7 +1334,7 @@ Phase 5D.3.1 deliverables:
 - use that clock for the proof-gallery moving block instead of raw process uptime;
 - report animation delta/phase in proof-gallery status/HUD diagnostics;
 - mark continuous proof-gallery frames with the `animation` invalidation reason;
-- keep default editor mode event/invalidation driven and free of proof-gallery animation surfaces;
+- keep the editor mode event/invalidation driven and free of proof-gallery animation surfaces;
 - remove duplicate demo-chrome drawing from the shared CPU renderer;
 - add regression coverage for first-frame delta, stall clamping, and reset behavior.
 
@@ -1353,7 +1353,7 @@ Phase 5D.3.2 deliverables:
 - use the cache only for animation-only frames with no active transient overlays;
 - redraw only the moving proof square and small HUD diagnostics on animation-only frames;
 - refresh the cache on normal invalidations such as input, document edits, theme changes, workspace changes, overlays, and resize;
-- keep default editor mode event/invalidation driven;
+- keep the editor mode event/invalidation driven;
 - add regression coverage for raw framebuffer byte-count access and full-buffer pixel copying.
 
 ### Phase 5E — Layered Component Boundary and Moth Extraction Seams
@@ -1375,7 +1375,7 @@ Scope:
 - rename or narrow editor-shell APIs whose names or state imply Moth product policy;
 - identify future optional SwiftPM target cuts such as `LunaTextEditing`, `LunaDocumentUI`, and `LunaEditorComponents`, without requiring all physical moves in one commit;
 - add architecture tests preventing Luna foundation/general UI from depending on Moth/product layers;
-- preserve the default editor harness, proof gallery, file I/O proof, dialogs, and frame-cache performance baseline.
+- preserve the explicit editor harness, default kitchen-sink demo, proof-gallery compatibility mode, file I/O proof, dialogs, and frame-cache performance baseline.
 
 Definition of done:
 
@@ -1468,6 +1468,17 @@ C2.2 exact-geometry and scrolling result:
 - `LunaStaticTextScrollInteraction` supplies deterministic visual-row wheel accumulation, scrollbar lane paging, and captured thumb dragging while products retain viewport ownership;
 - full bidi, font fallback, and horizontal editor scrolling remain explicitly deferred.
 
+C2.3 input-to-pixel latency and demo-restoration result:
+
+- `LunaInputPollingBudget` bounds host polling by raw event count and elapsed monotonic time;
+- `LunaHostSDL` presents after each bounded batch and skips additional pacing sleep while a conservative backlog may remain;
+- plain printable SDL key-down events defer to authoritative committed text input while command-modified and special keys remain semantic events;
+- adjacent committed text events coalesce only when no keyboard, command, pointer, resize, focus, or other semantic barrier intervenes;
+- input coalescing diagnostics report merged text events, polling time, and conservative backlog state;
+- frame timing records input-to-present latency in addition to input, render, present, and frame time;
+- `LunaUITestApp` defaults to the complete kitchen-sink presentation with the moving-square proof and a deterministic 340-row scrolling corpus;
+- `--editor` remains the lean event-driven performance harness, while `--proof-gallery` remains a compatibility spelling for focused proof checks.
+
 ---
 
 ## Phase 6 — Renderer and Snapshot Correctness
@@ -1527,11 +1538,12 @@ The next implementation target is:
 Moth M3A document sheets and real tabs, with Luna source demand-driven
 ```
 
-C2.2 is complete at the paired checkpoint. Luna supplies exact reusable row
-geometry and normal vertical scrolling mechanics; Moth owns document offsets,
-viewports, and scroll policy. The next Luna work is demand-driven by M3A tab and
-sheet integration. Existing Luna tab mechanics should be reused unless Moth
-reveals a genuinely generic missing seam.
+C2.3 is complete at the paired checkpoint. Luna supplies exact reusable row
+geometry, normal vertical scrolling, frame-fair host polling, ordered committed
+text coalescing, and input-to-present diagnostics. Moth owns document offsets,
+viewports, history, and product policy. The next Luna work is demand-driven by M3A
+tab and sheet integration. Existing Luna tab mechanics should be reused unless
+Moth reveals a genuinely generic missing seam.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 

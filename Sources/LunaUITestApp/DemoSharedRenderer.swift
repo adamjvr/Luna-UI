@@ -36,33 +36,43 @@ import LunaUI
 /// Phase 2D uses this as the integration proof that drawing, hit testing, and
 /// future accessibility bounds are derived from the same reflowed geometry.
 public enum LunaDemoMode: String, Hashable, Sendable, CaseIterable, CustomStringConvertible {
+    /// Complete default kitchen-sink presentation: editor shell, interactive
+    /// text surfaces, proof panel, HUD, and the animated bouncing-square proof.
+    case kitchenSink
+    /// Lean event-driven editor harness used for input/render performance work.
     case editor
+    /// Legacy proof-gallery spelling retained for focused compatibility checks.
     case proofGallery
 
     public var description: String { rawValue }
 
-    public var usesProofGallerySurfaces: Bool { self == .proofGallery }
+    public var usesProofGallerySurfaces: Bool { self != .editor }
 
     public static func parse(arguments: [String], environment: [String: String]) -> LunaDemoMode {
         let normalizedArguments = Set(arguments.map { $0.lowercased() })
+        if normalizedArguments.contains("--editor") {
+            return .editor
+        }
         if normalizedArguments.contains("--proof-gallery") || normalizedArguments.contains("--proof") {
             return .proofGallery
         }
-        if normalizedArguments.contains("--editor") {
-            return .editor
+        if normalizedArguments.contains("--kitchen-sink") || normalizedArguments.contains("--kitchen") {
+            return .kitchenSink
         }
 
         if let value = environment["LUNA_DEMO_MODE"]?.lowercased() {
             switch value {
+            case "editor", "moth", "performance":
+                return .editor
             case "proof", "proof-gallery", "proofgallery", "gallery":
                 return .proofGallery
-            case "editor", "moth", "default":
-                return .editor
+            case "kitchen", "kitchen-sink", "kitchensink", "default":
+                return .kitchenSink
             default:
                 break
             }
         }
-        return .editor
+        return .kitchenSink
     }
 }
 
@@ -176,9 +186,9 @@ public struct LunaCPUDemoScene {
     /// path before dynamic proof surfaces are drawn.
     private var proofGalleryStaticFrameCache: LunaProofGalleryStaticFrameCache? = nil
 
-    /// Demo harness mode. The default editor mode is the Moth-like performance
-    /// baseline; proofGallery keeps old phase/stress surfaces available without
-    /// putting them on the hot path for ordinary editor testing.
+    /// Demo harness mode. Kitchen-sink is the user-facing default; editor is the
+    /// explicit Moth-like performance baseline; proofGallery preserves the legacy
+    /// compatibility spelling for focused phase/stress checks.
     public var demoMode: LunaDemoMode
 
     /// Number of successful semantic widget activations received through the
@@ -539,8 +549,8 @@ public struct LunaCPUDemoScene {
 
     /// Render one frame into the provided framebuffer.
     ///
-    /// - Important: The default editor mode remains event/invalidation driven.
-    ///   Proof-gallery mode may request continuous frames for the moving-square
+    /// - Important: Explicit editor mode remains event/invalidation driven.
+    ///   Kitchen-sink and proof-gallery modes may request continuous frames for the moving-square
     ///   proof, but animation-only frames reuse a static framebuffer cache so the
     ///   editor shell, sidebar, status rows, and text viewport are not rebuilt
     ///   every vsync when no UI state changed.
@@ -662,8 +672,8 @@ public struct LunaCPUDemoScene {
     }
 
     /// Draw only the proof-gallery surfaces that are supposed to change on every
-    /// animation frame. Keeping this small makes the old proof demo smooth while
-    /// preserving the default editor harness as the real app-performance baseline.
+    /// animation frame. Keeping this small makes the complete kitchen-sink and
+    /// legacy proof demos smooth while preserving `--editor` as the performance baseline.
     private func drawProofGalleryDynamicSurfaces(
         into fb: inout LunaFramebuffer,
         layout renderLayout: LunaCPUDemoSceneLayout,
@@ -3171,43 +3181,56 @@ public struct LunaCPUDemoScene {
     }
     """
 
-    public static let demoText = """
-    // Phase 5A: Real Document / Buffer Integration
-    // Click in this editor surface and type. Enter, Backspace, Delete, Left,
-    // and Right edit; Ctrl+A selects all; Ctrl+P opens commands; Ctrl+F opens find/replace; Ctrl+Space opens completions.
-    struct LunaProof {
-        let background = "theme.ui.editor.background"
-        let gutter = "theme.ui.editor.gutterBackground"
-        let text = "theme.ui.editor.foreground"
-    }
+    public static let demoText: String = {
+        var lines: [String] = [
+            "// C2.3: Luna Kitchen-Sink Scrolling and Input-Latency Corpus",
+            "// The default demo intentionally contains enough deterministic text to",
+            "// exercise prolonged wheel movement, touchpad accumulation, page clicks,",
+            "// full-range scrollbar dragging, soft wrapping, tabs, and Unicode.",
+            "struct LunaProof {",
+            "    let background = \"theme.ui.editor.background\"",
+            "    let gutter = \"theme.ui.editor.gutterBackground\"",
+            "    let text = \"theme.ui.editor.foreground\"",
+            "}",
+            "",
+            "let editing = \"committed SDL text input, frame-fair batching, exact caret geometry\"",
+            "let scrolling = \"wheel, precise touchpad, Page Up/Down, lane paging, thumb drag\"",
+            "let unicode = \"café naive façade résumé | cafe\u{0301} | Καλημέρα | Привет | • — …\"",
+            "",
+            "// Generated rows begin below. The sequence is stable so screenshots and",
+            "// tests can refer to predictable line numbers.",
+        ]
+        lines.reserveCapacity(380)
 
-    // Phase 3A added the static accessible text surface.
-    // Phase 3B added caret geometry and static selection.
-    // Phase 3C added logical-line scrolling and viewport metrics.
-    // Phase 5A connects tabs to real active document buffers; Phase 4F anchors completions near the caret.
+        for index in 1...340 {
+            let number = String(format: "%03d", index)
+            switch index % 10 {
+            case 0:
+                lines.append("row_\(number): tab-columns\talpha\tbeta\tgamma\tend")
+            case 1:
+                lines.append("row_\(number): café naïve façade résumé — precomposed Unicode remains visible while scrolling")
+            case 2:
+                lines.append("row_\(number): cafe\u{0301} nai\u{0308}ve re\u{0301}sume\u{0301} — decomposed grapheme boundaries remain stable")
+            case 3:
+                lines.append("row_\(number): Καλημέρα κόσμε | Привет мир | punctuation • ● — – … © ™")
+            case 4:
+                lines.append("row_\(number): this deliberately long soft-wrapping paragraph verifies that visual rows, scrollbar travel, hit testing, and independent pane viewports continue to agree across a narrow editor width without truncating the source coordinate model")
+            case 5:
+                lines.append("")
+            case 6:
+                lines.append("row_\(number): short")
+            case 7:
+                lines.append("row_\(number): wheel and touchpad movement should remain responsive during sustained input")
+            case 8:
+                lines.append("row_\(number): click above or below the thumb to page; drag the thumb through the complete range")
+            default:
+                lines.append("row_\(number): the quick brown fox jumps over the lazy dog 0123456789")
+            }
+        }
 
-    let phase3d_editing = "insert text, newline, backspace, delete"
-    let phase3d_input = "host text-input events, not guessed printable keycodes"
-    let phase3d_storage = "temporary String-backed model; rope/piece-table later"
-    let phase3d_accessibility = "text area reports editable=true"
+        return lines.joined(separator: "\n")
+    }()
 
-    // More lines so the viewport actually overflows in normal windows.
-    line_01: Luna text viewport proof
-    line_02: black/graphite Moth demo still comes from app-supplied theme
-    line_03: caret stays document-coordinate stable while viewport moves
-    line_04: hit testing maps screen points into scrolled text coordinates
-    line_05: selection replacement collapses to the inserted caret
-    line_06: accessibility reports visible ranges in UTF-8 byte offsets
-    line_07: scroll thumb position is derived from line offset
-    line_08: scroll lane uses editor scrollbar theme tokens
-    line_09: editable mutation is intentionally minimal right now
-    line_10: no undo stack yet
-    line_11: no clipboard yet
-    line_12: no IME composition yet
-    line_13: no soft wrap yet
-    line_14: no minimap rendering yet
-    line_15: all of that comes later on top of this foundation
-    """
 
     public static func demoGeneratedWorkspaceText(title: String, phase: String, focus: String) -> String {
         """

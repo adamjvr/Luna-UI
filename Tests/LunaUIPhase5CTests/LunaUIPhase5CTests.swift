@@ -277,6 +277,19 @@ final class LunaUIPhase5CTests: XCTestCase {
         XCTAssertTrue(readme.contains("scripts/verify-public-domain-demo-files.py"))
     }
 
+    func testDefaultDemoRestoresKitchenSinkAndLongScrollingCorpus() throws {
+        let sourceURL = Self.repositoryRoot
+            .appendingPathComponent("Sources/LunaUITestApp/DemoSharedRenderer.swift")
+        let source = try String(contentsOf: sourceURL, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("case kitchenSink"))
+        XCTAssertTrue(source.contains("return .kitchenSink"))
+        XCTAssertTrue(source.contains("for index in 1...340"))
+        XCTAssertTrue(source.contains("drawMovingBlock("))
+        XCTAssertTrue(source.contains("demoMode.usesProofGallerySurfaces"))
+    }
+
+
     private static var repositoryRoot: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

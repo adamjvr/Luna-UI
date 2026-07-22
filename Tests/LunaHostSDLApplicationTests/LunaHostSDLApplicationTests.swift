@@ -91,5 +91,51 @@ final class LunaHostSDLApplicationTests: XCTestCase {
         }
         XCTAssertEqual(Array(bytes.prefix(4)), [3, 2, 1, 255])
     }
+    func testPlainPrintableKeyDownIsDeferredToCommittedTextInput() {
+        let translator = LunaSDLInputTranslator()
+
+        XCTAssertFalse(
+            translator.shouldForwardKeyboardEvent(
+                key: .other("a"),
+                modifiers: .none
+            )
+        )
+        XCTAssertFalse(
+            translator.shouldForwardKeyboardEvent(
+                key: .other("A"),
+                modifiers: LunaKeyboardModifiers(shift: true)
+            )
+        )
+        XCTAssertFalse(
+            translator.shouldForwardKeyboardEvent(
+                key: .space,
+                modifiers: .none
+            )
+        )
+    }
+
+    func testCommandModifiedPrintableKeyDownRemainsAvailableForShortcuts() {
+        let translator = LunaSDLInputTranslator()
+
+        XCTAssertTrue(
+            translator.shouldForwardKeyboardEvent(
+                key: .other("a"),
+                modifiers: LunaKeyboardModifiers(control: true)
+            )
+        )
+        XCTAssertTrue(
+            translator.shouldForwardKeyboardEvent(
+                key: .space,
+                modifiers: LunaKeyboardModifiers(control: true)
+            )
+        )
+        XCTAssertTrue(
+            translator.shouldForwardKeyboardEvent(
+                key: .backspace,
+                modifiers: .none
+            )
+        )
+    }
+
 }
 #endif

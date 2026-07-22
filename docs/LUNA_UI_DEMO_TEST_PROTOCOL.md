@@ -1,6 +1,6 @@
 # LunaUITestApp Demo Test Protocol
 
-This protocol is the standing manual regression checklist for the demo app through Convergence C1B. It retains the earlier file/dialog/proof-gallery checks and adds the current pane, cursor, and reusable text-selection interaction checks.
+This protocol is the standing manual regression checklist for the demo app through Convergence C2.3. It retains the earlier file/dialog/proof-gallery checks and adds current pane, selection, exact geometry, scrolling, and rapid-input latency checks.
 
 The demo is an integration harness for Luna UI. It may show the Moth Obsidian palette as an app-supplied fixture, but Luna library APIs remain product-neutral.
 
@@ -31,10 +31,10 @@ Theme switching is command-palette-only.
 
 ## Convergence C1A/C1B Editor Interaction Protocol
 
-Run the default editor harness with a disposable long-line file or the built-in document:
+Run the explicit editor performance harness with a disposable long-line file or the built-in document:
 
 ```bash
-swift run LunaUITestApp
+swift run LunaUITestApp --editor
 ```
 
 | Action | Expected reaction |
@@ -72,7 +72,7 @@ Core checks:
 | Inspect `LICENSE` | The file contains Mozilla Public License Version 2.0 text. |
 | Search for old license references | No project source or documentation should refer to the old license. |
 | Inspect Swift/package files | Files begin with concise `SPDX-License-Identifier: MPL-2.0` headers, with `Package.swift` keeping `// swift-tools-version` first. |
-| Run default editor harness | Behavior remains responsive and event-driven with current file/dialog lifecycle support. |
+| Run `--editor` harness | Behavior remains responsive and event-driven with current file/dialog lifecycle support. |
 | Run proof-gallery mode | Proof surfaces remain available; moving-square animation advances smoothly from logical animation time and animation-only static-frame reuse. |
 
 ---
@@ -81,18 +81,18 @@ Core checks:
 
 ### Phase 5D.3.1 — Proof Gallery Animation Pacing
 
-Phase 5D.3.1 keeps the default editor harness event-driven while making proof-gallery animation explicitly time-based and stall-tolerant. The moving proof square advances from a host-runtime `LunaAnimationClock` with clamped logical deltas instead of deriving position directly from absolute uptime or frame count.
+At the Phase 5D.3.1 checkpoint, the then-default editor harness remained event-driven while proof-gallery animation became explicitly time-based and stall-tolerant. C2.3 keeps that behavior in explicit `--editor` mode and restores the cached kitchen-sink presentation as the default. The moving proof square advances from a host-runtime `LunaAnimationClock` with clamped logical deltas instead of deriving position directly from absolute uptime or frame count.
 
 Core checks:
 
 | Action | Expected reaction |
 |---|---|
-| Run `swift run LunaUITestApp` | Default editor mode remains idle/event-driven; no proof animation is visible. |
+| Run `swift run LunaUITestApp` | C2.3 kitchen-sink mode is visible and includes the proof animation. |
 | Run `swift run LunaUITestApp --proof-gallery` | Proof panel, moving square, semantic widget proof, and HUD are visible. |
 | Watch the moving square | Motion is smooth and bounded inside the proof panel. |
 | Trigger a dialog or briefly stall the app, then return | The moving square resumes without jumping across the proof panel. |
 | Inspect status bar in proof-gallery mode | Animation diagnostics show frame delta/phase and animation invalidation appears during continuous proof rendering. |
-| Inspect default editor status bar | No animation status segment appears in normal editor mode. |
+| Inspect explicit `--editor` status bar | No animation status segment appears in lean editor mode. |
 
 
 
@@ -109,7 +109,7 @@ Core checks:
 | Open a menu/context/completion/find overlay | The demo falls back to full redraw while overlays are active, preserving correct z-order. |
 | Close the overlay and keep watching | Animation returns to the lightweight animation-only path. |
 | Resize or switch theme | The static proof-gallery cache is refreshed before animation-only frames resume. |
-| Run default editor mode | The default editor remains event/invalidation driven and does not use proof-gallery continuous animation. |
+| Run `swift run LunaUITestApp --editor` | The explicit editor harness remains event/invalidation driven and does not use proof-gallery continuous animation. |
 
 Boundary rule:
 
@@ -122,7 +122,7 @@ Boundary rule:
 
 ```text
 Proof-gallery animation is demo/stress-harness behavior.
-The default editor harness stays event/invalidation driven.
+The explicit `--editor` harness stays event/invalidation driven.
 LunaUI widgets do not become async or frame-count-driven animation objects.
 ```
 
@@ -132,10 +132,10 @@ LunaUI widgets do not become async or frame-count-driven animation objects.
 
 Phase 5D adds a narrow local-file proof in the demo app. The filesystem adapter lives in `LunaUITestApp`; LunaUI continues to own only product-neutral file/document descriptors, open/save request/result contracts, and routing helpers.
 
-Run the default editor with a real repository file:
+Run the explicit editor harness with a real repository file:
 
 ```bash
-swift run LunaUITestApp --open README.md
+swift run LunaUITestApp --editor --open README.md
 ```
 
 Equivalent launch forms:
@@ -298,15 +298,23 @@ Commands stay generic and receive target document identity through LunaCommandCo
 
 ## Editor Harness / Proof Gallery Protocol
 
-Phase 5C.2 separates the default editor harness from the proof-gallery stress/demo surfaces. The default mode should be used to judge Moth-like responsiveness. Proof-gallery mode still exists for visual regression and old phase proofs.
+C2.3 restores the complete kitchen-sink presentation as the default while retaining a separate lean editor harness for responsiveness measurements.
 
-Run default editor harness:
+Run default kitchen-sink demo:
 
 ```bash
 swift run LunaUITestApp
 ```
 
-Run proof gallery:
+Run the lean editor performance harness:
+
+```bash
+swift run LunaUITestApp --editor
+# or
+LUNA_DEMO_MODE=editor swift run LunaUITestApp
+```
+
+Run the legacy proof-gallery compatibility spelling:
 
 ```bash
 swift run LunaUITestApp --proof-gallery
@@ -318,21 +326,23 @@ Core checks:
 
 | Action | Expected reaction |
 |---|---|
-| Launch default app | Opens editor mode, not proof-gallery mode. |
-| Default app at rest | No moving block, semantic proof panel, or proof HUD is visible. |
+| Launch default app | Opens the complete kitchen-sink mode with editor shell, proof panel, HUD, and moving square. |
+| Default app at rest | The proof panel and HUD are visible; the square continues moving while static editor surfaces remain cached between animation-only frames. |
 | Default app status bar | Shows mode, frame timing, invalidation, and input coalescing diagnostics. |
 | Move pointer rapidly across stable empty/editor areas | Pointer-motion storms are coalesced; redraws occur only for meaningful state changes. |
 | Drag-select text | Drag still works; coalescing preserves the latest drag endpoint per frame. |
 | Click tabs/sidebar/menu/context/completion | Non-motion semantic events are preserved and routed normally. |
-| Run `--proof-gallery` | Old proof panel, moving block, semantic widget proof, and HUD are visible again; status includes animation timing diagnostics. |
+| Run `--editor` | Proof-only surfaces are hidden and the app becomes the lean event-driven performance harness. |
+| Run `--proof-gallery` | Compatibility mode retains the proof panel, moving block, semantic widget, and HUD. |
 | Set `LUNA_DEMO_DEBUG_COMMANDS=1` | Command-request stdout logging is enabled. |
 | Default logging | Command-request stdout spam is suppressed. |
 
 Boundary rule:
 
 ```text
-The default demo is the editor performance harness.
-Proof-gallery mode is the regression/stress harness.
+The default demo is the complete kitchen-sink regression presentation.
+`--editor` is the lean input/render performance harness.
+Proof-gallery remains a compatibility regression/stress spelling.
 Luna remains state-driven; this is not a retained-mode rewrite.
 Hosts invalidate on state change, not on mere pointer hits.
 ```
@@ -975,7 +985,7 @@ swift test --filter LunaUIPhase5F2ATests
 swift test --filter LunaHostSDLApplicationTests
 ```
 
-Then launch the default editor harness:
+Then launch the default kitchen-sink demo:
 
 ```bash
 swift run LunaUITestApp
@@ -992,3 +1002,18 @@ Verify:
 - clicking above or below the scrollbar thumb pages the viewport;
 - dragging the scrollbar thumb captures the pointer, clamps at both ends, and releases on mouse-up or capture loss;
 - C2.2 does not add horizontal editor scrolling, bidi layout, font fallback chains, or product document tabs.
+
+
+## Convergence C2.3 rapid-input and long-scroll regression
+
+The default document contains more than 340 deterministic rows. Verify full-range
+wheel movement, touchpad accumulation, scrollbar paging, thumb dragging, blank
+rows, long soft-wrap paragraphs, tabs, precomposed/decomposed accents, Greek, and
+Cyrillic text.
+
+In `--editor` mode, hold a printable key for at least ten seconds and type rapidly
+on a long row. The visible text and caret must not accumulate a multi-character
+backlog or rhythmic stutter. The diagnostics should show bounded input batches,
+merged committed-text events when applicable, polling time, and input-to-present
+latency. Arrow keys, Backspace, Delete, commands, pointer events, resize, and focus
+changes must remain ordering barriers and must never be merged into text.

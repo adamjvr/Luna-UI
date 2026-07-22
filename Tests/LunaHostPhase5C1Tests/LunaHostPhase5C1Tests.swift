@@ -221,6 +221,90 @@ final class LunaHostPhase5C1Tests: XCTestCase {
         }
     }
 
+    func testInputPollingBudgetStopsAtEitherLimit() {
+        let budget = LunaInputPollingBudget(
+            maximumRawEventCount: 4,
+            maximumPollingNanoseconds: 2_000
+        )
+
+        XCTAssertTrue(budget.permitsAnotherEvent(afterProcessing: 3, elapsedNanoseconds: 1_999))
+        XCTAssertFalse(budget.permitsAnotherEvent(afterProcessing: 4, elapsedNanoseconds: 0))
+        XCTAssertFalse(budget.permitsAnotherEvent(afterProcessing: 0, elapsedNanoseconds: 2_000))
+    }
+
+    func testInputCoalescerMergesOnlyAdjacentCommittedText() {
+        let coalescer = LunaHostInputCoalescer()
+        let batch = coalescer.coalesce([
+            .textInput(LunaTextInputEvent(text: "a")),
+            .textInput(LunaTextInputEvent(text: "b")),
+            .textInput(LunaTextInputEvent(text: "c")),
+            .keyboard(LunaKeyboardEvent(key: .arrowLeft)),
+            .textInput(LunaTextInputEvent(text: "d")),
+            .textInput(LunaTextInputEvent(text: "e")),
+        ])
+
+        XCTAssertEqual(batch.events.count, 3)
+        if case .textInput(let first) = batch.events[0] {
+            XCTAssertEqual(first.text, "abc")
+        } else {
+            XCTFail("Expected first merged text event")
+        }
+        if case .keyboard(let barrier) = batch.events[1] {
+            XCTAssertEqual(barrier.key, .arrowLeft)
+        } else {
+            XCTFail("Expected keyboard ordering barrier")
+        }
+        if case .textInput(let second) = batch.events[2] {
+            XCTAssertEqual(second.text, "de")
+        } else {
+            XCTFail("Expected second merged text event")
+        }
+
+        XCTAssertEqual(batch.stats.receivedTextInputEventCount, 5)
+        XCTAssertEqual(batch.stats.emittedTextInputEventCount, 2)
+        XCTAssertEqual(batch.stats.mergedTextInputEventCount, 3)
+        XCTAssertEqual(batch.stats.receivedTextInputUTF8ByteCount, 5)
+    }
+
+    func testInputCoalescerCarriesPollingBacklogDiagnostics() {
+        let polling = LunaInputPollingStats(
+            rawEventCount: 96,
+            translatedEventCount: 70,
+            pollingNanoseconds: 2_000_000,
+            didReachEventLimit: true,
+            didReachTimeLimit: false
+        )
+        let batch = LunaHostInputCoalescer().coalesce(
+            [.textInput(LunaTextInputEvent(text: "hello"))],
+            pollingStats: polling
+        )
+
+        XCTAssertTrue(batch.stats.polling.mayHavePendingEvents)
+        XCTAssertEqual(batch.stats.polling.rawEventCount, 96)
+        XCTAssertTrue(batch.stats.statusText.contains("backlog"))
+    }
+
+    func testFrameTimingTracksInputToPresentLatency() {
+        var stats = LunaFrameTimingStats(smoothingFactor: 1)
+        stats.record(
+            LunaFrameTimingSample(
+                frameIndex: 1,
+                startedAtNanoseconds: 100,
+                inputNanoseconds: 2_000_000,
+                renderNanoseconds: 3_000_000,
+                presentNanoseconds: 1_000_000,
+                inputToPresentNanoseconds: 7_000_000,
+                totalNanoseconds: 4_000_000,
+                invalidations: LunaFrameInvalidationSet(.textInput)
+            )
+        )
+
+        XCTAssertEqual(stats.movingAverageInputMilliseconds, 2, accuracy: 0.001)
+        XCTAssertEqual(stats.movingAveragePresentMilliseconds, 1, accuracy: 0.001)
+        XCTAssertEqual(stats.movingAverageInputToPresentMilliseconds, 7, accuracy: 0.001)
+        XCTAssertTrue(stats.statusText.contains("latency"))
+    }
+
 }
 
 extension LunaHostPhase5C1Tests {

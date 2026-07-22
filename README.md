@@ -20,6 +20,7 @@ The project direction is split into two roadmap documents:
 - [`docs/LUNA_LAYERED_ARCHITECTURE.md`](docs/LUNA_LAYERED_ARCHITECTURE.md) — governing boundary between Luna foundation, general UI, optional document/editor components, and Moth product policy.
 - [`docs/PAIRED_ITERATION_PROTOCOL.md`](docs/PAIRED_ITERATION_PROTOCOL.md) — required Luna-first build, test, commit, and Moth submodule-consumption workflow.
 - [`docs/TEXT_GEOMETRY_AND_SCROLLING.md`](docs/TEXT_GEOMETRY_AND_SCROLLING.md) — C2.2 shaped-row and scroll-input contract.
+- [`docs/INPUT_LATENCY_AND_DEMO_MODES.md`](docs/INPUT_LATENCY_AND_DEMO_MODES.md) — C2.3 frame-fair input batching, latency diagnostics, and demo-mode contract.
 
 The short version:
 
@@ -340,14 +341,14 @@ The current checkpoint has:
 - Phase 5B product-neutral command runtime implemented with command context, dynamic availability, key binding matching, surface projection, runtime handler execution against an app-owned host, and demo menu/palette/context/keyboard dispatch through one command path;
 - Phase 5C file/project adapter boundary implemented with product-neutral file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save contracts, dirty-close policy, and an in-memory demo adapter proving file/project seams without real Moth policy;
 - Phase 5C.1 frame pacing/invalidation runtime boundary implemented with host timing stats, frame requests, invalidation reasons, frame pacing helpers, SDL vsync/delay cleanup, and runtime diagnostics;
-- Phase 5C.2 editor harness split and input coalescing implemented with default editor mode, optional proof-gallery mode, host pointer-motion coalescing, state-change pointer invalidation, quiet command logging by default, and input/event diagnostics;
+- Phase 5C.2 introduced a lean editor harness and proof-gallery split; C2.3 restores the kitchen-sink presentation as the default while keeping `--editor` for performance measurement, and adds pointer/text coalescing plus input/event diagnostics;
 - Phase 5C.2.1 targeted tab/document close routing implemented with context-carried target document IDs, tab-close command routing through dirty-close policy, context-menu command attributes, active/workspace/shell state synchronization after close, and regression coverage for command-context targeting;
 - Phase 5C.2.2 MPL-2.0 license migration completed with the repository license text updated, source/test/shim files carrying SPDX headers, and documentation aligned around the new license;
 - Phase 5D real file I/O proof implemented with an app-owned local-file adapter in `LunaUITestApp`, `--open` launch paths, real UTF-8 file loading, local save/save-all through `LunaDocumentSaveResult`, and file errors surfaced as demo status instead of LunaUI policy;
 - Phase 5D.1 public-domain demo corpus integrated under `Examples/PublicDomainDemoFiles`, with manifest verification, helper launch scripts, and `--open-demo-corpus` options for repeatable real-file demos;
 - Phase 5D.2 new-file lifecycle proof implemented with Ctrl+N/File > New File untitled buffers, `--new-untitled`, safe `--create` empty local-file launch support, demo Save As routing, no-overwrite defaults, and untitled/file-backed state transitions kept outside LunaUI filesystem policy;
 - Phase 5D.3 host dialog boundary implemented with neutral LunaHostCore dialog service request/result types, scripted test doubles, interactive Open… / Save As… / dirty-close routing in `LunaUITestApp`, Linux/macOS desktop-helper bridges, and a deliberate seam for future Luna-rendered file-management widgets without making LunaUI own OS dialog policy;
-- Phase 5D.3.1 proof-gallery animation pacing implemented with a LunaHostCore animation clock, clamped logical animation deltas, animation invalidation diagnostics, and cleanup of duplicate demo chrome drawing while keeping the default editor harness event-driven;
+- Phase 5D.3.1 proof-gallery animation pacing implemented with a LunaHostCore animation clock, clamped logical animation deltas, animation invalidation diagnostics, and cleanup of duplicate demo chrome drawing while keeping the explicit editor harness event-driven;
 - Phase 5D.3.2 proof-gallery frame-cache optimization implemented with animation-only static-frame reuse, explicit framebuffer copy support, and removal of reflection from the presenter pixel-upload path so the legacy moving-square stress proof stays smooth without changing editor-mode invalidation policy;
 - Phase 5E.1 reusable SDL application lifecycle implemented with a public downstream scene contract, normalized host events, invalidation-driven presentation, and an application-owned termination veto seam for unsaved-document policy;
 - Phase 5E.2 document/view adapter seams implemented with immutable UTF-8 snapshots, stable revisions, independent presentation state, injected find sessions, and public diagnostic bitmap text rendering;
@@ -359,23 +360,25 @@ The current checkpoint has:
 - Convergence C2.1 adds the optional `LunaTextRender` product: HarfBuzz shaping, FreeType rasterization, glyph caching, monospaced editor metrics, visible missing-glyph fallback, and UTF-8 cluster placement for downstream framebuffer text;
 - M2.2B1 quick-panel convergence keeps matching disabled command items searchable while preserving disabled presentation and accessibility metadata;
 - Convergence C2.2 adds exact shaped-row insertion geometry shared by wrapping, caret placement, selection, hit testing, and production painting, plus platform-neutral scroll events, SDL wheel/trackpad translation, deterministic visual-row scrolling, and interactive scrollbar mechanics;
+- Convergence C2.3 restores the complete kitchen-sink demo as the default, adds a deterministic 340-row scrolling corpus, bounds SDL event polling by count and time, coalesces adjacent committed text, preserves shortcut barriers, and records input-to-present latency;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C2.2 — exact shaped text geometry and vertical scrolling
+Convergence C2.3 — input-to-pixel latency and demo restoration
 ```
 
-M2.2B1 remains accepted. C2.2 corrects the production editor geometry exposed by
-rapid-typing validation: HarfBuzz 26.6 insertion positions now drive soft wrapping,
-caret placement, selection rectangles, and hit testing instead of multiplying a
-rounded cell width. Luna also supplies platform-neutral wheel/trackpad events,
-SDL translation, fractional visual-row accumulation, scrollbar paging, and thumb
-dragging. Moth remains responsible for document coordinates and pane-local
-viewport state. The next paired target is M3A document sheets and real tabs;
-visible Find/Replace follows after the multi-document foundation.
+C2.2 remains accepted. C2.3 addresses the remaining rapid-input lag by making the
+SDL host frame-fair: one loop polls at most 96 raw events or approximately 2 ms,
+presents the current state, and immediately resumes any conservative backlog.
+Plain printable key-down events defer to authoritative SDL committed-text input,
+adjacent text events coalesce without crossing command/navigation/pointer barriers,
+and frame timing now records input-to-present latency. The default LunaUITestApp
+is again the complete kitchen-sink visual demo with the moving-square proof and a
+large scrolling corpus; `--editor` selects the lean performance harness. M3A real
+document tabs remains the next paired product slice.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -389,12 +392,19 @@ Run the same build and test gate used by GitHub Actions:
 ./scripts/validate-iteration.sh
 ```
 
-Run the focused C2.2 geometry and scrolling suites with:
+Run the focused C2.3 input/runtime and demo-regression suites with:
+
+```bash
+swift test --filter LunaHostPhase5C1Tests
+swift test --filter LunaHostSDLApplicationTests
+swift test --filter LunaUIPhase5CTests
+```
+
+The C2.2 geometry and scrolling suites remain part of the permanent gate:
 
 ```bash
 swift test --filter LunaTextRenderTests
 swift test --filter LunaUIPhase5F2ATests
-swift test --filter LunaHostSDLApplicationTests
 ```
 
 The M2.2B1 quick-panel regression remains available with:
@@ -557,13 +567,22 @@ The project intentionally uses SPDX headers instead of pasting the full license 
 
 ### Demo modes
 
-Default run uses the editor harness, which is the Moth-like performance baseline:
+Default run is the complete Luna kitchen-sink demo. It includes the editor shell,
+long scrolling corpus, proof panel, diagnostics HUD, and animated bouncing square:
 
 ```bash
 swift run LunaUITestApp
 ```
 
-Proof-gallery mode keeps old phase visual/stress surfaces available without putting them on the default hot path:
+The lean event-driven editor performance harness remains explicit:
+
+```bash
+swift run LunaUITestApp --editor
+# or
+LUNA_DEMO_MODE=editor swift run LunaUITestApp
+```
+
+The legacy proof-gallery spelling remains available for focused compatibility checks:
 
 ```bash
 swift run LunaUITestApp --proof-gallery

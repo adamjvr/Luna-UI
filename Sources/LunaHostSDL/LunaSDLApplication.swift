@@ -24,19 +24,22 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
     public var initialHeight: Int
     public var targetFramesPerSecond: Double
     public var usesVSync: Bool
+    public var inputPollingBudget: LunaInputPollingBudget
 
     public init(
         title: String,
         initialWidth: Int = 960,
         initialHeight: Int = 640,
         targetFramesPerSecond: Double = 60,
-        usesVSync: Bool = true
+        usesVSync: Bool = true,
+        inputPollingBudget: LunaInputPollingBudget = .interactive
     ) {
         self.title = title
         self.initialWidth = max(1, initialWidth)
         self.initialHeight = max(1, initialHeight)
         self.targetFramesPerSecond = max(1, targetFramesPerSecond)
         self.usesVSync = usesVSync
+        self.inputPollingBudget = inputPollingBudget
     }
 }
 
@@ -194,8 +197,13 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         let inputStart = LunaMonotonicClock.nowNanoseconds()
         var didReceiveEvent = false
 
-        let rawInputEvents = inputTranslator.pollEvents()
-        let inputBatch = inputCoalescer.coalesce(rawInputEvents)
+        let polledInput = inputTranslator.pollEvents(
+            budget: configuration.inputPollingBudget
+        )
+        let inputBatch = inputCoalescer.coalesce(
+            polledInput.events,
+            pollingStats: polledInput.stats
+        )
         latestInputStats = inputBatch.stats
 
         for event in inputBatch.events {
@@ -236,7 +244,13 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         )
 
         guard frameRequest.shouldRender else {
-            SDL_Delay(didReceiveEvent ? 1 : framePacer.sleepMillisecondsWhenIdle())
+            // A budget-limited batch may contain only raw events that translate
+            // to no semantic Luna event (for example printable SDL_KEYDOWN events
+            // that correctly defer to SDL_TEXTINPUT). Do not add an idle delay in
+            // that case: the committed text may be the next queued raw event.
+            if !latestInputStats.polling.mayHavePendingEvents {
+                SDL_Delay(didReceiveEvent ? 1 : framePacer.sleepMillisecondsWhenIdle())
+            }
             continue
         }
 
@@ -269,15 +283,20 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 inputNanoseconds: inputNanoseconds,
                 renderNanoseconds: renderEnd >= renderStart ? renderEnd - renderStart : 0,
                 presentNanoseconds: presentEnd >= presentStart ? presentEnd - presentStart : 0,
+                inputToPresentNanoseconds: didReceiveEvent && presentEnd >= inputStart
+                    ? presentEnd - inputStart
+                    : 0,
                 totalNanoseconds: presentEnd >= frameStart ? presentEnd - frameStart : 0,
                 invalidations: invalidationsForFrame
             )
         )
 
         framePacer.markFrameEnded(atNanoseconds: presentEnd)
-        let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
-        if sleepMilliseconds > 0 {
-            SDL_Delay(sleepMilliseconds)
+        if !latestInputStats.polling.mayHavePendingEvents {
+            let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
+            if sleepMilliseconds > 0 {
+                SDL_Delay(sleepMilliseconds)
+            }
         }
     }
 

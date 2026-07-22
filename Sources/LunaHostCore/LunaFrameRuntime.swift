@@ -128,6 +128,9 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
     public var updateNanoseconds: UInt64
     public var renderNanoseconds: UInt64
     public var presentNanoseconds: UInt64
+    /// Time from the start of the input poll that produced this frame through
+    /// completion of presentation. Zero when the frame was not input-driven.
+    public var inputToPresentNanoseconds: UInt64
     public var totalNanoseconds: UInt64
     public var invalidations: LunaFrameInvalidationSet
 
@@ -138,6 +141,7 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
         updateNanoseconds: UInt64 = 0,
         renderNanoseconds: UInt64 = 0,
         presentNanoseconds: UInt64 = 0,
+        inputToPresentNanoseconds: UInt64 = 0,
         totalNanoseconds: UInt64,
         invalidations: LunaFrameInvalidationSet = LunaFrameInvalidationSet()
     ) {
@@ -147,13 +151,18 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
         self.updateNanoseconds = updateNanoseconds
         self.renderNanoseconds = renderNanoseconds
         self.presentNanoseconds = presentNanoseconds
+        self.inputToPresentNanoseconds = inputToPresentNanoseconds
         self.totalNanoseconds = totalNanoseconds
         self.invalidations = invalidations
     }
 
     public var totalMilliseconds: Double { Double(totalNanoseconds) / 1_000_000.0 }
+    public var inputMilliseconds: Double { Double(inputNanoseconds) / 1_000_000.0 }
     public var renderMilliseconds: Double { Double(renderNanoseconds) / 1_000_000.0 }
     public var presentMilliseconds: Double { Double(presentNanoseconds) / 1_000_000.0 }
+    public var inputToPresentMilliseconds: Double {
+        Double(inputToPresentNanoseconds) / 1_000_000.0
+    }
 
     public var framesPerSecond: Double {
         guard totalNanoseconds > 0 else { return 0 }
@@ -166,7 +175,10 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
     public private(set) var latest: LunaFrameTimingSample?
     public private(set) var worstRecent: LunaFrameTimingSample?
     public private(set) var movingAverageTotalNanoseconds: Double
+    public private(set) var movingAverageInputNanoseconds: Double
     public private(set) var movingAverageRenderNanoseconds: Double
+    public private(set) var movingAveragePresentNanoseconds: Double
+    public private(set) var movingAverageInputToPresentNanoseconds: Double
     public var smoothingFactor: Double
 
     public init(smoothingFactor: Double = 0.12) {
@@ -174,7 +186,10 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
         self.latest = nil
         self.worstRecent = nil
         self.movingAverageTotalNanoseconds = 0
+        self.movingAverageInputNanoseconds = 0
         self.movingAverageRenderNanoseconds = 0
+        self.movingAveragePresentNanoseconds = 0
+        self.movingAverageInputToPresentNanoseconds = 0
         self.smoothingFactor = min(1.0, max(0.001, smoothingFactor))
     }
 
@@ -190,11 +205,24 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
 
         if sampleCount == 1 {
             movingAverageTotalNanoseconds = Double(sample.totalNanoseconds)
+            movingAverageInputNanoseconds = Double(sample.inputNanoseconds)
             movingAverageRenderNanoseconds = Double(sample.renderNanoseconds)
+            movingAveragePresentNanoseconds = Double(sample.presentNanoseconds)
+            movingAverageInputToPresentNanoseconds = Double(sample.inputToPresentNanoseconds)
         } else {
             let alpha = smoothingFactor
             movingAverageTotalNanoseconds = (Double(sample.totalNanoseconds) * alpha) + (movingAverageTotalNanoseconds * (1.0 - alpha))
+            movingAverageInputNanoseconds = (Double(sample.inputNanoseconds) * alpha) + (movingAverageInputNanoseconds * (1.0 - alpha))
             movingAverageRenderNanoseconds = (Double(sample.renderNanoseconds) * alpha) + (movingAverageRenderNanoseconds * (1.0 - alpha))
+            movingAveragePresentNanoseconds = (Double(sample.presentNanoseconds) * alpha) + (movingAveragePresentNanoseconds * (1.0 - alpha))
+            if sample.inputToPresentNanoseconds > 0 {
+                if movingAverageInputToPresentNanoseconds == 0 {
+                    movingAverageInputToPresentNanoseconds = Double(sample.inputToPresentNanoseconds)
+                } else {
+                    movingAverageInputToPresentNanoseconds = (Double(sample.inputToPresentNanoseconds) * alpha)
+                        + (movingAverageInputToPresentNanoseconds * (1.0 - alpha))
+                }
+            }
         }
     }
 
@@ -206,8 +234,20 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
         movingAverageTotalNanoseconds / 1_000_000.0
     }
 
+    public var movingAverageInputMilliseconds: Double {
+        movingAverageInputNanoseconds / 1_000_000.0
+    }
+
     public var movingAverageRenderMilliseconds: Double {
         movingAverageRenderNanoseconds / 1_000_000.0
+    }
+
+    public var movingAveragePresentMilliseconds: Double {
+        movingAveragePresentNanoseconds / 1_000_000.0
+    }
+
+    public var movingAverageInputToPresentMilliseconds: Double {
+        movingAverageInputToPresentNanoseconds / 1_000_000.0
     }
 
     public var movingAverageFramesPerSecond: Double {
@@ -218,10 +258,12 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
     public var statusText: String {
         guard sampleCount > 0 else { return "fps -- | frame -- ms" }
         return String(
-            format: "fps %.1f | frame %.2f ms | render %.2f ms",
+            format: "fps %.1f | input %.2f | render %.2f | present %.2f | latency %.2f ms",
             movingAverageFramesPerSecond,
-            movingAverageFrameMilliseconds,
-            movingAverageRenderMilliseconds
+            movingAverageInputMilliseconds,
+            movingAverageRenderMilliseconds,
+            movingAveragePresentMilliseconds,
+            movingAverageInputToPresentMilliseconds
         )
     }
 }

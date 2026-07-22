@@ -9,21 +9,66 @@
 
 import SDL2
 import LunaCore
+import LunaHostCore
 import LunaInput
 
 public struct LunaSDLInputTranslator {
     public init() {}
 
-    /// Poll all queued SDL events and return platform-neutral Luna events.
-    public mutating func pollEvents() -> [LunaHostInputEvent] {
+    /// Poll queued SDL events within a frame-fair budget.
+    ///
+    /// Sustained text input and key repeat must not keep the host inside SDL's
+    /// queue until presentation is starved. Reaching either limit is reported as
+    /// a conservative backlog signal; the application runner renders the current
+    /// state, skips any additional sleep, and resumes polling on the next loop.
+    public mutating func pollEvents(
+        budget: LunaInputPollingBudget = .interactive,
+        nowNanoseconds: () -> UInt64 = LunaMonotonicClock.nowNanoseconds
+    ) -> LunaPolledInputBatch {
+        let startedAt = nowNanoseconds()
         var translated: [LunaHostInputEvent] = []
+        translated.reserveCapacity(min(32, budget.maximumRawEventCount))
+        var rawEventCount = 0
+        var didReachEventLimit = false
+        var didReachTimeLimit = false
         var event = SDL_Event()
-        while SDL_PollEvent(&event) != 0 {
+
+        while true {
+            let now = nowNanoseconds()
+            let elapsed = now >= startedAt ? now - startedAt : 0
+            guard budget.permitsAnotherEvent(
+                afterProcessing: rawEventCount,
+                elapsedNanoseconds: elapsed
+            ) else {
+                didReachEventLimit = rawEventCount >= budget.maximumRawEventCount
+                didReachTimeLimit = elapsed >= budget.maximumPollingNanoseconds
+                break
+            }
+
+            guard SDL_PollEvent(&event) != 0 else { break }
+            rawEventCount += 1
             if let value = translate(event) {
                 translated.append(value)
             }
         }
-        return translated
+
+        let finishedAt = nowNanoseconds()
+        return LunaPolledInputBatch(
+            events: translated,
+            stats: LunaInputPollingStats(
+                rawEventCount: rawEventCount,
+                translatedEventCount: translated.count,
+                pollingNanoseconds: finishedAt >= startedAt ? finishedAt - startedAt : 0,
+                didReachEventLimit: didReachEventLimit,
+                didReachTimeLimit: didReachTimeLimit
+            )
+        )
+    }
+
+    /// Compatibility convenience for callers that intentionally want one
+    /// interactive-budget batch rather than an unbounded queue drain.
+    public mutating func pollEvents() -> [LunaHostInputEvent] {
+        pollEvents(budget: .interactive).events
     }
 
     /// Translate a single SDL event into a platform-neutral Luna event.
@@ -98,10 +143,20 @@ public struct LunaSDLInputTranslator {
 
         case SDL_KEYDOWN:
             guard let key = translateKey(event.key.keysym.sym) else { return nil }
+            let modifiers = translateModifiers(event.key.keysym.mod)
+
+            // Committed text comes from SDL_TEXTINPUT, not printable keycodes.
+            // Dropping plain printable key-down events avoids an otherwise
+            // meaningless barrier between adjacent text events, allowing the host
+            // coalescer to apply rapid typing as one ordered document transaction.
+            // Command-modified key events remain visible for shortcuts.
+            guard shouldForwardKeyboardEvent(key: key, modifiers: modifiers) else {
+                return nil
+            }
             return .keyboard(
                 LunaKeyboardEvent(
                     key: key,
-                    modifiers: translateModifiers(event.key.keysym.mod),
+                    modifiers: modifiers,
                     isRepeat: event.key.repeat != 0
                 )
             )
@@ -147,6 +202,24 @@ public struct LunaSDLInputTranslator {
             isPrecise: isPrecise,
             modifiers: modifiers
         )
+    }
+
+
+    func shouldForwardKeyboardEvent(
+        key: LunaKeyboardKey,
+        modifiers: LunaKeyboardModifiers
+    ) -> Bool {
+        let hasCommandModifier = modifiers.control || modifiers.command || modifiers.option
+        guard !hasCommandModifier else { return true }
+
+        switch key {
+        case .other(let value):
+            return value.count != 1
+        case .space:
+            return false
+        default:
+            return true
+        }
     }
 
     public func translateMouseButton(_ button: UInt8) -> LunaPointerButton {

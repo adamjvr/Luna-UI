@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint for Convergence C2.2 exact text geometry and scrolling after Moth M2.2B1 command convergence.
+This document is the working checkpoint for Convergence C2.3 input-to-pixel latency and Luna demo restoration after C2.2 exact text geometry and scrolling.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C2.2** on the paired Moth track. C2.2 replaces rounded-cell caret and hit-test geometry with immutable shaped-row insertion positions and completes the first normal vertical scrolling path from host wheel input through pane-local viewport requests and interactive scrollbar mechanics.
+Luna UI is through **Convergence C2.3** on the paired Moth track. C2.2 fixed exact text geometry and normal vertical scrolling; C2.3 bounds host event polling, coalesces adjacent committed text without crossing semantic barriers, records input-to-present latency, and restores the complete kitchen-sink visual demo as the default launch mode.
 
 The newest paired-application contracts are:
 
@@ -21,6 +21,7 @@ The newest paired-application contracts are:
 - Stabilization S1 Ubuntu CI, native-dependency verification, full SwiftPM build/test validation, and monthly GitHub Actions dependency maintenance;
 - M2.2B1 searchable disabled quick-panel items, preserving disabled presentation and accessibility metadata while allowing product-owned availability reasons;
 - Convergence C2.2 shaped-row geometry with UTF-8 insertion boundaries and 26.6 positions, exact soft-wrap/caret/selection/hit-test convergence, platform-neutral scroll events, SDL wheel and trackpad translation, precise-delta accumulation, scrollbar paging, and thumb dragging;
+- Convergence C2.3 frame-fair SDL input polling, plain-printable key deferral to committed text input, adjacent text-event coalescing, input-to-present timing, conservative backlog handling, and default kitchen-sink demo restoration with a 340-row scrolling corpus;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -57,7 +58,7 @@ The engine now has:
 - a product-neutral command runtime with dynamic command availability, checked/disabled/visible state, key binding matching, surface projection, handler execution against a mutable host, keyboard shortcut routing, and demo menu/palette/context/keymap dispatch through one command path;
 - a product-neutral file/project adapter boundary with file/project IDs, file descriptors, project tree snapshots, workspace state, sidebar projection helpers, open/save request/result contracts, dirty-document close policy, and an in-memory demo workspace adapter that opens and saves document buffers without baking real Moth filesystem policy into Luna;
 - a host-runtime frame pacing/invalidation foundation with `LunaFrameTimingSample`, `LunaFrameTimingStats`, `LunaInvalidationReason`, `LunaFrameInvalidationSet`, `LunaFrameRequest`, `LunaFramePacer`, `LunaRuntimeTick`, SDL vsync/delay cleanup, and demo status-bar diagnostics for frame timing and invalidation reasons;
-- a split demo harness with editor mode as the default Moth-like performance baseline, proof-gallery mode for earlier visual/stress proofs, pointer-motion coalescing at the host boundary, state-change-based pointer invalidation, quiet command logging by default, input coalescing diagnostics, and proof-era surfaces removed from the default hot path;
+- a three-mode demo harness with the complete kitchen-sink presentation as the default, explicit `--editor` performance mode, retained proof-gallery compatibility mode, pointer-motion and committed-text coalescing at the host boundary, bounded polling, state-change-based invalidation, quiet command logging by default, and input/latency diagnostics;
 - targeted tab/document close routing that keeps the command product-neutral while carrying a clicked/right-clicked target document through `LunaCommandContext`, reuses dirty-close policy for tab close buttons and tab context menus, and synchronizes document/workspace/shell state after closing a clean document;
 - repository-wide MPL-2.0 license migration with `LICENSE` updated to the Mozilla Public License 2.0, concise SPDX headers added to package/source/test/shim/module-map files, and project documentation aligned around the new license;
 - a Phase 5D local file I/O proof in the demo app, with `--open` launch paths, real UTF-8 reads, local saves/save-all, local files projected under a `Local Files` sidebar root, and filesystem errors surfaced as status messages while LunaUI remains product-neutral;
@@ -210,12 +211,14 @@ Luna does not yet have:
 Moth M3A — document sheets and real tabs
 ```
 
-C2.2 proves that production painting and editor geometry can consume one shaped
-row model without moving buffer or selection meaning into Luna. M3A now builds
-Moth-owned document sheets and projects them through Luna's existing tab mechanics.
-Visible Find/Replace remains the following product slice. Horizontal scrolling,
-full bidirectional layout, script segmentation, and multi-font fallback remain
-later text-system work.
+C2.3 closes the remaining rapid-input responsiveness gap without changing the
+C2.2 coordinate model. SDL polling is bounded by event count and elapsed time,
+committed text batches remain ordered around commands/navigation/pointer events,
+and presentation occurs before conservative backlog processing resumes. M3A now
+builds Moth-owned document sheets and projects them through Luna's existing tab
+mechanics. Visible Find/Replace remains the following product slice. Horizontal
+scrolling, full bidirectional layout, script segmentation, and multi-font fallback
+remain later text-system work.
 
 ---
 

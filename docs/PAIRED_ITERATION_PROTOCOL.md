@@ -144,3 +144,36 @@ Moth then adopts the exact Luna revision, routes scroll input to the pane beneat
 the pointer, preserves fractional deltas per view, paints the caret after glyphs,
 and validates the complete paired suite. M3A document sheets and real tabs are the
 next product slice; C2.2 does not claim multiple-document behavior.
+
+
+## C2.3 input-to-pixel latency and demo-restoration checkpoint
+
+C2.3 is Luna-first because event polling, committed-text coalescing, frame timing,
+and the kitchen-sink demo are reusable host/demo responsibilities.
+
+Luna acceptance:
+
+```bash
+swift build
+swift test --filter LunaHostPhase5C1Tests
+swift test --filter LunaHostSDLApplicationTests
+swift test --filter LunaUIPhase5CTests
+swift test
+./scripts/validate-iteration.sh
+git diff --check
+```
+
+Manual Luna acceptance uses both modes:
+
+```bash
+swift run LunaUITestApp
+swift run LunaUITestApp --editor
+```
+
+The first command must show the complete kitchen-sink presentation, long scroll
+corpus, diagnostics HUD, and animated square. The second must remain the lean
+input/render performance harness.
+
+After Luna is committed, Moth advances the gitlink and validates frame-fair text
+input, ordered batching, cache diagnostics, and the complete paired suite. M3A
+real document tabs remains the next product slice.

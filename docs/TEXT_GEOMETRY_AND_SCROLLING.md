@@ -70,3 +70,18 @@ C2.2 does not implement horizontal editor scrolling, the Unicode bidirectional
 algorithm, script segmentation, variable-font fallback chains, or multiple open
 documents. Those require later explicit phases rather than hidden extensions of
 this contract.
+
+
+## C2.3 latency follow-up
+
+C2.3 does not change the C2.2 shaped coordinate model. It changes how host input
+reaches that model under sustained load:
+
+- SDL polling stops after 96 raw events or approximately 2 ms by default;
+- presentation occurs before a conservative backlog is resumed;
+- plain printable key-down events defer to committed text input;
+- contiguous committed text events merge into one ordered host event;
+- every non-text semantic event is a hard merge barrier;
+- frame timing includes input-to-present latency;
+- products can inspect polling, merge, and backlog statistics without moving edit
+  or history policy into Luna.
