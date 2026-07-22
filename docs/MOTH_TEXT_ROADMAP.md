@@ -8,15 +8,20 @@ This split is the central design decision.
 
 ---
 
-## Current paired checkpoint — Convergence C2.1
+## Current paired checkpoint — M2.2B1 command convergence
 
-C2 history remains accepted. C2.1 corrects the production rendering path discovered during graphical validation:
+Stabilization S1 is accepted with 86 Moth tests. M2.2B1 adds:
 
-- Moth editor text, filenames, and status strings use Luna's shaped Unicode painter instead of the ASCII debug bitmap renderer;
-- accented and combining text is preserved visually as well as semantically;
-- dirty and active indicators are explicit Moth-owned geometry rather than Unicode bullet characters;
-- monospaced shaped advance is fed back into the existing text-view cell metrics;
-- Ctrl+N remains M2.2B scope, and real tabs/open-file rows remain M3 scope.
+- stable namespaced Moth command IDs;
+- one availability and execution route for keyboard, menus, command palette, and tests;
+- Ctrl/Cmd+N with Save / Don't Save / Cancel protection;
+- Open, Save, Save As, Undo, Redo, Select All, and pane traversal through one dispatcher;
+- real Luna menu interaction and a searchable Luna command palette;
+- disabled Find discovery with an explicit M2.2B2 reason;
+- 17 new Moth command regressions, for 103 expected Moth tests;
+- one Luna Phase 4A regression ensuring disabled quick-panel items remain searchable.
+
+Real tabs, multiple documents, and Open Files/project activation remain M3 scope.
 
 
 ## Product Definition
@@ -456,11 +461,14 @@ Luna Phase 5F.2A / Moth M2.2A — pane-bound independent editor views
 Convergence C1A — native cursor, forgiving divider, pointer capture
 Convergence C1B — reusable click/Shift-click/drag, word/line selection, autoscroll
 Convergence C2 — Moth document-owned Undo/Redo with Luna source frozen
+M2.2B1 — unified Moth commands plus searchable disabled Luna quick-panel items
 ```
 
 C2 separates monotonic buffer revisions from logical history states, adds deterministic transaction grouping, redo branching, multi-pane view restoration, bounded retained history, and exact saved checkpoints in Moth. Luna owns no production history or dirty-state policy.
 
-The next paired slice is Moth M2.2B command and visible-find convergence. Luna should change only when that work exposes a genuinely reusable command availability or presentation seam.
+M2.2B1 completes unified command authority and New File. The next paired slice is
+M2.2B2 visible Find/Replace convergence. Luna should change only when that work
+exposes a genuinely reusable find-panel or focus-management seam.
 
 
 ---

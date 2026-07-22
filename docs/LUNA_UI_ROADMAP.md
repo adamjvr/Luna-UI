@@ -1445,7 +1445,17 @@ C2.1 graphical-correction result:
 
 C2.1 intentionally does not claim complete bidirectional layout, script segmentation, or multi-font fallback. Those remain later LunaText work.
 
-No Luna production source API is added merely to mirror Moth's product model.
+M2.2B1 command-convergence result:
+
+- Moth consumes Luna's existing command runtime, menu bar, and quick panel;
+- Moth retains stable product command IDs, availability, file lifecycle, and editor policy;
+- filtered quick panels keep matching disabled items discoverable instead of silently removing them;
+- disabled metadata remains available to rendering and accessibility while the product reports the reason;
+- a focused Phase 4A regression protects the reusable behavior.
+
+No Luna production API is added merely to mirror Moth's product model. The small
+M2.2B1 source correction repairs generic quick-panel filtering rather than adding
+Moth-specific command meaning.
 
 ---
 
@@ -1503,10 +1513,13 @@ Goal:
 The next implementation target is:
 
 ```text
-C2.1 graphical validation, then Moth M2.2B command and visible-find convergence
+Moth M2.2B2 visible Find/Replace convergence, with Luna source demand-driven
 ```
 
-C2.1 is the narrow reusable exception revealed by graphical testing: Unicode text painting belongs in Luna, while dirty-state meaning and icons remain Moth-owned. After C2.1 passes, the next Luna work is again demand-driven by reusable M2.2B presentation or command seams.
+M2.2B1 is complete at the paired checkpoint. Luna supplies reusable command,
+menu, and quick-panel mechanics, including searchable disabled items; Moth owns
+command IDs, availability, document policy, and execution. The next Luna work is
+demand-driven by reusable Find/Replace presentation seams exposed by Moth.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 

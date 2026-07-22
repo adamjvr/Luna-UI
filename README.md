@@ -356,20 +356,43 @@ The current checkpoint has:
 - Convergence C1B reusable text-selection gesture interpretation implemented with click, Shift-click, captured drag, Unicode word/logical-line units, wrapped-row tracking, and edge autoscroll;
 - Convergence C2 completed with Moth-owned document history and saved checkpoints;
 - Convergence C2.1 adds the optional `LunaTextRender` product: HarfBuzz shaping, FreeType rasterization, glyph caching, monospaced editor metrics, visible missing-glyph fallback, and UTF-8 cluster placement for downstream framebuffer text;
+- M2.2B1 quick-panel convergence keeps matching disabled command items searchable while preserving disabled presentation and accessibility metadata;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Convergence C2.1 — Unicode text painting and visible-state correction
+Moth M2.2B1 — unified command authority and searchable disabled commands
 ```
 
-C2.1 responds to graphical validation of Moth C2. The former ASCII-only debug bitmap path remains available for diagnostics, while production editor text can now use `LunaTextRender` for shaped Unicode glyphs. Moth consumes that reusable painter without moving document, history, workspace, or product policy into Luna. The next product slice remains Moth M2.2B after C2.1 passes graphical validation.
+Stabilization S1 established clean-checkout CI and accepted 86 Moth tests. M2.2B1
+now reuses Luna's command runtime, menu bar, and quick panel for Moth-owned command
+IDs and policy. Integration exposed one reusable quick-panel defect: disabled items
+disappeared from filtered results. Luna keeps matching disabled items searchable
+while retaining their disabled metadata, allowing products to explain unavailable
+commands instead of hiding them. The next paired target is M2.2B2 visible
+Find/Replace convergence.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
 ---
+
+## Repository Validation
+
+Run the same build and test gate used by GitHub Actions:
+
+```bash
+./scripts/validate-iteration.sh
+```
+
+Run the focused M2.2B1 quick-panel regression suite with:
+
+```bash
+swift test --filter LunaUIPhase4ATests
+```
+
+The Ubuntu workflow installs SDL2, HarfBuzz, FreeType, DejaVu Mono, and `pkg-config`, then builds every test product and runs the complete suite from a clean checkout.
 
 ## Phase Test Commands
 

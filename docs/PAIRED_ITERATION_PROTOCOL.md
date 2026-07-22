@@ -32,7 +32,7 @@ After editing:
 ./scripts/validate-iteration.sh
 ```
 
-The Luna commit must be created and pushed before Moth updates its submodule pointer.
+The Luna commit must be created and pushed before Moth updates its submodule pointer. The Luna GitHub Actions `CI / Ubuntu SwiftPM validation` job must pass before that commit is treated as consumable by Moth.
 
 ## Moth Consumption
 
@@ -69,6 +69,10 @@ Use:
 
 The packaging script rejects tracked changes below `Dependencies/Luna-UI` and excludes the entire dependency directory from the archive.
 
+## Continuous Integration Gate
+
+Both repositories carry Ubuntu workflows that reproduce their permanent validation scripts from clean checkouts. Moth checkout must initialize the recorded Luna submodule recursively and verify that its checkout exactly matches the committed gitlink. After the first green runs, protect `main` and require the named CI checks.
+
 ## Validation Before Moth Commit
 
 ```bash
@@ -98,3 +102,22 @@ Do not commit the paired Moth change when:
 - Moth build or tests fail;
 - a generated Moth overlay contains `Dependencies/Luna-UI`;
 - implementation code crosses the Luna/Moth ownership boundary merely to avoid a proper API.
+
+## M2.2B1 Command Convergence
+
+M2.2B1 primarily composes existing Luna command, menu, and quick-panel APIs with
+Moth-owned command IDs and product policy. Integration exposed one reusable Luna
+filtering defect: disabled quick-panel items vanished from nonempty searches.
+Luna corrects that behavior and adds a focused Phase 4A regression before Moth
+advances its submodule.
+
+Acceptance order:
+
+1. run Luna's complete build and test gate;
+2. manually exercise LunaUITestApp menus, command palette, New File, and dirty-close paths;
+3. commit and push Luna;
+4. advance the Moth submodule;
+5. run focused Moth command tests and complete paired validation;
+6. graphically verify keyboard, menu, and palette equivalence in Moth.
+
+The next paired slice is M2.2B2 visible Find/Replace convergence.

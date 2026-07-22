@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after Convergence C2.1.
+This document is the working checkpoint for Moth M2.2B1 command convergence after Stabilization S1 repository validation.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C2.1** on the paired Moth track. C2.1 adds a reusable shaped Unicode framebuffer painter after graphical validation exposed that the earlier ASCII diagnostic renderer was still being used for production Moth text.
+Luna UI is through **M2.2B1 command convergence** on the paired Moth track. Stabilization S1 established clean-checkout Ubuntu CI, and M2.2B1 reuses Luna commands, menus, and quick panels while adding one reusable disabled-item filtering correction.
 
 The newest paired-application contracts are:
 
@@ -18,6 +18,8 @@ The newest paired-application contracts are:
 - Convergence C1B reusable text-selection interaction state for click/Shift-click/drag, Unicode-aware word/logical-line ranges, captured gesture cancellation, wrapped-row tracking, and edge autoscroll;
 - Convergence C2 boundary validation: Moth implements document-owned history, grouping, inverse replay, multi-view restoration, and saved checkpoints;
 - Convergence C2.1 `LunaTextRender`: HarfBuzz UTF-8 shaping, FreeType glyph masks, cached CPU framebuffer painting, explicit missing-glyph boxes, monospaced font discovery, and cluster/advance data for editor geometry;
+- Stabilization S1 Ubuntu CI, native-dependency verification, full SwiftPM build/test validation, and monthly GitHub Actions dependency maintenance;
+- M2.2B1 searchable disabled quick-panel items, preserving disabled presentation and accessibility metadata while allowing product-owned availability reasons;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -177,6 +179,11 @@ The blue highlight is now visible for real user text selection, focused fields, 
 - Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close: complete.
 - Phase 5D.3.1 — Proof Gallery Animation Pacing: complete.
 - Phase 5D.3.2 — Proof Gallery Static Frame Cache: complete.
+- Convergence C1A/C1B — Pointer, cursor, divider, and selection convergence: complete.
+- Convergence C2 — Moth-owned history boundary validation: complete.
+- Convergence C2.1 — Shaped Unicode framebuffer rendering: complete and graphically validated.
+- Stabilization S1 — Ubuntu CI and reproducible repository validation: complete.
+- M2.2B1 — Searchable disabled quick-panel command presentation: implemented in this revision.
 
 ---
 
@@ -199,10 +206,15 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Convergence C2.1 graphical validation, then Moth M2.2B
+Moth M2.2B2 — visible Find/Replace convergence
 ```
 
-C2.1 must first prove that accented Latin text, combining marks, Greek, Cyrillic, filenames, status messages, and missing glyphs paint visibly in Moth while caret/selection/wrapping retain one monospaced coordinate system. Full bidirectional layout and multi-font fallback remain later text-system work. After C2.1 passes, broad Luna expansion pauses again and Moth proceeds to M2.2B.
+M2.2B1 proves that Luna's existing command runtime, menu bar, and quick panel are
+sufficient for Moth-owned command IDs, availability, and execution. Luna's only
+production correction keeps matching disabled quick-panel commands searchable.
+Further Luna work remains demand-driven by reusable Find/Replace presentation
+seams. Full bidirectional layout and multi-font fallback remain later text-system
+work.
 
 ---
 

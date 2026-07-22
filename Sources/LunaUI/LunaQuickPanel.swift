@@ -80,19 +80,23 @@ public enum LunaQuickPanelFilter {
             .map(String.init)
 
         return items.enumerated().compactMap { index, item in
-            guard item.isEnabled else {
-                if tokens.isEmpty { return LunaQuickPanelMatch(item: item, originalIndex: index, score: -10_000 - index) }
-                return nil
-            }
-
             let title = item.title.lowercased()
             let subtitle = (item.subtitle ?? "").lowercased()
             let command = (item.command?.rawValue ?? "").lowercased()
             let haystack = "\(title) \(subtitle) \(command)"
 
             guard tokens.allSatisfy({ haystack.contains($0) }) else { return nil }
+
+            // Disabled commands remain searchable so command palettes can explain
+            // why an operation is unavailable instead of making it disappear.
+            // Availability is ordered separately from relevance below, ensuring
+            // enabled matches always lead without distorting the match score.
             guard !tokens.isEmpty else {
-                return LunaQuickPanelMatch(item: item, originalIndex: index, score: 10_000 - index)
+                return LunaQuickPanelMatch(
+                    item: item,
+                    originalIndex: index,
+                    score: 10_000 - index
+                )
             }
 
             var score = 0
@@ -108,6 +112,9 @@ public enum LunaQuickPanelFilter {
             return LunaQuickPanelMatch(item: item, originalIndex: index, score: score)
         }
         .sorted { lhs, rhs in
+            if lhs.item.isEnabled != rhs.item.isEnabled {
+                return lhs.item.isEnabled
+            }
             if lhs.score != rhs.score { return lhs.score > rhs.score }
             return lhs.originalIndex < rhs.originalIndex
         }

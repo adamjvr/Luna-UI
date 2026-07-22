@@ -33,6 +33,36 @@ struct LunaUIPhase4ATests {
         #expect(LunaQuickPanelFilter.matches(items: items(), query: "sidebar").map(\.item.title) == ["Toggle Sidebar"])
     }
 
+    @Test("disabled items remain searchable and report their command")
+    func disabledItemsRemainSearchable() {
+        let disabled = LunaQuickPanelItem(
+            id: "cmd.find",
+            title: "Find",
+            subtitle: "Unavailable in this context",
+            command: "app.find",
+            isEnabled: false
+        )
+        let enabled = LunaQuickPanelItem(
+            id: "cmd.find-in-files",
+            title: "Find in Files",
+            command: "app.findInFiles"
+        )
+        var state = LunaQuickPanelState(
+            items: items() + [disabled, enabled],
+            query: "find"
+        )
+
+        #expect(state.matches.map(\.item.title) == ["Find in Files", "Find"])
+        state.selectedIndex = 1
+        #expect(state.selectedMatch?.item.isEnabled == false)
+
+        let result = state.handleKeyboardEvent(LunaKeyboardEvent(key: .enter))
+        #expect(result.didConsumeEvent)
+        #expect(result.didDismiss)
+        #expect(result.requestedCommand == "app.find")
+        #expect(result.selectedItem?.isEnabled == false)
+    }
+
     @Test("state text input updates query and resets selection")
     func stateTextInput() {
         var state = LunaQuickPanelState(items: items(), selectedIndex: 2)
