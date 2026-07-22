@@ -120,4 +120,27 @@ Acceptance order:
 5. run focused Moth command tests and complete paired validation;
 6. graphically verify keyboard, menu, and palette equivalence in Moth.
 
-The next paired slice is M2.2B2 visible Find/Replace convergence.
+That originally identified M2.2B2 as next; post-M2.2B1 graphical validation inserted C2.2 before feature expansion.
+
+
+## C2.2 exact geometry and scrolling checkpoint
+
+C2.2 is a Luna-first reusable correction. Commit and validate Luna's shaped-row
+insertion geometry, platform-neutral scroll event, SDL wheel translation, and
+static-text scrollbar interaction before Moth advances its gitlink.
+
+Acceptance requires:
+
+1. `swift test --filter LunaTextRenderTests`;
+2. `swift test --filter LunaUIPhase5F2ATests`;
+3. `swift test --filter LunaHostSDLApplicationTests` on Linux;
+4. the complete `./scripts/validate-iteration.sh` gate;
+5. graphical proof that a long rapidly typed line keeps the caret at the exact
+   rendered insertion point;
+6. wheel/trackpad scrolling, lane paging, and thumb dragging without cross-pane
+   viewport mutation.
+
+Moth then adopts the exact Luna revision, routes scroll input to the pane beneath
+the pointer, preserves fractional deltas per view, paints the caret after glyphs,
+and validates the complete paired suite. M3A document sheets and real tabs are the
+next product slice; C2.2 does not claim multiple-document behavior.

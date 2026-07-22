@@ -963,3 +963,32 @@ button hover/press states work
 18. Resize window wide/narrow.
 19. Confirm header/editor/proof panel/status remain readable.
 ```
+
+
+## Convergence C2.2 geometry and scrolling regression
+
+Run the focused automated suites before the graphical pass:
+
+```bash
+swift test --filter LunaTextRenderTests
+swift test --filter LunaUIPhase5F2ATests
+swift test --filter LunaHostSDLApplicationTests
+```
+
+Then launch the default editor harness:
+
+```bash
+swift run LunaUITestApp
+```
+
+Verify:
+
+- type or paste a long line quickly; the caret stays at the exact rendered end and does not drift by accumulating rounded cell widths;
+- click insertion boundaries along the line; hit testing and the caret agree with the painted glyph run;
+- selection rectangles begin and end at the same shaped insertion positions;
+- soft wrapping uses shaped row width and remains stable after window resize;
+- the mouse wheel scrolls the text surface vertically;
+- precise touchpad deltas accumulate smoothly instead of being promoted to three-row wheel notches;
+- clicking above or below the scrollbar thumb pages the viewport;
+- dragging the scrollbar thumb captures the pointer, clamps at both ends, and releases on mouse-up or capture loss;
+- C2.2 does not add horizontal editor scrolling, bidi layout, font fallback chains, or product document tabs.

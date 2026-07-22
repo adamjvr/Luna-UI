@@ -79,6 +79,23 @@ public struct LunaSDLInputTranslator {
                 )
             )
 
+        case SDL_MOUSEWHEEL:
+            var mouseX: Int32 = 0
+            var mouseY: Int32 = 0
+            _ = SDL_GetMouseState(&mouseX, &mouseY)
+
+            return .scroll(
+                translateScrollWheel(
+                    integerX: Int(event.wheel.x),
+                    integerY: Int(event.wheel.y),
+                    preciseX: Double(event.wheel.preciseX),
+                    preciseY: Double(event.wheel.preciseY),
+                    isFlipped: event.wheel.direction == UInt32(SDL_MOUSEWHEEL_FLIPPED.rawValue),
+                    location: LunaPointI(x: Int(mouseX), y: Int(mouseY)),
+                    modifiers: translateCurrentModifiers()
+                )
+            )
+
         case SDL_KEYDOWN:
             guard let key = translateKey(event.key.keysym.sym) else { return nil }
             return .keyboard(
@@ -97,6 +114,39 @@ public struct LunaSDLInputTranslator {
         default:
             return nil
         }
+    }
+
+
+    /// Normalize SDL's wheel convention into Luna's document-scroll convention.
+    ///
+    /// SDL reports positive Y for a physical wheel movement away from the user,
+    /// while Luna defines positive Y as movement toward later document rows. The
+    /// host owns that sign conversion and preserves fractional trackpad deltas.
+    func translateScrollWheel(
+        integerX: Int,
+        integerY: Int,
+        preciseX: Double,
+        preciseY: Double,
+        isFlipped: Bool,
+        location: LunaPointI,
+        modifiers: LunaKeyboardModifiers = .none
+    ) -> LunaScrollEvent {
+        let direction: Double = isFlipped ? -1 : 1
+        let rawX = preciseX == 0 ? Double(integerX) : preciseX
+        let rawY = preciseY == 0 ? Double(integerY) : preciseY
+        let isPrecise = rawX != Double(integerX)
+            || rawY != Double(integerY)
+            || rawX.rounded(.towardZero) != rawX
+            || rawY.rounded(.towardZero) != rawY
+
+        return LunaScrollEvent(
+            location: location,
+            deltaX: -rawX * direction,
+            deltaY: -rawY * direction,
+            phase: .changed,
+            isPrecise: isPrecise,
+            modifiers: modifiers
+        )
     }
 
     public func translateMouseButton(_ button: UInt8) -> LunaPointerButton {

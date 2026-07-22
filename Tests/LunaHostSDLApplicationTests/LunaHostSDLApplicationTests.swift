@@ -4,7 +4,7 @@
 import XCTest
 import LunaCore
 import LunaHostCore
-import LunaHostSDL
+@testable import LunaHostSDL
 import LunaInput
 import LunaRender
 
@@ -35,6 +35,46 @@ final class LunaHostSDLApplicationTests: XCTestCase {
         XCTAssertEqual(configuration.initialHeight, 1)
         XCTAssertEqual(configuration.targetFramesPerSecond, 1)
         XCTAssertFalse(configuration.usesVSync)
+    }
+
+
+    func testScrollWheelTranslationPreservesPrecisionAndDirection() {
+        let translator = LunaSDLInputTranslator()
+        let location = LunaPointI(x: 40, y: 60)
+
+        let conventional = translator.translateScrollWheel(
+            integerX: 0,
+            integerY: -1,
+            preciseX: 0,
+            preciseY: 0,
+            isFlipped: false,
+            location: location
+        )
+        XCTAssertEqual(conventional.location, location)
+        XCTAssertEqual(conventional.deltaY, 1)
+        XCTAssertFalse(conventional.isPrecise)
+
+        let precise = translator.translateScrollWheel(
+            integerX: 0,
+            integerY: 0,
+            preciseX: 0.25,
+            preciseY: -0.375,
+            isFlipped: false,
+            location: location
+        )
+        XCTAssertEqual(precise.deltaX, -0.25, accuracy: 0.0001)
+        XCTAssertEqual(precise.deltaY, 0.375, accuracy: 0.0001)
+        XCTAssertTrue(precise.isPrecise)
+
+        let flipped = translator.translateScrollWheel(
+            integerX: 0,
+            integerY: -1,
+            preciseX: 0,
+            preciseY: 0,
+            isFlipped: true,
+            location: location
+        )
+        XCTAssertEqual(flipped.deltaY, -1)
     }
 
     func testSceneDefaultsToInvalidationDrivenRenderingAndAllowsTermination() {

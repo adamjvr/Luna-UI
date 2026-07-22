@@ -169,10 +169,10 @@ public struct LunaStaticTextVisibleLineRange: Hashable, Sendable {
 
 /// Scroll state for the static/read-only text viewport.
 ///
-/// Phase 3C deliberately introduced logical-line scrolling first. Soft-wrapped
-/// surfaces may now layer an optional visual-row position on the text view while
-/// this value remains the stable document-level fallback. Pixel-fractional and
-/// horizontal scrolling remain later work.
+/// Phase 3C introduced logical-line scrolling first. Soft-wrapped surfaces layer
+/// an optional visual-row position while this value remains the stable document-
+/// level fallback. C2.2 adds product-neutral wheel/scrollbar requests and lets
+/// products retain precise fractional deltas; horizontal scrolling remains later.
 public struct LunaStaticTextScrollState: Hashable, Sendable {
     public var scrollTopLine: Int
 
@@ -416,6 +416,7 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
     public var textBounds: LunaRectI
     public var rowBounds: LunaRectI
     public var visualText: LunaBoundedTextLine
+    public var rowGeometry: LunaStaticTextRowGeometry
     public var isCurrentLine: Bool
 
     /// Zero-based visual continuation index within the logical line.
@@ -433,6 +434,7 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
         textBounds: LunaRectI,
         rowBounds: LunaRectI,
         visualText: LunaBoundedTextLine,
+        rowGeometry: LunaStaticTextRowGeometry,
         isCurrentLine: Bool,
         wrappedSegmentIndex: Int = 0,
         startUTF8Column: Int = 0,
@@ -445,6 +447,7 @@ public struct LunaStaticTextVisibleLine: Hashable, Sendable {
         self.textBounds = textBounds
         self.rowBounds = rowBounds
         self.visualText = visualText
+        self.rowGeometry = rowGeometry
         self.isCurrentLine = isCurrentLine
         self.wrappedSegmentIndex = max(0, wrappedSegmentIndex)
         self.startUTF8Column = min(max(0, startUTF8Column), line.utf8Length)
@@ -482,8 +485,9 @@ public struct LunaStaticTextViewLayout: Hashable, Sendable {
     public var maxScrollTopLine: Int
     public var visibleTextRange: LunaAccessibilityTextRange
 
-    /// Phase 3C scrollbar/minimap-lane placeholder geometry. The thumb is nil
-    /// when the complete document fits inside the viewport.
+    /// Scrollbar lane and thumb geometry. The thumb is nil when the complete
+    /// document fits inside the viewport; C2.2 interaction helpers consume these
+    /// exact bounds for lane paging and captured thumb dragging.
     public var scrollbarLaneBounds: LunaRectI
     public var scrollbarThumbBounds: LunaRectI?
 
@@ -566,6 +570,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     public var theme: LunaTheme
     public var metrics: LunaStaticTextViewMetrics
     public var wrapMode: LunaStaticTextWrapMode
+
+    /// Optional production text geometry. When absent, Luna derives fixed-cell
+    /// insertion positions from `metrics.glyphMetrics.advance`.
+    public var geometryProvider: (any LunaStaticTextGeometryProvider)?
+
     public var isFocused: Bool
 
     /// Whether the backing text model currently accepts edits.
@@ -590,6 +599,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         theme: LunaTheme = .lunaDefaultDark,
         metrics: LunaStaticTextViewMetrics = .demo,
         wrapMode: LunaStaticTextWrapMode = .none,
+        geometryProvider: (any LunaStaticTextGeometryProvider)? = nil,
         isFocused: Bool = false,
         isEditable: Bool = false,
         caret: LunaStaticTextCaret? = nil,
@@ -605,6 +615,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         self.theme = theme
         self.metrics = metrics
         self.wrapMode = wrapMode
+        self.geometryProvider = geometryProvider
         self.isFocused = isFocused
         self.isEditable = isEditable
         self.caret = caret.map { LunaStaticTextCaret(location: document.clampedLocation($0.location)) }
@@ -631,6 +642,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         var line: LunaStaticTextLine
         var wrappedSegmentIndex: Int
         var text: String
+        var geometry: LunaStaticTextRowGeometry
         var startUTF8Column: Int
         var endUTF8Column: Int
     }
@@ -751,7 +763,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             switch wrapMode {
             case .none:
                 visualText = LunaBoundedTextLayout.layout(
-                    segment.text,
+                    segment.geometry.renderedText,
                     in: textBounds,
                     metrics: metrics.glyphMetrics,
                     overflow: .ellipsizeTail
@@ -763,7 +775,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                 )
             case .soft:
                 visualText = LunaBoundedTextLine(
-                    text: segment.text,
+                    text: segment.geometry.renderedText,
                     fullText: segment.line.text,
                     bounds: textBounds,
                     isClipped: false
@@ -782,6 +794,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
                     textBounds: textBounds,
                     rowBounds: rowBounds,
                     visualText: visualText,
+                    rowGeometry: segment.geometry,
                     isCurrentLine: effectiveCurrentLineIndex == segment.line.index,
                     wrappedSegmentIndex: segment.wrappedSegmentIndex,
                     startUTF8Column: segment.startUTF8Column,
@@ -828,93 +841,145 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     }
 
     private func visualSegments(textViewportWidth: Int) -> [VisualSegment] {
-        let capacity = max(1, metrics.glyphMetrics.characterCapacity(width: max(0, textViewportWidth)))
-        return document.lines.flatMap { line -> [VisualSegment] in
+        document.lines.flatMap { line -> [VisualSegment] in
             switch wrapMode {
             case .none:
+                let geometry = rowGeometry(
+                    for: line.text,
+                    utf8Range: 0..<line.utf8Length
+                )
                 return [VisualSegment(
                     line: line,
                     wrappedSegmentIndex: 0,
                     text: line.text,
+                    geometry: geometry,
                     startUTF8Column: 0,
                     endUTF8Column: line.utf8Length
                 )]
             case .soft:
-                return Self.softWrappedSegments(for: line, maxCharactersPerRow: capacity)
+                return softWrappedSegments(for: line, maximumWidth: max(0, textViewportWidth))
             }
         }
     }
 
-    private static func softWrappedSegments(
+    private func rowGeometry(
+        for completeLineText: String,
+        utf8Range: Range<Int>
+    ) -> LunaStaticTextRowGeometry {
+        let request = LunaStaticTextGeometryRequest(
+            completeLineText: completeLineText,
+            utf8Range: utf8Range
+        )
+        return geometryProvider?.geometry(for: request)
+            ?? LunaStaticTextRowGeometry.fixedAdvance(
+                sourceText: request.sourceText,
+                advance: metrics.glyphMetrics.advance
+            )
+    }
+
+    private func softWrappedSegments(
         for line: LunaStaticTextLine,
-        maxCharactersPerRow: Int
+        maximumWidth: Int
     ) -> [VisualSegment] {
-        let capacity = max(1, maxCharactersPerRow)
         guard !line.text.isEmpty else {
+            let geometry = rowGeometry(for: "", utf8Range: 0..<0)
             return [VisualSegment(
                 line: line,
                 wrappedSegmentIndex: 0,
                 text: "",
+                geometry: geometry,
                 startUTF8Column: 0,
                 endUTF8Column: 0
             )]
         }
 
-        struct CharacterSpan {
-            var character: Character
-            var startUTF8Column: Int
-            var endUTF8Column: Int
-        }
-
-        var spans: [CharacterSpan] = []
-        spans.reserveCapacity(line.text.count)
-        var utf8Column = 0
-        for character in line.text {
-            let length = String(character).utf8.count
-            spans.append(CharacterSpan(
-                character: character,
-                startUTF8Column: utf8Column,
-                endUTF8Column: utf8Column + length
-            ))
-            utf8Column += length
-        }
-
+        let width = max(1, maximumWidth)
         var result: [VisualSegment] = []
-        var cursor = 0
+        var startColumn = 0
         var segmentIndex = 0
 
-        while cursor < spans.count {
-            let hardEnd = min(spans.count, cursor + capacity)
-            var end = hardEnd
+        while startColumn < line.utf8Length {
+            let remainingText = Self.substring(
+                line.text,
+                utf8Range: startColumn..<line.utf8Length
+            )
+            let remainingGeometry = rowGeometry(
+                for: line.text,
+                utf8Range: startColumn..<line.utf8Length
+            )
+            var localEnd = remainingGeometry.farthestUTF8Offset(fittingWidth: width)
 
-            if hardEnd < spans.count {
-                // Prefer the final whitespace that still fits. Keeping the
-                // whitespace in the preceding visual row preserves exact UTF-8
-                // coordinate coverage for hit testing and selection geometry.
-                if let breakIndex = (cursor..<hardEnd).reversed().first(where: {
-                    spans[$0].character == " " || spans[$0].character == "\t"
-                }), breakIndex > cursor {
-                    end = breakIndex + 1
-                }
+            if localEnd <= 0 {
+                localEnd = Self.firstGraphemeEndUTF8Offset(in: remainingText)
+            }
+            localEnd = min(max(1, localEnd), remainingText.utf8.count)
+
+            if localEnd < remainingText.utf8.count,
+               let whitespaceEnd = Self.preferredWhitespaceBreak(
+                    in: remainingText,
+                    fittingUTF8Length: localEnd
+               ) {
+                localEnd = whitespaceEnd
             }
 
-            let slice = spans[cursor..<end]
-            let text = String(slice.map(\.character))
-            let startColumn = slice.first?.startUTF8Column ?? 0
-            let endColumn = slice.last?.endUTF8Column ?? startColumn
-            result.append(VisualSegment(
-                line: line,
-                wrappedSegmentIndex: segmentIndex,
-                text: text,
-                startUTF8Column: startColumn,
-                endUTF8Column: endColumn
-            ))
+            let segmentText = Self.substring(remainingText, utf8Range: 0..<localEnd)
+            let endColumn = min(line.utf8Length, startColumn + localEnd)
+            let geometry = localEnd == remainingText.utf8.count
+                ? remainingGeometry
+                : rowGeometry(
+                    for: line.text,
+                    utf8Range: startColumn..<endColumn
+                )
+            result.append(
+                VisualSegment(
+                    line: line,
+                    wrappedSegmentIndex: segmentIndex,
+                    text: segmentText,
+                    geometry: geometry,
+                    startUTF8Column: startColumn,
+                    endUTF8Column: endColumn
+                )
+            )
 
-            cursor = end
+            startColumn = endColumn
             segmentIndex += 1
         }
 
         return result
+    }
+
+    private static func firstGraphemeEndUTF8Offset(in text: String) -> Int {
+        guard let character = text.first else { return 0 }
+        return String(character).utf8.count
+    }
+
+    private static func preferredWhitespaceBreak(
+        in text: String,
+        fittingUTF8Length: Int
+    ) -> Int? {
+        var utf8Offset = 0
+        var candidate: Int?
+        for character in text {
+            let next = utf8Offset + String(character).utf8.count
+            guard next <= fittingUTF8Length else { break }
+            if character == " " || character == "\t" {
+                candidate = next
+            }
+            utf8Offset = next
+        }
+        guard let candidate, candidate > 0 else { return nil }
+        return candidate
+    }
+
+    private static func substring(_ text: String, utf8Range: Range<Int>) -> String {
+        let lower = min(max(0, utf8Range.lowerBound), text.utf8.count)
+        let upper = min(max(lower, utf8Range.upperBound), text.utf8.count)
+        let utf8Start = text.utf8.index(text.utf8.startIndex, offsetBy: lower)
+        let utf8End = text.utf8.index(text.utf8.startIndex, offsetBy: upper)
+        guard let start = String.Index(utf8Start, within: text),
+              let end = String.Index(utf8End, within: text)
+        else { return "" }
+        return String(text[start..<end])
     }
 
     private static func scrollbarThumbBounds(
@@ -1120,12 +1185,10 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
             column = visible.startUTF8Column
         } else {
             let relativeX = max(0, point.x - visible.textBounds.x)
-            let nearestVisualOffset = (relativeX + metrics.glyphMetrics.advance / 2) / metrics.glyphMetrics.advance
-            column = Self.utf8Column(
-                forVisualCharacterOffset: nearestVisualOffset,
-                segmentText: visible.visualText.text,
-                segmentStartUTF8Column: visible.startUTF8Column,
-                segmentEndUTF8Column: visible.endUTF8Column
+            let localColumn = visible.rowGeometry.closestUTF8Offset(toX: relativeX)
+            column = min(
+                visible.endUTF8Column,
+                visible.startUTF8Column + localColumn
             )
         }
 
@@ -1140,52 +1203,15 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     }
 
     private func clampedTextX(forUTF8Column column: Int, in visible: LunaStaticTextVisibleLine) -> Int {
-        let visualCharacterOffset = Self.visualCharacterOffset(
-            forUTF8Column: column,
-            segmentText: visible.visualText.text,
-            segmentStartUTF8Column: visible.startUTF8Column,
-            segmentEndUTF8Column: visible.endUTF8Column
+        let localColumn = min(
+            max(0, column - visible.startUTF8Column),
+            visible.rowGeometry.sourceText.utf8.count
         )
-        let unclipped = visible.textBounds.x + visualCharacterOffset * metrics.glyphMetrics.advance
-        return max(visible.textBounds.x, min(visible.textBounds.x + visible.textBounds.w, unclipped))
-    }
-
-    /// Translate a UTF-8 document coordinate into a monospaced visual insertion
-    /// offset without treating the bytes of a multibyte scalar as extra glyphs.
-    private static func visualCharacterOffset(
-        forUTF8Column column: Int,
-        segmentText: String,
-        segmentStartUTF8Column: Int,
-        segmentEndUTF8Column: Int
-    ) -> Int {
-        let target = min(max(segmentStartUTF8Column, column), segmentEndUTF8Column)
-        var utf8Column = segmentStartUTF8Column
-        var visualOffset = 0
-        for character in segmentText {
-            let next = utf8Column + String(character).utf8.count
-            if target < next { break }
-            utf8Column = next
-            visualOffset += 1
-        }
-        return visualOffset
-    }
-
-    /// Translate a visual insertion offset back to an exact UTF-8 boundary.
-    private static func utf8Column(
-        forVisualCharacterOffset requestedOffset: Int,
-        segmentText: String,
-        segmentStartUTF8Column: Int,
-        segmentEndUTF8Column: Int
-    ) -> Int {
-        let targetOffset = min(max(0, requestedOffset), segmentText.count)
-        var utf8Column = segmentStartUTF8Column
-        var visualOffset = 0
-        for character in segmentText {
-            guard visualOffset < targetOffset else { break }
-            utf8Column += String(character).utf8.count
-            visualOffset += 1
-        }
-        return min(utf8Column, segmentEndUTF8Column)
+        let unclipped = visible.textBounds.x + visible.rowGeometry.x(forUTF8Offset: localColumn)
+        return max(
+            visible.textBounds.x,
+            min(visible.textBounds.x + visible.textBounds.w, unclipped)
+        )
     }
 
     public func buildDisplayList(into displayList: inout LunaDisplayList) {

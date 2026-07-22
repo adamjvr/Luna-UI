@@ -12,7 +12,7 @@ import LunaText
 import LunaTextCore
 
 /// One shaped glyph positioned relative to a text-run origin and baseline.
-public struct LunaUnicodeGlyphPlacement: Sendable {
+public struct LunaUnicodeGlyphPlacement: Hashable, Sendable {
     public let glyphID: UInt32
     public let clusterUTF8Offset: Int
     public let penX26Dot6: Int32
@@ -40,59 +40,274 @@ public struct LunaUnicodeGlyphPlacement: Sendable {
     }
 }
 
+/// One stable insertion boundary in a shaped UTF-8 run.
+///
+/// Offsets remain UTF-8 byte offsets so downstream editor surfaces can use the
+/// same coordinate space as their source buffers. Horizontal positions retain
+/// HarfBuzz 26.6 precision until the final framebuffer rectangle is produced.
+public struct LunaUnicodeTextInsertionPosition: Hashable, Sendable {
+    public let utf8Offset: Int
+    public let x26Dot6: Int32
+
+    public init(utf8Offset: Int, x26Dot6: Int32) {
+        self.utf8Offset = max(0, utf8Offset)
+        self.x26Dot6 = x26Dot6
+    }
+}
+
 /// Immutable result of shaping one single-direction UTF-8 run.
-public struct LunaUnicodeTextLayout: Sendable {
+public struct LunaUnicodeTextLayout: Hashable, Sendable {
     public let text: String
     public let direction: LunaTextCore.LunaTextDirection
     public let glyphs: [LunaUnicodeGlyphPlacement]
+    public let insertionPositions: [LunaUnicodeTextInsertionPosition]
     public let advance26Dot6: Int32
 
     public init(
         text: String,
         direction: LunaTextCore.LunaTextDirection,
         glyphs: [LunaUnicodeGlyphPlacement],
+        insertionPositions: [LunaUnicodeTextInsertionPosition]? = nil,
         advance26Dot6: Int32
     ) {
         self.text = text
         self.direction = direction
         self.glyphs = glyphs
         self.advance26Dot6 = advance26Dot6
+        self.insertionPositions = insertionPositions
+            ?? Self.makeInsertionPositions(
+                text: text,
+                direction: direction,
+                glyphs: glyphs,
+                advance26Dot6: advance26Dot6
+            )
     }
 
     public var advancePixels: Int {
         Self.ceil26Dot6(advance26Dot6)
     }
 
-    /// Return the closest UTF-8 cluster boundary for a horizontal run position.
-    /// This is the bridge later text-view geometry can use for shaped hit testing.
-    public func closestClusterUTF8Offset(toX x: Int) -> Int {
-        guard !glyphs.isEmpty else { return 0 }
-        let target = Int32(max(0, x) * 64)
-        var bestOffset = glyphs[0].clusterUTF8Offset
-        var bestDistance = Int64.max
-        for glyph in glyphs {
-            let center = glyph.penX26Dot6 + glyph.xAdvance26Dot6 / 2
-            let distance = abs(Int64(center) - Int64(target))
-            if distance < bestDistance {
-                bestDistance = distance
-                bestOffset = glyph.clusterUTF8Offset
+    /// Return the shaped horizontal insertion position for a UTF-8 boundary.
+    /// Arbitrary offsets inside a grapheme cluster resolve to the preceding
+    /// stable insertion boundary.
+    public func insertionX26Dot6(forUTF8Offset requestedOffset: Int) -> Int32 {
+        guard !insertionPositions.isEmpty else { return 0 }
+        let target = min(max(0, requestedOffset), text.utf8.count)
+        var low = 0
+        var high = insertionPositions.count
+        while low < high {
+            let mid = (low + high) / 2
+            if insertionPositions[mid].utf8Offset <= target {
+                low = mid + 1
+            } else {
+                high = mid
             }
         }
-        if target >= advance26Dot6 { return text.utf8.count }
-        return bestOffset
+        return insertionPositions[max(0, low - 1)].x26Dot6
+    }
+
+    public func insertionX(forUTF8Offset offset: Int) -> Int {
+        Self.round26Dot6(insertionX26Dot6(forUTF8Offset: offset))
+    }
+
+    /// Return the closest stable UTF-8 insertion boundary for a horizontal run
+    /// position. Midpoints between adjacent insertion positions determine which
+    /// side owns a pointer coordinate.
+    public func closestInsertionUTF8Offset(toX26Dot6 requestedX: Int32) -> Int {
+        guard let first = insertionPositions.first else { return 0 }
+        guard insertionPositions.count > 1 else { return first.utf8Offset }
+
+        let x = min(max(0, requestedX), max(0, advance26Dot6))
+        for index in 0..<(insertionPositions.count - 1) {
+            let current = insertionPositions[index]
+            let next = insertionPositions[index + 1]
+            let midpoint = current.x26Dot6 + (next.x26Dot6 - current.x26Dot6) / 2
+            if x < midpoint { return current.utf8Offset }
+        }
+        return insertionPositions.last?.utf8Offset ?? text.utf8.count
+    }
+
+    public func closestInsertionUTF8Offset(toX x: Int) -> Int {
+        closestInsertionUTF8Offset(toX26Dot6: Int32(max(0, x) * 64))
+    }
+
+    /// Backward-compatible cluster hit testing now delegates to the stable
+    /// insertion geometry rather than glyph centers.
+    public func closestClusterUTF8Offset(toX x: Int) -> Int {
+        closestInsertionUTF8Offset(toX: x)
+    }
+
+    private struct ClusterExtent {
+        var sourceStart: Int
+        var sourceEnd: Int
+        var xStart: Int32
+        var xEnd: Int32
+    }
+
+    private static func makeInsertionPositions(
+        text: String,
+        direction: LunaTextCore.LunaTextDirection,
+        glyphs: [LunaUnicodeGlyphPlacement],
+        advance26Dot6: Int32
+    ) -> [LunaUnicodeTextInsertionPosition] {
+        let textLength = text.utf8.count
+        var graphemeBoundaries = [0]
+        graphemeBoundaries.reserveCapacity(text.count + 1)
+        var sourceOffset = 0
+        for character in text {
+            sourceOffset += String(character).utf8.count
+            graphemeBoundaries.append(sourceOffset)
+        }
+        if graphemeBoundaries.last != textLength {
+            graphemeBoundaries.append(textLength)
+        }
+
+        guard !glyphs.isEmpty else {
+            return graphemeBoundaries.map { boundary in
+                LunaUnicodeTextInsertionPosition(
+                    utf8Offset: boundary,
+                    x26Dot6: boundary == textLength ? advance26Dot6 : 0
+                )
+            }
+        }
+
+        var grouped: [Int: (minX: Int32, maxX: Int32)] = [:]
+        grouped.reserveCapacity(glyphs.count)
+        for glyph in glyphs {
+            let start = glyph.penX26Dot6
+            let end = glyph.penX26Dot6 + glyph.xAdvance26Dot6
+            let low = min(start, end)
+            let high = max(start, end)
+            if let existing = grouped[glyph.clusterUTF8Offset] {
+                grouped[glyph.clusterUTF8Offset] = (
+                    min(existing.minX, low),
+                    max(existing.maxX, high)
+                )
+            } else {
+                grouped[glyph.clusterUTF8Offset] = (low, high)
+            }
+        }
+
+        let clusterStarts = grouped.keys.sorted()
+        var extents: [ClusterExtent] = []
+        extents.reserveCapacity(clusterStarts.count)
+        for (index, start) in clusterStarts.enumerated() {
+            let sourceEnd = index + 1 < clusterStarts.count
+                ? clusterStarts[index + 1]
+                : textLength
+            let x = grouped[start] ?? (0, 0)
+            extents.append(
+                ClusterExtent(
+                    sourceStart: min(max(0, start), textLength),
+                    sourceEnd: min(max(start, sourceEnd), textLength),
+                    xStart: x.minX,
+                    xEnd: x.maxX
+                )
+            )
+        }
+
+        // Fill the grapheme insertion table in one forward pass. A HarfBuzz
+        // cluster can cover more than one grapheme boundary (for example a
+        // ligature). Internal boundaries are distributed across that cluster's
+        // exact 26.6 span; the cluster end itself is owned by the following
+        // cluster or by the final run advance.
+        var xByBoundary = Array<Int32?>(repeating: nil, count: graphemeBoundaries.count)
+        var boundaryIndex = 0
+        for extent in extents {
+            while boundaryIndex < graphemeBoundaries.count,
+                  graphemeBoundaries[boundaryIndex] < extent.sourceStart {
+                boundaryIndex += 1
+            }
+
+            let firstIndex = boundaryIndex
+            while boundaryIndex < graphemeBoundaries.count,
+                  graphemeBoundaries[boundaryIndex] < extent.sourceEnd {
+                boundaryIndex += 1
+            }
+            let boundaryCount = boundaryIndex - firstIndex
+            guard boundaryCount > 0 else { continue }
+
+            let span = Int64(extent.xEnd) - Int64(extent.xStart)
+            let denominator = Int64(max(1, boundaryCount))
+            for relativeIndex in 0..<boundaryCount {
+                let interpolated = Int64(extent.xStart)
+                    + span * Int64(relativeIndex) / denominator
+                xByBoundary[firstIndex + relativeIndex] = Int32(clamping: interpolated)
+            }
+        }
+
+        if let finalIndex = graphemeBoundaries.indices.last {
+            xByBoundary[finalIndex] = direction == .ltr ? advance26Dot6 : 0
+        }
+
+        var result: [LunaUnicodeTextInsertionPosition] = []
+        result.reserveCapacity(graphemeBoundaries.count)
+        var previousRawX: Int32 = 0
+        for index in graphemeBoundaries.indices {
+            let boundary = graphemeBoundaries[index]
+            let rawX = xByBoundary[index] ?? previousRawX
+            previousRawX = rawX
+            result.append(
+                LunaUnicodeTextInsertionPosition(
+                    utf8Offset: boundary,
+                    x26Dot6: direction == .ltr
+                        ? rawX
+                        : max(0, advance26Dot6 - rawX)
+                )
+            )
+        }
+
+        // LTR editor geometry must be monotonic even when a font emits unusual
+        // zero-width cluster ordering. This does not claim full bidi support; it
+        // guarantees stable single-run insertion geometry for the current editor.
+        if direction == .ltr {
+            var previous: Int32 = 0
+            for index in result.indices {
+                let clamped = min(
+                    max(previous, result[index].x26Dot6),
+                    max(0, advance26Dot6)
+                )
+                result[index] = LunaUnicodeTextInsertionPosition(
+                    utf8Offset: result[index].utf8Offset,
+                    x26Dot6: clamped
+                )
+                previous = clamped
+            }
+        }
+
+        if result.first?.utf8Offset != 0 {
+            result.insert(
+                LunaUnicodeTextInsertionPosition(utf8Offset: 0, x26Dot6: 0),
+                at: 0
+            )
+        }
+        if result.last?.utf8Offset != textLength {
+            result.append(
+                LunaUnicodeTextInsertionPosition(
+                    utf8Offset: textLength,
+                    x26Dot6: direction == .ltr ? advance26Dot6 : 0
+                )
+            )
+        }
+        return result
     }
 
     private static func ceil26Dot6(_ value: Int32) -> Int {
         if value <= 0 { return 0 }
         return Int((value + 63) / 64)
     }
+
+    private static func round26Dot6(_ value: Int32) -> Int {
+        if value >= 0 { return Int((value + 32) / 64) }
+        return Int((value - 32) / 64)
+    }
 }
 
 /// Thread-safe shaped-text renderer with a per-font glyph-mask cache.
 ///
-/// The current editor integration intentionally uses a single monospaced face so
-/// Luna's existing cell-oriented wrapping/caret geometry remains aligned while
-/// document painting gains real Unicode, combining-mark, and glyph-cluster support.
+/// The current editor integration intentionally uses one monospaced face, while
+/// exposing exact shaped insertion positions so wrapping, caret, selection, hit
+/// testing, and painting do not depend on a rounded fixed-cell approximation.
 public final class LunaUnicodeTextRenderer: @unchecked Sendable {
     public let font: LunaText.LunaFontDescriptor
 

@@ -81,6 +81,90 @@ final class LunaTextRenderTests: XCTestCase {
         XCTAssertTrue([0, 1, 3, 4].contains(layout.closestClusterUTF8Offset(toX: layout.advancePixels / 2)))
     }
 
+    func testSyntheticFractionalLayoutKeepsAbsoluteInsertionGeometry() {
+        let text = String(repeating: "a", count: 32)
+        let advance: Int32 = 6 * 64 + 16
+        let glyphs = text.utf8.indices.enumerated().map { index, _ in
+            LunaUnicodeGlyphPlacement(
+                glyphID: 1,
+                clusterUTF8Offset: index,
+                penX26Dot6: Int32(index) * advance,
+                xOffset26Dot6: 0,
+                yOffset26Dot6: 0,
+                xAdvance26Dot6: advance,
+                isMissingGlyph: false
+            )
+        }
+        let layout = LunaUnicodeTextLayout(
+            text: text,
+            direction: .ltr,
+            glyphs: glyphs,
+            advance26Dot6: Int32(text.utf8.count) * advance
+        )
+
+        XCTAssertEqual(layout.insertionPositions.count, text.count + 1)
+        XCTAssertEqual(layout.insertionX26Dot6(forUTF8Offset: 20), 20 * advance)
+        XCTAssertEqual(layout.insertionX(forUTF8Offset: 20), Int((20 * advance + 32) / 64))
+        XCTAssertNotEqual(layout.insertionX(forUTF8Offset: 20), 20 * layout.insertionX(forUTF8Offset: 1))
+    }
+
+    func testCombiningSequenceExposesOnlyGraphemeInsertionBoundaries() {
+        let text = "e\u{301}x"
+        let layout = LunaUnicodeTextLayout(
+            text: text,
+            direction: .ltr,
+            glyphs: [
+                LunaUnicodeGlyphPlacement(
+                    glyphID: 1,
+                    clusterUTF8Offset: 0,
+                    penX26Dot6: 0,
+                    xOffset26Dot6: 0,
+                    yOffset26Dot6: 0,
+                    xAdvance26Dot6: 7 * 64,
+                    isMissingGlyph: false
+                ),
+                LunaUnicodeGlyphPlacement(
+                    glyphID: 2,
+                    clusterUTF8Offset: 0,
+                    penX26Dot6: 7 * 64,
+                    xOffset26Dot6: 0,
+                    yOffset26Dot6: 0,
+                    xAdvance26Dot6: 0,
+                    isMissingGlyph: false
+                ),
+                LunaUnicodeGlyphPlacement(
+                    glyphID: 3,
+                    clusterUTF8Offset: 3,
+                    penX26Dot6: 7 * 64,
+                    xOffset26Dot6: 0,
+                    yOffset26Dot6: 0,
+                    xAdvance26Dot6: 7 * 64,
+                    isMissingGlyph: false
+                ),
+            ],
+            advance26Dot6: 14 * 64
+        )
+
+        XCTAssertEqual(layout.insertionPositions.map(\.utf8Offset), [0, 3, 4])
+        XCTAssertEqual(layout.insertionX(forUTF8Offset: 1), 0)
+        XCTAssertEqual(layout.insertionX(forUTF8Offset: 3), 7)
+        XCTAssertEqual(layout.closestInsertionUTF8Offset(toX: 6), 3)
+    }
+
+    func testRendererInsertionGeometryIsMonotonicAcrossLongInput() throws {
+        let renderer = try makeRenderer()
+        let text = String(repeating: "rapid typing ", count: 20) + "cafe\u{301}"
+        let layout = try renderer.layout(text)
+
+        XCTAssertEqual(layout.insertionPositions.first?.utf8Offset, 0)
+        XCTAssertEqual(layout.insertionPositions.last?.utf8Offset, text.utf8.count)
+        XCTAssertEqual(layout.insertionPositions.last?.x26Dot6, layout.advance26Dot6)
+        for pair in zip(layout.insertionPositions, layout.insertionPositions.dropFirst()) {
+            XCTAssertLessThan(pair.0.utf8Offset, pair.1.utf8Offset)
+            XCTAssertLessThanOrEqual(pair.0.x26Dot6, pair.1.x26Dot6)
+        }
+    }
+
     private func makeRenderer() throws -> LunaUnicodeTextRenderer {
         do {
             return try LunaUnicodeTextRenderer(monospacedPointSize: 13)

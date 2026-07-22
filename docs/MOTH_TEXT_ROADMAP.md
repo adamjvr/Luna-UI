@@ -8,20 +8,22 @@ This split is the central design decision.
 
 ---
 
-## Current paired checkpoint — M2.2B1 command convergence
+## Current paired checkpoint — Convergence C2.2
 
-Stabilization S1 is accepted with 86 Moth tests. M2.2B1 adds:
+M2.2B1 is accepted with 103 expected Moth tests. C2.2 adds:
 
-- stable namespaced Moth command IDs;
-- one availability and execution route for keyboard, menus, command palette, and tests;
-- Ctrl/Cmd+N with Save / Don't Save / Cancel protection;
-- Open, Save, Save As, Undo, Redo, Select All, and pane traversal through one dispatcher;
-- real Luna menu interaction and a searchable Luna command palette;
-- disabled Find discovery with an explicit M2.2B2 reason;
-- 17 new Moth command regressions, for 103 expected Moth tests;
-- one Luna Phase 4A regression ensuring disabled quick-panel items remain searchable.
+- exact shaped UTF-8 insertion positions retained in 26.6 coordinates;
+- one row geometry for soft wrapping, caret, selection, hit testing, and painting;
+- source/rendered offset mapping for tab expansion;
+- caret paint after glyph paint;
+- platform-neutral wheel/trackpad events and SDL translation;
+- pane-local precise-delta accumulation;
+- hovered-pane wheel routing without changing active editing ownership;
+- scrollbar lane paging and captured thumb dragging;
+- eight new Moth regressions, for 111 expected Moth tests.
 
-Real tabs, multiple documents, and Open Files/project activation remain M3 scope.
+Real document sheets and tabs remain unimplemented. M3A is next and changes New
+File from protected single-document replacement into creation of a new active tab.
 
 
 ## Product Definition
@@ -462,13 +464,16 @@ Convergence C1A — native cursor, forgiving divider, pointer capture
 Convergence C1B — reusable click/Shift-click/drag, word/line selection, autoscroll
 Convergence C2 — Moth document-owned Undo/Redo with Luna source frozen
 M2.2B1 — unified Moth commands plus searchable disabled Luna quick-panel items
+Convergence C2.2 — exact shaped row geometry plus wheel/trackpad and scrollbar interaction
 ```
 
 C2 separates monotonic buffer revisions from logical history states, adds deterministic transaction grouping, redo branching, multi-pane view restoration, bounded retained history, and exact saved checkpoints in Moth. Luna owns no production history or dirty-state policy.
 
-M2.2B1 completes unified command authority and New File. The next paired slice is
-M2.2B2 visible Find/Replace convergence. Luna should change only when that work
-exposes a genuinely reusable find-panel or focus-management seam.
+C2.2 corrects caret/render drift and completes normal pane-local vertical
+scrolling. The next paired slice is M3A document sheets and real tabs so New File
+creates a new tab rather than replacing the current document. Visible Find/Replace
+follows after M3A. Luna should change only when either slice exposes a genuinely
+reusable presentation or focus-management seam.
 
 
 ---

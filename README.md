@@ -19,6 +19,7 @@ The project direction is split into two roadmap documents:
 - [`docs/LUNA_UI_DEMO_TEST_PROTOCOL.md`](docs/LUNA_UI_DEMO_TEST_PROTOCOL.md) — current LunaUITestApp manual regression protocol.
 - [`docs/LUNA_LAYERED_ARCHITECTURE.md`](docs/LUNA_LAYERED_ARCHITECTURE.md) — governing boundary between Luna foundation, general UI, optional document/editor components, and Moth product policy.
 - [`docs/PAIRED_ITERATION_PROTOCOL.md`](docs/PAIRED_ITERATION_PROTOCOL.md) — required Luna-first build, test, commit, and Moth submodule-consumption workflow.
+- [`docs/TEXT_GEOMETRY_AND_SCROLLING.md`](docs/TEXT_GEOMETRY_AND_SCROLLING.md) — C2.2 shaped-row and scroll-input contract.
 
 The short version:
 
@@ -324,7 +325,7 @@ The current checkpoint has:
 - renderer color contract fixed so logical RGBA hex colors flow through Luna's framebuffer and SDL presentation path without alpha/channel-order swaps;
 - Phase 3A static accessible text view implemented with read-only document lines, gutter/text viewport layout, current-line paint geometry, visible line text ranges, hit testing, and accessibility text-run children;
 - Phase 3B caret geometry and static selection implemented with stable text locations, caret rectangles, selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
-- Phase 3C text-view scrolling and viewport metrics implemented with logical line scroll state, visible line ranges, content height, scrollbar placeholder geometry, scrolled hit testing, and accessibility visible text ranges;
+- Phase 3C/C2.2 text-view scrolling and viewport metrics implemented with logical-line and visual-row state, visible ranges, content height, wheel/trackpad requests, interactive scrollbar geometry, scrolled hit testing, and accessibility visible text ranges;
 - Phase 3D editable text-input foundation implemented with a small mutable document/state layer, committed text-input events, insertion/newline/backspace/delete, selection replacement, caret movement, and editable accessibility metadata;
 - Phase 4A command palette / quick panel foundation implemented with generic Luna quick-panel items, deterministic filtering, query state, selected rows, keyboard navigation, Enter activation, Escape dismissal, pointer row activation, accessibility dialog/list nodes, and a demo command palette opened with Ctrl+P;
 - Phase 4A.1 LunaUITestApp demo layout cleanup completed with a readable header, main editor area, side proof panel, bottom status bar, and constrained moving animation so debug/iteration info no longer stacks over the editor;
@@ -357,22 +358,24 @@ The current checkpoint has:
 - Convergence C2 completed with Moth-owned document history and saved checkpoints;
 - Convergence C2.1 adds the optional `LunaTextRender` product: HarfBuzz shaping, FreeType rasterization, glyph caching, monospaced editor metrics, visible missing-glyph fallback, and UTF-8 cluster placement for downstream framebuffer text;
 - M2.2B1 quick-panel convergence keeps matching disabled command items searchable while preserving disabled presentation and accessibility metadata;
+- Convergence C2.2 adds exact shaped-row insertion geometry shared by wrapping, caret placement, selection, hit testing, and production painting, plus platform-neutral scroll events, SDL wheel/trackpad translation, deterministic visual-row scrolling, and interactive scrollbar mechanics;
 - roadmap expanded to include resize/layout/accessibility reflow, visual token lockdown, product-neutral theme boundaries, renderer color correctness, text view phases, editor UI surfaces, chrome, and public API stabilization;
 - HybX / Hybrid RobotiX credited as architectural influence.
 
 The current implementation checkpoint is:
 
 ```text
-Moth M2.2B1 — unified command authority and searchable disabled commands
+Convergence C2.2 — exact shaped text geometry and vertical scrolling
 ```
 
-Stabilization S1 established clean-checkout CI and accepted 86 Moth tests. M2.2B1
-now reuses Luna's command runtime, menu bar, and quick panel for Moth-owned command
-IDs and policy. Integration exposed one reusable quick-panel defect: disabled items
-disappeared from filtered results. Luna keeps matching disabled items searchable
-while retaining their disabled metadata, allowing products to explain unavailable
-commands instead of hiding them. The next paired target is M2.2B2 visible
-Find/Replace convergence.
+M2.2B1 remains accepted. C2.2 corrects the production editor geometry exposed by
+rapid-typing validation: HarfBuzz 26.6 insertion positions now drive soft wrapping,
+caret placement, selection rectangles, and hit testing instead of multiplying a
+rounded cell width. Luna also supplies platform-neutral wheel/trackpad events,
+SDL translation, fractional visual-row accumulation, scrollbar paging, and thumb
+dragging. Moth remains responsible for document coordinates and pane-local
+viewport state. The next paired target is M3A document sheets and real tabs;
+visible Find/Replace follows after the multi-document foundation.
 
 For a concise checkpoint, see [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md).
 
@@ -386,7 +389,15 @@ Run the same build and test gate used by GitHub Actions:
 ./scripts/validate-iteration.sh
 ```
 
-Run the focused M2.2B1 quick-panel regression suite with:
+Run the focused C2.2 geometry and scrolling suites with:
+
+```bash
+swift test --filter LunaTextRenderTests
+swift test --filter LunaUIPhase5F2ATests
+swift test --filter LunaHostSDLApplicationTests
+```
+
+The M2.2B1 quick-panel regression remains available with:
 
 ```bash
 swift test --filter LunaUIPhase4ATests

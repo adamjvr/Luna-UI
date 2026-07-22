@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint for Moth M2.2B1 command convergence after Stabilization S1 repository validation.
+This document is the working checkpoint for Convergence C2.2 exact text geometry and scrolling after Moth M2.2B1 command convergence.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **M2.2B1 command convergence** on the paired Moth track. Stabilization S1 established clean-checkout Ubuntu CI, and M2.2B1 reuses Luna commands, menus, and quick panels while adding one reusable disabled-item filtering correction.
+Luna UI is through **Convergence C2.2** on the paired Moth track. C2.2 replaces rounded-cell caret and hit-test geometry with immutable shaped-row insertion positions and completes the first normal vertical scrolling path from host wheel input through pane-local viewport requests and interactive scrollbar mechanics.
 
 The newest paired-application contracts are:
 
@@ -20,6 +20,7 @@ The newest paired-application contracts are:
 - Convergence C2.1 `LunaTextRender`: HarfBuzz UTF-8 shaping, FreeType glyph masks, cached CPU framebuffer painting, explicit missing-glyph boxes, monospaced font discovery, and cluster/advance data for editor geometry;
 - Stabilization S1 Ubuntu CI, native-dependency verification, full SwiftPM build/test validation, and monthly GitHub Actions dependency maintenance;
 - M2.2B1 searchable disabled quick-panel items, preserving disabled presentation and accessibility metadata while allowing product-owned availability reasons;
+- Convergence C2.2 shaped-row geometry with UTF-8 insertion boundaries and 26.6 positions, exact soft-wrap/caret/selection/hit-test convergence, platform-neutral scroll events, SDL wheel and trackpad translation, precise-delta accumulation, scrollbar paging, and thumb dragging;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -39,7 +40,7 @@ The engine now has:
 - a renderer color contract so logical RGBA hex colors display correctly through the framebuffer and SDL presenter;
 - a static accessible text-view primitive with line/gutter layout, theme-driven paint geometry, visible line text ranges, hit testing, and accessibility children;
 - non-editable caret geometry, static selection rectangles, text-coordinate hit testing, and accessibility caret/selection metadata;
-- logical-line scroll state, visible line ranges, content height, scrollbar/minimap-lane placeholder geometry, scrolled hit testing, and accessibility visible text range metadata;
+- logical-line and wrapped visual-row scroll state, visible line ranges, content height, wheel/trackpad requests, fractional precise-delta accumulation, interactive scrollbar paging/thumb dragging, scrolled hit testing, and accessibility visible text range metadata;
 - a small editable text document/state layer with insertion, newline, backspace/delete, selection replacement, caret movement, host text-input events, and editable accessibility metadata;
 - a command palette / quick-panel foundation with filtering, keyboard navigation, command activation, theme-driven rows, pointer selection, and accessibility nodes;
 - a cleaned-up `LunaUITestApp` layout with a readable header, main editor area, side proof panel, and bottom status bar so phase/debug information no longer stacks over the editor;
@@ -206,15 +207,15 @@ Luna does not yet have:
 ## Immediate Next Implementation Target
 
 ```text
-Moth M2.2B2 — visible Find/Replace convergence
+Moth M3A — document sheets and real tabs
 ```
 
-M2.2B1 proves that Luna's existing command runtime, menu bar, and quick panel are
-sufficient for Moth-owned command IDs, availability, and execution. Luna's only
-production correction keeps matching disabled quick-panel commands searchable.
-Further Luna work remains demand-driven by reusable Find/Replace presentation
-seams. Full bidirectional layout and multi-font fallback remain later text-system
-work.
+C2.2 proves that production painting and editor geometry can consume one shaped
+row model without moving buffer or selection meaning into Luna. M3A now builds
+Moth-owned document sheets and projects them through Luna's existing tab mechanics.
+Visible Find/Replace remains the following product slice. Horizontal scrolling,
+full bidirectional layout, script segmentation, and multi-font fallback remain
+later text-system work.
 
 ---
 

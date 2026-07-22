@@ -56,6 +56,45 @@ public struct LunaPointerEvent: Hashable, Sendable {
     }
 }
 
+// MARK: - Scroll input
+
+public enum LunaScrollPhase: Hashable, Sendable {
+    case began
+    case changed
+    case ended
+    case momentum
+}
+
+/// Platform-neutral two-axis scroll input.
+///
+/// Positive `deltaY` requests movement toward later document rows; negative
+/// values request movement toward earlier rows. Precise devices may emit
+/// fractional deltas, which product view state can accumulate without loss.
+public struct LunaScrollEvent: Hashable, Sendable {
+    public var location: LunaPointI
+    public var deltaX: Double
+    public var deltaY: Double
+    public var phase: LunaScrollPhase
+    public var isPrecise: Bool
+    public var modifiers: LunaKeyboardModifiers
+
+    public init(
+        location: LunaPointI,
+        deltaX: Double = 0,
+        deltaY: Double,
+        phase: LunaScrollPhase = .changed,
+        isPrecise: Bool = false,
+        modifiers: LunaKeyboardModifiers = .none
+    ) {
+        self.location = location
+        self.deltaX = deltaX.isFinite ? deltaX : 0
+        self.deltaY = deltaY.isFinite ? deltaY : 0
+        self.phase = phase
+        self.isPrecise = isPrecise
+        self.modifiers = modifiers
+    }
+}
+
 // MARK: - Keyboard input
 
 public enum LunaKeyboardKey: Hashable, Sendable {
@@ -139,6 +178,7 @@ public enum LunaHostInputEvent: Hashable, Sendable {
     /// lost focus. Scenes must cancel any active capture gesture immediately.
     case pointerCaptureLost
     case pointer(LunaPointerEvent)
+    case scroll(LunaScrollEvent)
     case keyboard(LunaKeyboardEvent)
     case textInput(LunaTextInputEvent)
 }

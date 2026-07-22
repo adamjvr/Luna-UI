@@ -57,6 +57,14 @@ private struct LunaDemoSDLScene: LunaSDLApplicationScene {
             }
             return invalidations
 
+        case .scroll(let scrollEvent):
+            return demo.handleScrollEvent(
+                scrollEvent,
+                framebufferSize: framebufferSize
+            )
+                ? LunaFrameInvalidationSet(.scrollChanged)
+                : LunaFrameInvalidationSet()
+
         case .keyboard(let keyboardEvent):
             _ = demo.handleKeyboardEvent(
                 keyboardEvent,

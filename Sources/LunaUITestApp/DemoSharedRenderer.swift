@@ -248,6 +248,7 @@ public struct LunaCPUDemoScene {
     private var paneWorkspaceState = LunaCPUDemoScene.demoPaneWorkspaceState
     private var paneInteractionState = LunaPaneContainerInteractionState()
     private var textSelectionInteractionState = LunaTextSelectionInteractionState()
+    private var scrollbarInteractionState = LunaStaticTextScrollbarInteractionState()
     private var currentCursorIntent: LunaCursorIntent = .arrow
 
     /// Per-pane viewport state for the Phase 5F.2A integration proof. The primary
@@ -261,6 +262,11 @@ public struct LunaCPUDemoScene {
     /// Keep that row offset per document and pane so a long wrapped line can be
     /// scrolled independently without changing the app-owned document model.
     private var paneScrollTopVisualRowOverrides: [String: Int] = [:]
+
+    /// Precise touchpad deltas can be smaller than one visual row. Preserve the
+    /// unconsumed fraction per document and pane so repeated events accumulate
+    /// deterministically without coupling the two editor surfaces.
+    private var paneVerticalScrollRemainders: [String: Double] = [:]
 
     /// Phase 4B generic find/replace panel state. The state lives in the demo
     /// because the app owns when a find UI is open and which document it targets;
@@ -317,6 +323,20 @@ public struct LunaCPUDemoScene {
             paneScrollTopVisualRowOverrides[key] = max(0, row)
         } else {
             paneScrollTopVisualRowOverrides.removeValue(forKey: key)
+        }
+    }
+
+    private func verticalScrollRemainder(for paneID: LunaPaneID) -> Double {
+        paneVerticalScrollRemainders[paneViewportKey(for: paneID)] ?? 0
+    }
+
+    private mutating func setVerticalScrollRemainder(_ remainder: Double, for paneID: LunaPaneID) {
+        let key = paneViewportKey(for: paneID)
+        let normalized = remainder.isFinite ? remainder : 0
+        if normalized == 0 {
+            paneVerticalScrollRemainders.removeValue(forKey: key)
+        } else {
+            paneVerticalScrollRemainders[key] = normalized
         }
     }
 
@@ -396,29 +416,34 @@ public struct LunaCPUDemoScene {
 
     public var cursorIntent: LunaCursorIntent { currentCursorIntent }
     public var wantsPointerCapture: Bool {
-        paneInteractionState.wantsPointerCapture || textSelectionInteractionState.wantsPointerCapture
+        paneInteractionState.wantsPointerCapture ||
+        textSelectionInteractionState.wantsPointerCapture ||
+        scrollbarInteractionState.isDragging
     }
 
     public mutating func cancelPointerInteraction() {
         paneInteractionState.cancelDrag()
         paneInteractionState.hoveredSplitID = nil
         textSelectionInteractionState.cancel()
+        scrollbarInteractionState.cancel()
         currentCursorIntent = .arrow
-        lastInteractionStatus = "C1B pointer interaction cancelled after native capture loss"
+        lastInteractionStatus = "Pointer interaction cancelled after native capture loss"
     }
 
     private func resolvedCursorIntent(
         at point: LunaPointI,
         framebufferSize: LunaSizeI
     ) -> LunaCursorIntent {
+        if scrollbarInteractionState.isDragging { return .arrow }
         if textSelectionInteractionState.isSelecting { return .text }
         if hasActiveTransientOverlay { return .arrow }
         let container = paneContainer(for: framebufferSize, theme: theme)
         if let dividerIntent = container.cursorIntent(at: point) {
             return dividerIntent
         }
-        if paneTextView(at: point, framebufferSize: framebufferSize, theme: theme) != nil {
-            return .text
+        if let target = paneTextView(at: point, framebufferSize: framebufferSize, theme: theme) {
+            let lane = target.view.layout().scrollbarLaneBounds
+            return lane.contains(x: point.x, y: point.y) ? .arrow : .text
         }
         return .arrow
     }
@@ -732,6 +757,41 @@ public struct LunaCPUDemoScene {
         proofGalleryStaticFrameCache?.framebuffer.copyPixels(from: framebuffer)
     }
 
+    /// Route a platform-neutral wheel or touchpad event to the editor pane
+    /// beneath the pointer. The hovered pane scrolls independently; scrolling
+    /// does not implicitly change keyboard focus or the active editing pane.
+    @discardableResult
+    public mutating func handleScrollEvent(
+        _ event: LunaScrollEvent,
+        framebufferSize: LunaSizeI
+    ) -> Bool {
+        guard !hasActiveTransientOverlay,
+              let target = paneTextView(
+                at: event.location,
+                framebufferSize: framebufferSize,
+                theme: theme
+              )
+        else { return false }
+
+        let result = LunaStaticTextScrollInteraction.handleScrollEvent(
+            event,
+            in: target.view,
+            fractionalRowRemainder: verticalScrollRemainder(for: target.paneID)
+        )
+        guard result.didConsumeEvent else { return false }
+
+        setScrollTopLine(result.requestedScrollTopLine, for: target.paneID)
+        setScrollTopVisualRow(result.requestedScrollTopVisualRow, for: target.paneID)
+        setVerticalScrollRemainder(result.fractionalRowRemainder, for: target.paneID)
+        let layout = paneTextView(
+            for: target.paneID,
+            framebufferSize: framebufferSize,
+            theme: theme
+        )?.layout()
+        lastInteractionStatus = "C2.2 pane scroll: \(target.paneID.rawValue), visual row \((layout?.firstVisibleVisualRowIndex ?? 0) + 1) / \(max(1, layout?.totalVisualRowCount ?? 1))"
+        return true
+    }
+
     /// Route a host pointer event into Luna's modal-first pointer path.
     ///
     /// Phase 2B extends Phase 1B so the demo can prove hover/press/focus states
@@ -997,6 +1057,63 @@ public struct LunaCPUDemoScene {
                     announcementTexts: result.requestedCommand == nil ? [] : ["Shell command activated"],
                     didChangeVisualState: result.didChangeState || result.requestedCommand != nil
                 )
+            }
+        }
+
+        // C2.2 scrollbar routing. An active thumb drag keeps ownership outside
+        // the original lane through native pointer capture. Lane clicks and thumb
+        // drags update only the targeted pane's viewport.
+        do {
+            let target: (paneID: LunaPaneID, view: LunaStaticTextView)?
+            if scrollbarInteractionState.isDragging {
+                target = paneTextView(
+                    forSurfaceID: scrollbarInteractionState.activeSurfaceID,
+                    framebufferSize: framebufferSize,
+                    theme: theme
+                )
+            } else {
+                target = paneTextView(
+                    at: event.location,
+                    framebufferSize: framebufferSize,
+                    theme: theme
+                )
+            }
+
+            if let target {
+                var interaction = scrollbarInteractionState
+                let result = LunaStaticTextScrollInteraction.handlePointerEvent(
+                    event,
+                    in: target.view,
+                    state: &interaction
+                )
+                scrollbarInteractionState = interaction
+
+                if result.didConsumeEvent {
+                    if let line = result.requestedScrollTopLine {
+                        setScrollTopLine(line, for: target.paneID)
+                    }
+                    setScrollTopVisualRow(result.requestedScrollTopVisualRow, for: target.paneID)
+                    setVerticalScrollRemainder(0, for: target.paneID)
+                    if event.phase == .down {
+                        paneWorkspaceState.activePaneID = target.paneID
+                    }
+                    textSelectionInteractionState.cancel()
+                    currentCursorIntent = .arrow
+                    let layout = paneTextView(
+                        for: target.paneID,
+                        framebufferSize: framebufferSize,
+                        theme: theme
+                    )?.layout()
+                    let action = interaction.isDragging ? "thumb dragging" : "scrollbar paging"
+                    lastInteractionStatus = "C2.2 \(action): \(target.paneID.rawValue), visual row \((layout?.firstVisibleVisualRowIndex ?? 0) + 1) / \(max(1, layout?.totalVisualRowCount ?? 1))"
+                    return LunaPointerActivationResult(
+                        event: event,
+                        hitNodeID: target.view.id,
+                        requestedCommand: nil,
+                        announcementTexts: [interaction.isDragging ? "Scrollbar dragging" : "Scrollbar moved"],
+                        didChangeVisualState: true
+                    )
+                }
             }
         }
 
@@ -2318,6 +2435,7 @@ public struct LunaCPUDemoScene {
             let scrolled = view.scrolled(byLineDelta: result.requestedVisualRowDelta)
             setScrollTopLine(scrolled.scrollTopLine, for: paneID)
             setScrollTopVisualRow(scrolled.scrollTopVisualRow, for: paneID)
+            setVerticalScrollRemainder(0, for: paneID)
         }
         if result.didChangeSelection, let selection = result.selection {
             editableTextState.setSelection(selection)
@@ -2359,6 +2477,7 @@ public struct LunaCPUDemoScene {
         let scrolled = view.scrolled(byLineDelta: delta)
         setScrollTopLine(scrolled.scrollTopLine, for: paneID)
         setScrollTopVisualRow(scrolled.scrollTopVisualRow, for: paneID)
+        setVerticalScrollRemainder(0, for: paneID)
         let layout = scrolled.layout()
         lastInteractionStatus = "Phase 5F.2A pane scroll: \(paneID.rawValue), visual row \(layout.firstVisibleVisualRowIndex + 1) / \(max(1, layout.totalVisualRowCount))"
     }
@@ -2375,6 +2494,7 @@ public struct LunaCPUDemoScene {
             setScrollTopLine(nextLine, for: paneID)
             setScrollTopVisualRow(line == 0 ? 0 : nil, for: paneID)
         }
+        setVerticalScrollRemainder(0, for: paneID)
         let updated = paneTextView(for: paneID, framebufferSize: framebufferSize, theme: theme)?.layout()
         lastInteractionStatus = "Phase 5F.2A pane scroll \(reason): \(paneID.rawValue), visual row \((updated?.firstVisibleVisualRowIndex ?? 0) + 1) / \(max(1, updated?.totalVisualRowCount ?? 1))"
     }
@@ -2385,6 +2505,7 @@ public struct LunaCPUDemoScene {
         let adjusted = view.ensuringVisible(staticTextCaret.location)
         setScrollTopLine(adjusted.scrollTopLine, for: paneID)
         setScrollTopVisualRow(adjusted.scrollTopVisualRow, for: paneID)
+        setVerticalScrollRemainder(0, for: paneID)
     }
 
 

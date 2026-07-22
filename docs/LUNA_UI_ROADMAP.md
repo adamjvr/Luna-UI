@@ -1457,6 +1457,17 @@ No Luna production API is added merely to mirror Moth's product model. The small
 M2.2B1 source correction repairs generic quick-panel filtering rather than adding
 Moth-specific command meaning.
 
+
+C2.2 exact-geometry and scrolling result:
+
+- `LunaUnicodeTextLayout` exposes stable grapheme insertion boundaries in UTF-8 and HarfBuzz 26.6 coordinates;
+- `LunaStaticTextRowGeometry` is the single horizontal geometry consumed by soft wrapping, caret placement, selection rectangles, and hit testing;
+- fixed-cell geometry remains an explicit diagnostic fallback rather than the production Unicode coordinate source;
+- `LunaHostInputEvent.scroll` carries platform-neutral two-axis deltas, precision, phase, location, and modifiers;
+- LunaHostSDL translates conventional wheels and precise trackpad deltas without leaking SDL types above the host;
+- `LunaStaticTextScrollInteraction` supplies deterministic visual-row wheel accumulation, scrollbar lane paging, and captured thumb dragging while products retain viewport ownership;
+- full bidi, font fallback, and horizontal editor scrolling remain explicitly deferred.
+
 ---
 
 ## Phase 6 — Renderer and Snapshot Correctness
@@ -1513,13 +1524,14 @@ Goal:
 The next implementation target is:
 
 ```text
-Moth M2.2B2 visible Find/Replace convergence, with Luna source demand-driven
+Moth M3A document sheets and real tabs, with Luna source demand-driven
 ```
 
-M2.2B1 is complete at the paired checkpoint. Luna supplies reusable command,
-menu, and quick-panel mechanics, including searchable disabled items; Moth owns
-command IDs, availability, document policy, and execution. The next Luna work is
-demand-driven by reusable Find/Replace presentation seams exposed by Moth.
+C2.2 is complete at the paired checkpoint. Luna supplies exact reusable row
+geometry and normal vertical scrolling mechanics; Moth owns document offsets,
+viewports, and scroll policy. The next Luna work is demand-driven by M3A tab and
+sheet integration. Existing Luna tab mechanics should be reused unless Moth
+reveals a genuinely generic missing seam.
 
 ### Phase 5E.1 — Reusable SDL Application Lifecycle
 
