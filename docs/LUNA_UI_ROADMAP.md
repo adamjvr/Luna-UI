@@ -465,7 +465,6 @@ Definition of done:
 
 - modal box geometry, hit testing, accessibility bounds, and visible text content all respond correctly to resize.
 
-
 ### Phase 2D.2 — Universal Bounded Text and Control Reflow
 
 **Status:** complete.
@@ -505,7 +504,6 @@ Tests required:
 - semantic widget title/subtitle use bounded text;
 - modal choice labels use bounded text;
 - accessibility exposes full semantic labels while visual text is constrained.
-
 
 ### Phase 2D.3 — Responsive Modal Control Layout
 
@@ -891,7 +889,6 @@ Implemented:
 
 Visual target: Sublime find and find/replace references, implemented as reusable Luna primitives.
 
-
 ### Phase 4B.1 — Interactive Text Selection Completion
 
 **Status:** complete.
@@ -1243,7 +1240,6 @@ The shell emits the target tab/document; the app command handler decides whether
 Dirty documents still require a product/app prompt before destructive close behavior.
 ```
 
-
 ### Phase 5C.2.2 — MPL-2.0 License Migration
 
 Status: **complete**.
@@ -1307,7 +1303,6 @@ Phase 5D.2 deliverables:
 - add regression coverage for untitled save requests, save-as identity migration, and workspace sync when the active document has no file descriptor;
 - update README, current status, demo protocol, and Moth Text roadmap.
 
-
 ### Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close
 
 Phase 5D.3 makes the editor demo behave like a desktop editor without moving OS dialog policy into LunaUI. LunaHostCore now defines neutral dialog request/result types plus `LunaDialogService`, and the demo app injects a scripted/native service for Open…, Save As…, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel decisions.
@@ -1337,7 +1332,6 @@ Phase 5D.3.1 deliverables:
 - keep the editor mode event/invalidation driven and free of proof-gallery animation surfaces;
 - remove duplicate demo-chrome drawing from the shared CPU renderer;
 - add regression coverage for first-frame delta, stall clamping, and reset behavior.
-
 
 ### Phase 5D.3.2 — Proof Gallery Static Frame Cache
 
@@ -1457,7 +1451,6 @@ No Luna production API is added merely to mirror Moth's product model. The small
 M2.2B1 source correction repairs generic quick-panel filtering rather than adding
 Moth-specific command meaning.
 
-
 C2.2 exact-geometry and scrolling result:
 
 - `LunaUnicodeTextLayout` exposes stable grapheme insertion boundaries in UTF-8 and HarfBuzz 26.6 coordinates;
@@ -1528,10 +1521,9 @@ Goal:
 
 ---
 
-
 ## Convergence C2.4 — Interactive runtime and presentation scheduling
 
-**Status: implemented; native graphical acceptance required.**
+**Status: ordinary interaction scheduling accepted; scalability audit required.**
 
 C2.3's demo restoration and diagnostics remain valid, but its stateless bounded
 polling policy is rejected. C2.4 introduces a persistent semantic scheduler across
@@ -1540,9 +1532,11 @@ idle state, threshold, or deadline, and makes presentation depend on visible sce
 invalidation rather than native queue chunking. VSync and software pacing no
 longer sleep while semantic input remains pending.
 
-The focused scheduler suite contains seven regressions. The complete Luna test
+The focused scheduler suite contains nine regressions. The complete Luna test
 inventory is 261 tests across XCTest and Swift Testing; native text-render tests
-require real FreeType/HarfBuzz/font dependencies.
+require real FreeType/HarfBuzz/font dependencies. Native validation accepted the
+scheduler for ordinary Moth documents, but exposed non-virtualized whole-document
+text layout and continuously composed demo frames as separate scalability failures.
 
 Exit condition:
 
@@ -1551,14 +1545,31 @@ Exit condition:
 > sustained text presents within the configured latency deadline without event
 > loss or reordering.
 
+Native result: this interaction-scheduling exit condition passed for the ordinary
+Moth graphical shell. C2.4 does not claim large-document or animated-demo
+performance acceptance.
+
+## Post-C2.4 Native Scalability Findings
+
+- the Luna kitchen-sink and proof-oriented demos remain sluggish under continuous animation;
+- a generated roughly 500-line Moth document can freeze or become unusably slow;
+- text layout currently creates complete-document visual segments before slicing the viewport;
+- scrollbar-width resolution can repeat the complete soft-wrap pass;
+- multiple panes and minimap consumers currently duplicate snapshot/layout work;
+- the 128-entry shaped-layout cache is appropriate only after layout is virtualized and otherwise thrashes under eager whole-document traversal.
+
+These are Critical A1 findings. They must not be hidden by raising cache limits,
+reducing animation rate, or disabling the long test corpus.
+
 ## Immediate Next Implementation Target
 
 ```text
-A1 paired Luna/Moth architecture and quality audit
+A1.1 measured large-document and demo-composition audit
 ```
 
-After C2.4 native acceptance, audit runtime/presentation ownership, Swift API and
-value/reference semantics, lock and allocation hot paths, test quality, roadmap
-consistency, and accepted technical debt. Luna changes during M3A remain
-demand-driven by genuinely reusable gaps. M3A is blocked until the audit is
-reviewed.
+Instrument operation counts and timings for snapshot projection, line indexing,
+wrap planning, shaping, visible-row materialization, minimap projection,
+framebuffer drawing/copying, and SDL presentation across 50, 500, 5,000, and
+50,000 line fixtures. Publish Critical/High/Medium/Low/Accepted-Debt findings and
+reconvene. C2.5 virtualized text layout and demo composition is only a candidate
+until the audit confirms the design. M3A remains blocked.

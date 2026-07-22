@@ -71,7 +71,6 @@ algorithm, script segmentation, variable-font fallback chains, or multiple open
 documents. Those require later explicit phases rather than hidden extensions of
 this contract.
 
-
 ## C2.3 latency follow-up
 
 C2.3 did not change the C2.2 shaped coordinate model. Its retained contributions
@@ -80,7 +79,6 @@ Its raw-batch presentation policy failed native acceptance and is superseded by
 C2.4. No text-geometry consumer may infer presentation timing from native polling
 limits.
 
-
 ## C2.4 runtime correction
 
 C2.4 does not change C2.2 shaped coordinates or scroll ownership. It changes when
@@ -88,3 +86,15 @@ semantic input reaches those systems and when their visible state is presented.
 Raw native acquisition boundaries are no longer frame boundaries. Exact text and
 caret geometry, wheel/trackpad routing, pane-local viewport state, and scrollbar
 interaction remain unchanged and stay in the permanent regression gate.
+
+## Known post-C2.4 scalability limit
+
+The C2.2 geometry invariant is correct, but the current `LunaStaticTextView` layout
+is not yet virtualized. It creates visual segments for the complete document and
+only then selects visible rows. Soft-wrap scrollbar resolution can repeat the
+complete pass, and multiple panes can repeat the same work independently.
+
+This is a Critical A1 audit finding. Geometry correctness must be preserved while
+the implementation moves toward revision-keyed line/wrap indexes, shared pane
+geometry, and visible rows plus bounded overscan. Raising cache limits is not a
+substitute for virtualization.

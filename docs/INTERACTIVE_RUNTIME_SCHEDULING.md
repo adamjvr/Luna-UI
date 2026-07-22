@@ -57,3 +57,15 @@ by fresh navigation, semantic-work threshold dispatch, and immediate capture-los
 barriers. Full native graphical acceptance remains required because perceived
 latency includes real SDL queueing, CPU drawing, texture upload, compositor, and
 input-device behavior.
+
+## Post-C2.4 acceptance boundary
+
+Native testing accepted the persistent semantic scheduler for ordinary Moth
+interaction: the short-document graphical shell was snappy and smooth. The later
+large-document lockup does not justify returning to raw polling batches or adding
+input sleeps. It occurs after semantic dispatch in snapshot, layout, shaping,
+composition, or presentation work.
+
+C2.4 therefore remains the input-scheduling baseline during A1. The audit must
+measure the render path separately and preserve the rule that raw acquisition
+limits never become frame boundaries.

@@ -122,7 +122,6 @@ Acceptance order:
 
 That originally identified M2.2B2 as next; post-M2.2B1 graphical validation inserted C2.2 before feature expansion.
 
-
 ## C2.2 exact geometry and scrolling checkpoint
 
 C2.2 is a Luna-first reusable correction. Commit and validate Luna's shaped-row
@@ -144,7 +143,6 @@ Moth then adopts the exact Luna revision, routes scroll input to the pane beneat
 the pointer, preserves fractional deltas per view, paints the caret after glyphs,
 and validates the complete paired suite. M3A document sheets and real tabs are the
 next product slice; C2.2 does not claim multiple-document behavior.
-
 
 ## C2.3 input-to-pixel latency and demo-restoration checkpoint
 
@@ -178,7 +176,6 @@ After Luna is committed, Moth advances the gitlink and validates frame-fair text
 input, ordered batching, cache diagnostics, and the complete paired suite. M3A
 real document tabs remains the next product slice.
 
-
 ## C2.4 interactive runtime checkpoint
 
 C2.3 failed native interaction acceptance because a raw polling limit became a
@@ -203,3 +200,18 @@ Moth then advances the exact Luna commit, validates the dictionary-based layout-
 ordering-array maintenance and complete paired suite, and performs native interaction acceptance.
 After both repositories are accepted, stop for the A1 paired audit. Do not begin
 M3A automatically.
+
+## Post-C2.4 documentation and A1 audit checkpoint
+
+Native validation accepted C2.4 for ordinary Moth interaction, but it did not
+accept large-document or animated-demo performance. The Luna demos were sluggish,
+and a generated roughly 500-line Moth document froze or became unusably slow.
+
+Commit this permanent documentation checkpoint Luna-first, then advance Moth's
+Luna gitlink and commit the matching Moth documentation. No source implementation
+belongs in this checkpoint.
+
+The next work is A1.1 measurement. Do not begin M3A or a speculative C2.5 before
+the audit records operation counts, timings, ownership findings, and a
+Critical/High/Medium/Low/Accepted-Debt report. Large-document fixtures and the
+moving-square kitchen-sink demo remain mandatory regression probes.

@@ -8,25 +8,28 @@ This split is the central design decision.
 
 ---
 
-## Current paired checkpoint — Convergence C2.4
+## Current paired checkpoint — Post-C2.4 native validation
 
-M2.2B1 and C2.2 are accepted. C2.3 restored the demo and diagnostics but failed interaction-latency acceptance. C2.4 adds:
+M2.2B1 and C2.2 remain accepted. C2.4 replaces C2.3's failed raw-batch presentation policy with persistent semantic scheduling across native acquisition passes. The paired baseline now includes:
 
-- frame-fair SDL polling capped by raw-event count and elapsed monotonic time;
 - authoritative committed text input with plain printable key-down deferral;
 - adjacent committed text coalescing that preserves command/navigation/pointer barriers;
-- persistent semantic scheduling across native acquisition passes;
 - click/command ordering barriers and text idle/threshold/deadline dispatch;
-- input-to-present timing without raw polling boundaries becoming frames;
-- bounded LRU shaped-layout retention with cache hit/miss and shaping-time diagnostics;
-- four new Moth latency regressions, for 115 expected Moth tests;
-- restored default Luna kitchen-sink demo with a 340-row scroll corpus and moving-square proof.
+- raw polling limits that never define frame boundaries;
+- generation-based shaped-layout cache hits without linear ordering-array maintenance;
+- nine focused Luna scheduler regressions and a 116-test Moth baseline;
+- the restored Luna kitchen-sink demo with its 340-row corpus and moving-square proof.
 
-C2.2 exact geometry and scrolling remain part of the permanent acceptance gate.
+Native result: the ordinary Moth graphical shell is snappy and smooth, confirming
+the C2.4 scheduling correction. Native large-document validation also exposed a
+Critical separate defect: a generated roughly 500-line soft-wrapped document can
+freeze or become unusably slow, while the animated Luna demos remain sluggish.
+The current text surface still performs whole-document wrap/geometry work before
+selecting visible rows and duplicates snapshot/layout work across panes and the
+minimap.
 
-Real document sheets and tabs remain unimplemented. A paired repository audit is next. M3A follows audit acceptance and changes New
-File from protected single-document replacement into creation of a new active tab.
-
+Real document sheets and tabs remain unimplemented. A1.1 measured scalability
+analysis is next. M3A remains blocked until the paired audit is reviewed.
 
 ## Product Definition
 
@@ -473,13 +476,13 @@ Convergence C2.3 — frame-fair input batching, latency diagnostics, and demo re
 C2 separates monotonic buffer revisions from logical history states, adds deterministic transaction grouping, redo branching, multi-pane view restoration, bounded retained history, and exact saved checkpoints in Moth. Luna owns no production history or dirty-state policy.
 
 C2.2 corrects caret/render drift and completes normal pane-local vertical
-scrolling. C2.3 prevents sustained committed text and key repeat from starving
-presentation by bounding host polling and applying adjacent text as one ordered
-transaction per batch. The next paired slice is M3A document sheets and real tabs
-so New File creates a new tab rather than replacing the current document. Visible
-Find/Replace follows after M3A. Luna should change only when either slice exposes
-a genuinely reusable presentation or focus-management seam.
-
+scrolling. C2.4 corrects semantic input scheduling and passes ordinary Moth native
+interaction acceptance. Large-document and animated-demo validation then exposed
+whole-document layout, duplicate snapshot projection, and full-frame composition
+costs. The next paired work is A1.1 measurement and audit classification, not
+M3A. A likely C2.5 virtualized-layout phase may follow only after audit review.
+Visible Find/Replace still follows M3A. Luna should change only for genuinely
+reusable layout, presentation, or focus-management seams.
 
 ---
 

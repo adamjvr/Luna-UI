@@ -1,12 +1,12 @@
 # Current Luna UI Status
 
-This document is the working checkpoint for Convergence C2.4 interactive runtime and presentation scheduling after C2.3 failed graphical responsiveness acceptance.
+This document is the working checkpoint after native C2.4 validation: ordinary Moth interaction scheduling is accepted, while Luna demo composition and large-document text layout have exposed release-blocking scalability defects that now enter the A1 paired audit.
 
 ---
 
 ## Current Checkpoint
 
-Luna UI is through **Convergence C2.4** on the paired Moth track. C2.2 fixed exact text geometry and scrolling. C2.3 restored the kitchen-sink demo and added useful diagnostics, but its stateless polling/presentation coupling failed native graphical acceptance. C2.4 replaces it with persistent semantic scheduling and presentation deadlines independent from raw acquisition limits.
+Luna UI is through **Convergence C2.4** on the paired Moth track. C2.2 fixed exact text geometry and scrolling. C2.3 restored the kitchen-sink demo and added useful diagnostics, but its stateless polling/presentation coupling failed native graphical acceptance. C2.4 replaces it with persistent semantic scheduling and presentation deadlines independent from raw acquisition limits. Native validation confirms that ordinary Moth documents are now snappy and visually smooth. The same validation also found two separate scalability failures: the continuously animated Luna demos remain sluggish, and a generated roughly 500-line soft-wrapped Moth document can freeze or become unusably slow.
 
 The newest paired-application contracts are:
 
@@ -23,6 +23,7 @@ The newest paired-application contracts are:
 - Convergence C2.2 shaped-row geometry with UTF-8 insertion boundaries and 26.6 positions, exact soft-wrap/caret/selection/hit-test convergence, platform-neutral scroll events, SDL wheel and trackpad translation, precise-delta accumulation, scrollbar paging, and thumb dragging;
 - Convergence C2.3 demo restoration, 340-row scroll corpus, committed-text authority, and latency diagnostics retained; its raw-batch presentation policy is documented as rejected;
 - Convergence C2.4 persistent cross-pass semantic scheduling, pointer/text coalescing, click/command ordering barriers, idle/threshold/deadline text dispatch, and raw-acquisition limits that never define frame boundaries;
+- post-C2.4 native evidence that ordinary Moth interaction is responsive while Luna demo composition and whole-document text layout do not yet scale; the large-document and animated-demo findings are Critical A1 audit inputs rather than regressions to hide with larger caches or lower animation rates;
 - a `LunaTheme` public product so downstream applications can own their palettes without copying Luna internals.
 
 The engine now has:
@@ -202,21 +203,41 @@ Luna does not yet have:
 - visible split-command chrome and full keyboard shortcut routing for pane operations;
 - a polished tab-overflow popup/list presentation beyond the reusable overflow state and geometry;
 - application-owned editor groups, cloned views, project persistence, and session persistence;
-- the actual Moth Text application target, which remains a separate repository by design.
+- the actual Moth Text application target, which remains a separate repository by design;
+- virtualized text layout that shapes and materializes only visible rows plus bounded overscan;
+- revision-keyed wrap indexes and shared pane geometry for large documents;
+- a scalable demo composition path that avoids whole-frame CPU copying and whole-document relayout during ordinary animation or interaction.
 
 ---
+
+## Native C2.4 Acceptance Findings
+
+Accepted:
+
+- the first ordinary `MothTextLinux` graphical run was snappy and rendered smoothly;
+- clicks, commands, menus, navigation, typing, and scrolling no longer showed the C2.3 semantic-backlog regression;
+- exact C2.2 caret, selection, hit-testing, and scrolling behavior remained correct.
+
+Unresolved and release-blocking:
+
+- the default Luna kitchen-sink and proof-oriented demos were visibly sluggish;
+- the generated large Moth document, roughly 500 logical rows with long wrapped and Unicode lines, froze or became extremely slow;
+- `LunaStaticTextView` still derives complete-document visual segments before selecting visible rows, and soft-wrap layout may repeat that work after scrollbar-width resolution;
+- Moth currently rebuilds full Luna snapshots for multiple pane/minimap consumers instead of sharing one revision-keyed presentation snapshot.
 
 ## Immediate Next Implementation Target
 
 ```text
-A1 — paired Luna/Moth architecture and quality audit
+A1.1 — measured large-document and demo-composition audit
 ```
 
-C2.4 must first pass native interaction acceptance: clicks, menus, commands,
-navigation, text input, scrolling, resizing, and dialogs must react promptly with
-no growing backlog. After both repositories are committed, the next work is an
-audit of runtime ownership, Swift/API quality, tests, documentation, and measured
-performance debt. M3A real tabs begins only after that audit is reviewed.
+Do not begin M3A or implement a speculative C2.5 yet. First instrument and count
+snapshot construction, logical-line scanning, wrap planning, shaping requests,
+visible-row materialization, framebuffer copying, CPU drawing, and SDL presentation
+for 50, 500, 5,000, and 50,000 line fixtures. Compare one pane, two panes at equal
+and unequal widths, wrapping on/off, idle render, scroll, typing, caret movement,
+and resize. The audit must classify findings as Critical, High, Medium, Low, or
+Accepted Debt and reconvene before implementation. M3A remains blocked.
 
 ---
 
@@ -268,7 +289,6 @@ Delivered:
 
 `LunaEditableTextDocument` remains a small deterministic reusable proof model.
 It is not the future Moth Text source buffer.
-
 
 ---
 

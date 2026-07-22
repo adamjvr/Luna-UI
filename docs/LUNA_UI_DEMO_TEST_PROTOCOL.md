@@ -77,8 +77,6 @@ Core checks:
 
 ---
 
-
-
 ### Phase 5D.3.1 — Proof Gallery Animation Pacing
 
 At the Phase 5D.3.1 checkpoint, the then-default editor harness remained event-driven while proof-gallery animation became explicitly time-based and stall-tolerant. C2.3 keeps that behavior in explicit `--editor` mode and restores the cached kitchen-sink presentation as the default. The moving proof square advances from a host-runtime `LunaAnimationClock` with clamped logical deltas instead of deriving position directly from absolute uptime or frame count.
@@ -93,8 +91,6 @@ Core checks:
 | Trigger a dialog or briefly stall the app, then return | The moving square resumes without jumping across the proof panel. |
 | Inspect status bar in proof-gallery mode | Animation diagnostics show frame delta/phase and animation invalidation appears during continuous proof rendering. |
 | Inspect explicit `--editor` status bar | No animation status segment appears in lean editor mode. |
-
-
 
 ### Phase 5D.3.2 — Proof Gallery Static Frame Cache
 
@@ -168,7 +164,6 @@ LunaUI owns only product-neutral descriptors, request/result shapes, routing, an
 
 ---
 
-
 ## Public-Domain Demo Corpus Protocol
 
 Phase 5D.1 adds a checked-in UTF-8 text corpus under `Examples/PublicDomainDemoFiles`. The corpus exists to make real-file demos repeatable without editing important user files.
@@ -234,7 +229,6 @@ swift run LunaUITestApp --new-untitled --save-as /tmp/luna-ui-new-file-proof/unt
 | Save As… | Writes the active document to the selected local path, registers it under `Local Files`, and converts an untitled tab to a file-backed document. |
 | Launch with `--create path` | Creates a new empty UTF-8 local file, refuses to overwrite by default, registers it under `Local Files`, and opens it as a real file-backed buffer. |
 | Launch with `--overwrite-create --create path` | Explicitly allows replacing the target file for testing only. |
-
 
 ## Phase 5D.3 — Host Dialog Boundary for Native Open / Save / Dirty Close
 
@@ -974,7 +968,6 @@ button hover/press states work
 19. Confirm header/editor/proof panel/status remain readable.
 ```
 
-
 ## Convergence C2.2 geometry and scrolling regression
 
 Run the focused automated suites before the graphical pass:
@@ -1003,7 +996,6 @@ Verify:
 - dragging the scrollbar thumb captures the pointer, clamps at both ends, and releases on mouse-up or capture loss;
 - C2.2 does not add horizontal editor scrolling, bidi layout, font fallback chains, or product document tabs.
 
-
 ## Convergence C2.4 interactive-runtime regression
 
 The default document contains more than 340 deterministic rows. Verify full-range
@@ -1022,3 +1014,57 @@ input-to-present latency. A raw polling limit may cause another acquisition pass
 but must never itself cause a frame. Arrow keys, Backspace, Delete, commands,
 pointer events, resize, focus, and capture loss remain ordering barriers and must
 never be merged into text.
+
+## Post-C2.4 Native Scalability Audit Gate
+
+C2.4 native validation separates interaction scheduling from text/layout scale:
+
+- ordinary `MothTextLinux` documents are responsive and visually smooth;
+- the default Luna kitchen-sink and proof-oriented demos remain sluggish;
+- a generated roughly 500-line Moth document can freeze or become unusably slow.
+
+These findings are not accepted demo-only roughness. The kitchen-sink demo and
+large generated document are permanent scalability probes and must remain enabled.
+Do not hide the failure by increasing the shaped-layout cache, reducing the moving
+square's update rate, shortening the corpus, or disabling soft wrapping.
+
+Before implementation, A1.1 must record both operation counts and timings for:
+
+```text
+50 lines
+500 lines
+5,000 lines
+50,000 lines
+```
+
+Run each fixture with one pane and two panes, equal and unequal pane widths,
+wrapping on and off, and these operations:
+
+```text
+initial open
+idle render
+wheel scroll
+scrollbar drag
+typing
+Backspace/Delete
+caret navigation
+selection
+pane resize
+window resize
+```
+
+Measure or count:
+
+- Moth buffer snapshots and Moth-to-Luna snapshot projections;
+- logical lines scanned;
+- wrap plans and complete-document visual-segment builds;
+- HarfBuzz layout requests, hits, misses, and evictions;
+- visible rows materialized and drawn;
+- minimap document projections;
+- framebuffer bytes copied, cleared, and presented;
+- CPU render and SDL presentation duration;
+- oldest semantic-event-to-present latency.
+
+The audit acceptance rule is architectural: normal frame work must scale primarily
+with visible rows plus bounded overscan. A frame must not shape every document line,
+and two panes must not independently rebuild identical revision/width geometry.
