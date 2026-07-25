@@ -64,6 +64,65 @@ public struct LunaFramebuffer {
         }
     }
 
+    /// Copy one clipped rectangular region from another framebuffer.
+    ///
+    /// This method never resizes either framebuffer. The requested rectangle is
+    /// clipped to the dimensions shared by source and destination. The return
+    /// value is the number of pixels actually copied after clipping.
+    @discardableResult
+    public mutating func copyPixels(
+        from source: LunaFramebuffer,
+        in requestedRegion: LunaRectI
+    ) -> Int {
+        guard requestedRegion.w > 0, requestedRegion.h > 0 else { return 0 }
+
+        let sharedWidth = min(width, source.width)
+        let sharedHeight = min(height, source.height)
+        let x0 = max(0, requestedRegion.x)
+        let y0 = max(0, requestedRegion.y)
+        let x1 = min(sharedWidth, requestedRegion.x + requestedRegion.w)
+        let y1 = min(sharedHeight, requestedRegion.y + requestedRegion.h)
+        guard x1 > x0, y1 > y0 else { return 0 }
+
+        let destinationStride = bytesPerRow
+        let sourceStride = source.bytesPerRow
+        let byteOffset = x0 * 4
+        let rowByteCount = (x1 - x0) * 4
+
+        storage.withUnsafeMutableBufferPointer { destination in
+            source.storage.withUnsafeBufferPointer { sourceBuffer in
+                guard let destinationBase = destination.baseAddress,
+                      let sourceBase = sourceBuffer.baseAddress else { return }
+
+                for y in y0..<y1 {
+                    destinationBase
+                        .advanced(by: y * destinationStride + byteOffset)
+                        .update(
+                            from: sourceBase.advanced(
+                                by: y * sourceStride + byteOffset
+                            ),
+                            count: rowByteCount
+                        )
+                }
+            }
+        }
+
+        return (x1 - x0) * (y1 - y0)
+    }
+
+    /// Copy several bounded regions and return the sum of clipped pixels copied.
+    @discardableResult
+    public mutating func copyPixels(
+        from source: LunaFramebuffer,
+        in requestedRegions: [LunaRectI]
+    ) -> Int {
+        var copiedPixels = 0
+        for region in requestedRegions {
+            copiedPixels += copyPixels(from: source, in: region)
+        }
+        return copiedPixels
+    }
+
     // MARK: - Pixel access
 
     /// Provides *mutable* access to the framebuffer's pixel bytes.

@@ -80,10 +80,10 @@ public enum LunaFrameRenderPath: String, Hashable, Sendable, CustomStringConvert
     /// The scene rebuilt its normal complete frame.
     case fullScene
 
-    /// The scene restored a static cached frame and drew only dynamic surfaces.
+    /// The scene restored a complete static cached frame, then drew dynamics.
     case cachedAnimation
 
-    /// Reserved for the following C2.5D dirty-region integration checkpoint.
+    /// The scene restored and redrew only bounded damaged regions.
     case partialDamage
 
     /// The scene did not provide a report.
@@ -92,7 +92,7 @@ public enum LunaFrameRenderPath: String, Hashable, Sendable, CustomStringConvert
     public var description: String { rawValue }
 }
 
-/// Why a cache-backed animation path was not used.
+/// Why a cache-backed path was not used.
 public enum LunaFrameCacheMissReason: Hashable, Sendable, CustomStringConvertible {
     case notApplicable
     case cacheAbsent
@@ -201,6 +201,12 @@ public struct LunaFrameRenderReport: Hashable, Sendable {
     public var dynamicSceneNanoseconds: UInt64
     public var overlayNanoseconds: UInt64
 
+    /// Number of bounded rectangles restored or redrawn by a partial frame.
+    public var damagedRegionCount: Int
+
+    /// Actual clipped pixels restored from backing storage.
+    public var damagedPixelCount: Int
+
     public init(
         path: LunaFrameRenderPath,
         invalidationClass: LunaFrameInvalidationClass,
@@ -209,7 +215,9 @@ public struct LunaFrameRenderReport: Hashable, Sendable {
         cacheRestoreNanoseconds: UInt64 = 0,
         staticSceneNanoseconds: UInt64 = 0,
         dynamicSceneNanoseconds: UInt64 = 0,
-        overlayNanoseconds: UInt64 = 0
+        overlayNanoseconds: UInt64 = 0,
+        damagedRegionCount: Int = 0,
+        damagedPixelCount: Int = 0
     ) {
         self.path = path
         self.invalidationClass = invalidationClass
@@ -219,6 +227,8 @@ public struct LunaFrameRenderReport: Hashable, Sendable {
         self.staticSceneNanoseconds = staticSceneNanoseconds
         self.dynamicSceneNanoseconds = dynamicSceneNanoseconds
         self.overlayNanoseconds = overlayNanoseconds
+        self.damagedRegionCount = max(0, damagedRegionCount)
+        self.damagedPixelCount = max(0, damagedPixelCount)
     }
 
     public var measuredNanoseconds: UInt64 {
@@ -234,11 +244,11 @@ public struct LunaFrameRenderReport: Hashable, Sendable {
     }
 
     public var usedStaticAnimationCache: Bool {
-        path == .cachedAnimation
+        path == .cachedAnimation || path == .partialDamage
     }
 
     public var wasCacheEligible: Bool {
-        if path == .cachedAnimation { return true }
+        if usedStaticAnimationCache { return true }
         guard let cacheMissReason else { return false }
         return cacheMissReason != .notApplicable
     }
@@ -249,6 +259,9 @@ public struct LunaFrameRenderReport: Hashable, Sendable {
             "cause \(invalidationClass.description)",
             String(format: "scene %.2f ms", measuredMilliseconds),
         ]
+        if damagedRegionCount > 0 {
+            fields.append("damage \(damagedRegionCount)r/\(damagedPixelCount)px")
+        }
         if let cacheMissReason {
             fields.append("miss \(cacheMissReason.description)")
         }
