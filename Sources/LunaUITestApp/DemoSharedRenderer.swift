@@ -227,6 +227,11 @@ public struct LunaCPUDemoScene {
     private var latestFrameInvalidations = LunaFrameInvalidationSet(.initial)
     private var latestInputCoalescingStats = LunaInputCoalescingStats()
 
+    /// Render-stage report consumed by the host immediately after presentation
+    /// construction. Keeping it one-shot prevents stale path data from being
+    /// attributed to a later frame.
+    private var pendingFrameRenderReport: LunaFrameRenderReport? = nil
+
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
     /// supplies the generic widget/model, while the demo supplies its commands.
@@ -543,6 +548,12 @@ public struct LunaCPUDemoScene {
         latestInputCoalescingStats = inputCoalescingStats
     }
 
+    public mutating func takeFrameRenderReport() -> LunaFrameRenderReport? {
+        let report = pendingFrameRenderReport
+        pendingFrameRenderReport = nil
+        return report
+    }
+
     public var wantsContinuousRendering: Bool {
         demoMode.usesProofGallerySurfaces || textSelectionInteractionState.wantsContinuousUpdates
     }
@@ -555,17 +566,23 @@ public struct LunaCPUDemoScene {
     ///   editor shell, sidebar, status rows, and text viewport are not rebuilt
     ///   every vsync when no UI state changed.
     public mutating func render(into fb: inout LunaFramebuffer) {
+        pendingFrameRenderReport = nil
         advanceTextSelectionAutoscroll(
             framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
         )
         frameIndex &+= 1
 
         let now = Self.nowMonotonicNanoseconds()
-        let proofAnimationFrame = demoMode.usesProofGallerySurfaces
+        let hasWarmProofCache = proofGalleryStaticFrameCache?.matches(
+            width: fb.width,
+            height: fb.height
+        ) == true
+        let proofAnimationFrame = demoMode.usesProofGallerySurfaces && hasWarmProofCache
             ? proofGalleryAnimationClock.advance(toNanoseconds: now)
             : nil
         let proofAnimationSeconds = proofAnimationFrame?.elapsedSeconds ?? 0.0
 
+        let layoutStart = Self.nowMonotonicNanoseconds()
         // Draw from a canonicalized copy of the active theme. This makes key 2
         // impossible to confuse with the Luna demo-blue palette: if the theme is
         // named as the Moth demo, all visible pixels resolve through the demo-only
@@ -574,9 +591,24 @@ public struct LunaCPUDemoScene {
         let frameSize = LunaSizeI(width: fb.width, height: fb.height)
         let renderLayout = Self.layout(for: frameSize, mode: demoMode)
         let activeMenuBar = demoMenuBar(for: frameSize, state: menuBarState, theme: renderTheme)
+        let layoutEnd = Self.nowMonotonicNanoseconds()
+        let invalidationClass = LunaFrameInvalidationClass(
+            invalidations: latestFrameInvalidations
+        )
+        let cacheMissReason = proofGalleryCacheMissReason(
+            framebufferSize: frameSize
+        )
 
-        if canUseProofGalleryStaticFrameCache(framebufferSize: frameSize),
-           restoreProofGalleryStaticFrame(into: &fb, framebufferSize: frameSize) {
+        if cacheMissReason == nil {
+            let restoreStart = Self.nowMonotonicNanoseconds()
+            let restored = restoreProofGalleryStaticFrame(
+                into: &fb,
+                framebufferSize: frameSize
+            )
+            let restoreEnd = Self.nowMonotonicNanoseconds()
+
+            if restored {
+                let dynamicStart = Self.nowMonotonicNanoseconds()
             drawProofGalleryDynamicSurfaces(
                 into: &fb,
                 layout: renderLayout,
@@ -584,9 +616,19 @@ public struct LunaCPUDemoScene {
                 animationFrame: proofAnimationFrame,
                 theme: renderTheme
             )
-            return
+                let dynamicEnd = Self.nowMonotonicNanoseconds()
+                pendingFrameRenderReport = LunaFrameRenderReport(
+                    path: .cachedAnimation,
+                    invalidationClass: invalidationClass,
+                    layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
+                    cacheRestoreNanoseconds: restoreEnd >= restoreStart ? restoreEnd - restoreStart : 0,
+                    dynamicSceneNanoseconds: dynamicEnd >= dynamicStart ? dynamicEnd - dynamicStart : 0
+                )
+                return
+            }
         }
 
+        let staticStart = Self.nowMonotonicNanoseconds()
         drawStaticDemoFrame(
             into: &fb,
             frameSize: frameSize,
@@ -595,8 +637,13 @@ public struct LunaCPUDemoScene {
             theme: renderTheme
         )
 
+        let effectiveCacheMissReason = cacheMissReason
         if demoMode.usesProofGallerySurfaces {
             storeProofGalleryStaticFrame(from: fb)
+            if proofAnimationFrame == nil {
+                proofGalleryAnimationClock.reset(atNanoseconds: now)
+            }
+            let dynamicStart = Self.nowMonotonicNanoseconds()
             drawProofGalleryDynamicSurfaces(
                 into: &fb,
                 layout: renderLayout,
@@ -604,14 +651,41 @@ public struct LunaCPUDemoScene {
                 animationFrame: proofAnimationFrame,
                 theme: renderTheme
             )
+            let dynamicEnd = Self.nowMonotonicNanoseconds()
+            pendingFrameRenderReport = LunaFrameRenderReport(
+                path: .fullScene,
+                invalidationClass: invalidationClass,
+                cacheMissReason: effectiveCacheMissReason ?? .cacheRestoreFailed,
+                layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
+                staticSceneNanoseconds: dynamicStart >= staticStart ? dynamicStart - staticStart : 0,
+                dynamicSceneNanoseconds: dynamicEnd >= dynamicStart ? dynamicEnd - dynamicStart : 0
+            )
         }
 
+        let overlayStart = Self.nowMonotonicNanoseconds()
         drawTransientOverlays(
             into: &fb,
             frameSize: frameSize,
             menuBar: activeMenuBar,
             theme: renderTheme
         )
+        let overlayEnd = Self.nowMonotonicNanoseconds()
+
+        if var report = pendingFrameRenderReport {
+            report.overlayNanoseconds = overlayEnd >= overlayStart
+                ? overlayEnd - overlayStart
+                : 0
+            pendingFrameRenderReport = report
+        } else {
+            pendingFrameRenderReport = LunaFrameRenderReport(
+                path: .fullScene,
+                invalidationClass: invalidationClass,
+                cacheMissReason: .notApplicable,
+                layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
+                staticSceneNanoseconds: overlayStart >= staticStart ? overlayStart - staticStart : 0,
+                overlayNanoseconds: overlayEnd >= overlayStart ? overlayEnd - overlayStart : 0
+            )
+        }
     }
 
     /// Draw the full static scene. Dynamic proof-gallery animation/HUD surfaces
@@ -743,12 +817,26 @@ public struct LunaCPUDemoScene {
         modalManager.hasActiveModal
     }
 
+    private func proofGalleryCacheMissReason(
+        framebufferSize: LunaSizeI
+    ) -> LunaFrameCacheMissReason? {
+        guard demoMode.usesProofGallerySurfaces else { return .notApplicable }
+        guard !hasActiveTransientOverlay else { return .transientOverlayActive }
+        guard let cache = proofGalleryStaticFrameCache else { return .cacheAbsent }
+        guard cache.matches(
+            width: framebufferSize.width,
+            height: framebufferSize.height
+        ) else {
+            return .sizeMismatch
+        }
+        guard latestFrameInvalidations.reasons == Set([LunaInvalidationReason.animation]) else {
+            return .nonAnimationInvalidation
+        }
+        return nil
+    }
+
     private func canUseProofGalleryStaticFrameCache(framebufferSize: LunaSizeI) -> Bool {
-        guard demoMode.usesProofGallerySurfaces else { return false }
-        guard !hasActiveTransientOverlay else { return false }
-        guard latestFrameInvalidations.reasons == Set([LunaInvalidationReason.animation]) else { return false }
-        guard let cache = proofGalleryStaticFrameCache else { return false }
-        return cache.matches(width: framebufferSize.width, height: framebufferSize.height)
+        proofGalleryCacheMissReason(framebufferSize: framebufferSize) == nil
     }
 
     private func restoreProofGalleryStaticFrame(into fb: inout LunaFramebuffer, framebufferSize: LunaSizeI) -> Bool {

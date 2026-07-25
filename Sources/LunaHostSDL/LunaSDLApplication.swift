@@ -74,6 +74,9 @@ public protocol LunaSDLApplicationScene {
     )
 
     mutating func render(into framebuffer: inout LunaFramebuffer)
+
+    /// Consume the report produced by the immediately preceding render call.
+    mutating func takeFrameRenderReport() -> LunaFrameRenderReport?
 }
 
 public extension LunaSDLApplicationScene {
@@ -87,6 +90,7 @@ public extension LunaSDLApplicationScene {
         invalidations: LunaFrameInvalidationSet,
         inputCoalescingStats: LunaInputCoalescingStats
     ) {}
+    mutating func takeFrameRenderReport() -> LunaFrameRenderReport? { nil }
 }
 
 @inline(__always)
@@ -302,6 +306,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
 
         let renderStart = LunaMonotonicClock.nowNanoseconds()
         scene.render(into: &framebuffer)
+        let renderReport = scene.takeFrameRenderReport()
         let renderEnd = LunaMonotonicClock.nowNanoseconds()
 
         let presentStart = LunaMonotonicClock.nowNanoseconds()
@@ -325,7 +330,8 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 presentNanoseconds: presentEnd >= presentStart ? presentEnd - presentStart : 0,
                 inputToPresentNanoseconds: inputToPresentNanoseconds,
                 totalNanoseconds: presentEnd >= frameStart ? presentEnd - frameStart : 0,
-                invalidations: invalidationsForFrame
+                invalidations: invalidationsForFrame,
+                renderReport: renderReport
             )
         )
 

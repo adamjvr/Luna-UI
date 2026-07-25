@@ -133,6 +133,7 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
     public var inputToPresentNanoseconds: UInt64
     public var totalNanoseconds: UInt64
     public var invalidations: LunaFrameInvalidationSet
+    public var renderReport: LunaFrameRenderReport?
 
     public init(
         frameIndex: UInt64,
@@ -143,7 +144,8 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
         presentNanoseconds: UInt64 = 0,
         inputToPresentNanoseconds: UInt64 = 0,
         totalNanoseconds: UInt64,
-        invalidations: LunaFrameInvalidationSet = LunaFrameInvalidationSet()
+        invalidations: LunaFrameInvalidationSet = LunaFrameInvalidationSet(),
+        renderReport: LunaFrameRenderReport? = nil
     ) {
         self.frameIndex = frameIndex
         self.startedAtNanoseconds = startedAtNanoseconds
@@ -154,6 +156,7 @@ public struct LunaFrameTimingSample: Hashable, Sendable {
         self.inputToPresentNanoseconds = inputToPresentNanoseconds
         self.totalNanoseconds = totalNanoseconds
         self.invalidations = invalidations
+        self.renderReport = renderReport
     }
 
     public var totalMilliseconds: Double { Double(totalNanoseconds) / 1_000_000.0 }
@@ -179,6 +182,9 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
     public private(set) var movingAverageRenderNanoseconds: Double
     public private(set) var movingAveragePresentNanoseconds: Double
     public private(set) var movingAverageInputToPresentNanoseconds: Double
+    public private(set) var renderPathCounts: LunaFrameRenderPathCounters
+    public private(set) var cacheMissCounts: LunaFrameCacheMissCounters
+    public private(set) var latestRenderReport: LunaFrameRenderReport?
     public var smoothingFactor: Double
 
     public init(smoothingFactor: Double = 0.12) {
@@ -190,12 +196,23 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
         self.movingAverageRenderNanoseconds = 0
         self.movingAveragePresentNanoseconds = 0
         self.movingAverageInputToPresentNanoseconds = 0
+        self.renderPathCounts = LunaFrameRenderPathCounters()
+        self.cacheMissCounts = LunaFrameCacheMissCounters()
+        self.latestRenderReport = nil
         self.smoothingFactor = min(1.0, max(0.001, smoothingFactor))
     }
 
     public mutating func record(_ sample: LunaFrameTimingSample) {
         sampleCount &+= 1
         latest = sample
+
+        latestRenderReport = sample.renderReport
+        if let report = sample.renderReport {
+            renderPathCounts.record(report.path)
+            if let reason = report.cacheMissReason {
+                cacheMissCounts.record(reason)
+            }
+        }
 
         if let currentWorst = worstRecent {
             worstRecent = sample.totalNanoseconds >= currentWorst.totalNanoseconds ? sample : currentWorst
@@ -248,6 +265,38 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
 
     public var movingAverageInputToPresentMilliseconds: Double {
         movingAverageInputToPresentNanoseconds / 1_000_000.0
+    }
+
+    public func renderPathCount(for path: LunaFrameRenderPath) -> UInt64 {
+        renderPathCounts.count(for: path)
+    }
+
+    public func cacheMissCount(for reason: LunaFrameCacheMissReason) -> UInt64 {
+        cacheMissCounts.count(for: reason)
+    }
+
+    public var cacheEligibleFrameCount: UInt64 {
+        let hits = renderPathCount(for: .cachedAnimation)
+        return hits &+ cacheMissCounts.eligibleMissCount
+    }
+
+    public var cachedAnimationHitRate: Double {
+        let eligible = cacheEligibleFrameCount
+        guard eligible > 0 else { return 0 }
+        return Double(renderPathCount(for: .cachedAnimation)) / Double(eligible)
+    }
+
+    public var renderPathStatusText: String {
+        guard let report = latestRenderReport else { return "path -- | cache --" }
+        let eligible = cacheEligibleFrameCount
+        if eligible > 0 {
+            return String(
+                format: "path %@ | cache %.1f%%",
+                report.path.description,
+                cachedAnimationHitRate * 100.0
+            )
+        }
+        return "path \(report.path.description) | cache n/a"
     }
 
     public var movingAverageFramesPerSecond: Double {

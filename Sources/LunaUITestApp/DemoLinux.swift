@@ -96,6 +96,10 @@ private struct LunaDemoSDLScene: LunaSDLApplicationScene {
     mutating func render(into framebuffer: inout LunaFramebuffer) {
         demo.render(into: &framebuffer)
     }
+
+    mutating func takeFrameRenderReport() -> LunaFrameRenderReport? {
+        demo.takeFrameRenderReport()
+    }
 }
 
 func runLinuxDemo() {
