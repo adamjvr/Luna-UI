@@ -277,13 +277,16 @@ public struct LunaFrameTimingStats: Hashable, Sendable {
 
     public var cacheEligibleFrameCount: UInt64 {
         let hits = renderPathCount(for: .cachedAnimation)
+            &+ renderPathCount(for: .partialDamage)
         return hits &+ cacheMissCounts.eligibleMissCount
     }
 
     public var cachedAnimationHitRate: Double {
         let eligible = cacheEligibleFrameCount
         guard eligible > 0 else { return 0 }
-        return Double(renderPathCount(for: .cachedAnimation)) / Double(eligible)
+        let hits = renderPathCount(for: .cachedAnimation)
+            &+ renderPathCount(for: .partialDamage)
+        return Double(hits) / Double(eligible)
     }
 
     public var renderPathStatusText: String {

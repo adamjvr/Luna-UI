@@ -147,13 +147,44 @@ public struct LunaCPUDemoSceneLayout: Sendable {
 /// the moving proof surface.
 private struct LunaProofGalleryStaticFrameCache {
     public var framebuffer: LunaFramebuffer
+    public var layout: LunaCPUDemoSceneLayout
+    public var mode: LunaDemoMode
+    public var themeName: String
 
-    public init(width: Int, height: Int) {
+    public init(
+        width: Int,
+        height: Int,
+        layout: LunaCPUDemoSceneLayout,
+        mode: LunaDemoMode,
+        themeName: String
+    ) {
         self.framebuffer = LunaFramebuffer(width: width, height: height)
+        self.layout = layout
+        self.mode = mode
+        self.themeName = themeName
     }
 
-    public func matches(width: Int, height: Int) -> Bool {
+    public func matchesSize(width: Int, height: Int) -> Bool {
         framebuffer.width == width && framebuffer.height == height
+    }
+
+    public func matches(
+        width: Int,
+        height: Int,
+        mode: LunaDemoMode,
+        themeName: String
+    ) -> Bool {
+        matchesSize(width: width, height: height)
+            && self.mode == mode
+            && self.themeName == themeName
+    }
+
+    @discardableResult
+    public func restore(
+        into destination: inout LunaFramebuffer,
+        regions: [LunaRectI]
+    ) -> Int {
+        destination.copyPixels(from: framebuffer, in: regions)
     }
 }
 
@@ -231,6 +262,10 @@ public struct LunaCPUDemoScene {
     /// construction. Keeping it one-shot prevents stale path data from being
     /// attributed to a later frame.
     private var pendingFrameRenderReport: LunaFrameRenderReport? = nil
+
+    /// Previous moving-square bounds used to restore only animation damage.
+    /// Full cache-generation changes clear this anchor.
+    private var previousProofMovingBlockBounds: LunaRectI? = nil
 
 
     /// Phase 4A command palette / quick-panel state. This is app/demo-owned: LunaUI
@@ -517,6 +552,7 @@ public struct LunaCPUDemoScene {
             }
         }
         proofGalleryStaticFrameCache = nil
+        previousProofMovingBlockBounds = nil
         modalManager.reflow(viewportSize: size)
         lastInteractionStatus = "Resized/reflowed Luna layout to \(size.width)x\(size.height)"
     }
@@ -530,6 +566,7 @@ public struct LunaCPUDemoScene {
         let resolvedTheme = MothDemoTheme.canonicalTheme(for: newTheme)
         theme = resolvedTheme
         proofGalleryStaticFrameCache = nil
+        previousProofMovingBlockBounds = nil
         modalManager.style = LunaControlVisualStyle(theme: resolvedTheme)
         menuBarState.close()
         contextMenuState.close()
@@ -567,66 +604,97 @@ public struct LunaCPUDemoScene {
     ///   every vsync when no UI state changed.
     public mutating func render(into fb: inout LunaFramebuffer) {
         pendingFrameRenderReport = nil
-        advanceTextSelectionAutoscroll(
-            framebufferSize: LunaSizeI(width: fb.width, height: fb.height)
-        )
         frameIndex &+= 1
 
         let now = Self.nowMonotonicNanoseconds()
-        let hasWarmProofCache = proofGalleryStaticFrameCache?.matches(
-            width: fb.width,
-            height: fb.height
-        ) == true
-        let proofAnimationFrame = demoMode.usesProofGallerySurfaces && hasWarmProofCache
-            ? proofGalleryAnimationClock.advance(toNanoseconds: now)
-            : nil
-        let proofAnimationSeconds = proofAnimationFrame?.elapsedSeconds ?? 0.0
-
-        let layoutStart = Self.nowMonotonicNanoseconds()
-        // Draw from a canonicalized copy of the active theme. This makes key 2
-        // impossible to confuse with the Luna demo-blue palette: if the theme is
-        // named as the Moth demo, all visible pixels resolve through the demo-only
-        // Moth palette before any drawing happens.
-        let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
         let frameSize = LunaSizeI(width: fb.width, height: fb.height)
-        let renderLayout = Self.layout(for: frameSize, mode: demoMode)
-        let activeMenuBar = demoMenuBar(for: frameSize, state: menuBarState, theme: renderTheme)
-        let layoutEnd = Self.nowMonotonicNanoseconds()
+        let renderTheme = MothDemoTheme.canonicalTheme(for: theme)
         let invalidationClass = LunaFrameInvalidationClass(
             invalidations: latestFrameInvalidations
         )
         let cacheMissReason = proofGalleryCacheMissReason(
-            framebufferSize: frameSize
+            framebufferSize: frameSize,
+            themeName: renderTheme.name
         )
+        var preadvancedAnimationFrame: LunaAnimationFrame?
 
-        if cacheMissReason == nil {
+        // Decide the animation fast path before rebuilding complete layout,
+        // menu definitions, editor surfaces, or static proof geometry.
+        if cacheMissReason == nil, let cache = proofGalleryStaticFrameCache {
+            let animationFrame = proofGalleryAnimationClock.advance(
+                toNanoseconds: now
+            )
+            preadvancedAnimationFrame = animationFrame
+
+            let currentMovingBlockBounds = movingBlockBounds(
+                timeSeconds: animationFrame.elapsedSeconds,
+                bounds: cache.layout.proofPanelBounds
+            )
+            let damageRegions = proofGalleryAnimationDamageRegions(
+                previousMovingBlockBounds: previousProofMovingBlockBounds,
+                currentMovingBlockBounds: currentMovingBlockBounds,
+                hudBounds: cache.layout.hudBounds
+            )
+
             let restoreStart = Self.nowMonotonicNanoseconds()
-            let restored = restoreProofGalleryStaticFrame(
+            let restoredPixels = restoreProofGalleryStaticFrame(
                 into: &fb,
-                framebufferSize: frameSize
+                framebufferSize: frameSize,
+                themeName: renderTheme.name,
+                regions: damageRegions
             )
             let restoreEnd = Self.nowMonotonicNanoseconds()
 
-            if restored {
+            if restoredPixels > 0 {
                 let dynamicStart = Self.nowMonotonicNanoseconds()
-            drawProofGalleryDynamicSurfaces(
-                into: &fb,
-                layout: renderLayout,
-                timeSeconds: proofAnimationSeconds,
-                animationFrame: proofAnimationFrame,
-                theme: renderTheme
-            )
+                drawProofGalleryDynamicSurfaces(
+                    into: &fb,
+                    layout: cache.layout,
+                    timeSeconds: animationFrame.elapsedSeconds,
+                    animationFrame: animationFrame,
+                    theme: renderTheme
+                )
                 let dynamicEnd = Self.nowMonotonicNanoseconds()
+
+                previousProofMovingBlockBounds = currentMovingBlockBounds
                 pendingFrameRenderReport = LunaFrameRenderReport(
-                    path: .cachedAnimation,
+                    path: .partialDamage,
                     invalidationClass: invalidationClass,
-                    layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
-                    cacheRestoreNanoseconds: restoreEnd >= restoreStart ? restoreEnd - restoreStart : 0,
-                    dynamicSceneNanoseconds: dynamicEnd >= dynamicStart ? dynamicEnd - dynamicStart : 0
+                    cacheRestoreNanoseconds: restoreEnd >= restoreStart
+                        ? restoreEnd - restoreStart
+                        : 0,
+                    dynamicSceneNanoseconds: dynamicEnd >= dynamicStart
+                        ? dynamicEnd - dynamicStart
+                        : 0,
+                    damagedRegionCount: damageRegions.count,
+                    damagedPixelCount: restoredPixels
                 )
                 return
             }
         }
+
+        advanceTextSelectionAutoscroll(framebufferSize: frameSize)
+
+        let layoutStart = Self.nowMonotonicNanoseconds()
+        let renderLayout = Self.layout(for: frameSize, mode: demoMode)
+        let activeMenuBar = demoMenuBar(
+            for: frameSize,
+            state: menuBarState,
+            theme: renderTheme
+        )
+        let layoutEnd = Self.nowMonotonicNanoseconds()
+
+        let hasWarmProofCache = proofGalleryStaticFrameCache?.matches(
+            width: fb.width,
+            height: fb.height,
+            mode: demoMode,
+            themeName: renderTheme.name
+        ) == true
+        let proofAnimationFrame = preadvancedAnimationFrame
+            ?? (demoMode.usesProofGallerySurfaces && hasWarmProofCache
+                ? proofGalleryAnimationClock.advance(toNanoseconds: now)
+                : nil)
+        let proofAnimationSeconds = proofAnimationFrame?.elapsedSeconds ?? 0.0
 
         let staticStart = Self.nowMonotonicNanoseconds()
         drawStaticDemoFrame(
@@ -639,10 +707,16 @@ public struct LunaCPUDemoScene {
 
         let effectiveCacheMissReason = cacheMissReason
         if demoMode.usesProofGallerySurfaces {
-            storeProofGalleryStaticFrame(from: fb)
+            storeProofGalleryStaticFrame(
+                from: fb,
+                layout: renderLayout,
+                mode: demoMode,
+                themeName: renderTheme.name
+            )
             if proofAnimationFrame == nil {
                 proofGalleryAnimationClock.reset(atNanoseconds: now)
             }
+
             let dynamicStart = Self.nowMonotonicNanoseconds()
             drawProofGalleryDynamicSurfaces(
                 into: &fb,
@@ -652,13 +726,24 @@ public struct LunaCPUDemoScene {
                 theme: renderTheme
             )
             let dynamicEnd = Self.nowMonotonicNanoseconds()
+
+            previousProofMovingBlockBounds = movingBlockBounds(
+                timeSeconds: proofAnimationSeconds,
+                bounds: renderLayout.proofPanelBounds
+            )
             pendingFrameRenderReport = LunaFrameRenderReport(
                 path: .fullScene,
                 invalidationClass: invalidationClass,
                 cacheMissReason: effectiveCacheMissReason ?? .cacheRestoreFailed,
-                layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
-                staticSceneNanoseconds: dynamicStart >= staticStart ? dynamicStart - staticStart : 0,
-                dynamicSceneNanoseconds: dynamicEnd >= dynamicStart ? dynamicEnd - dynamicStart : 0
+                layoutNanoseconds: layoutEnd >= layoutStart
+                    ? layoutEnd - layoutStart
+                    : 0,
+                staticSceneNanoseconds: dynamicStart >= staticStart
+                    ? dynamicStart - staticStart
+                    : 0,
+                dynamicSceneNanoseconds: dynamicEnd >= dynamicStart
+                    ? dynamicEnd - dynamicStart
+                    : 0
             )
         }
 
@@ -681,9 +766,15 @@ public struct LunaCPUDemoScene {
                 path: .fullScene,
                 invalidationClass: invalidationClass,
                 cacheMissReason: .notApplicable,
-                layoutNanoseconds: layoutEnd >= layoutStart ? layoutEnd - layoutStart : 0,
-                staticSceneNanoseconds: overlayStart >= staticStart ? overlayStart - staticStart : 0,
-                overlayNanoseconds: overlayEnd >= overlayStart ? overlayEnd - overlayStart : 0
+                layoutNanoseconds: layoutEnd >= layoutStart
+                    ? layoutEnd - layoutStart
+                    : 0,
+                staticSceneNanoseconds: overlayStart >= staticStart
+                    ? overlayStart - staticStart
+                    : 0,
+                overlayNanoseconds: overlayEnd >= overlayStart
+                    ? overlayEnd - overlayStart
+                    : 0
             )
         }
     }
@@ -818,16 +909,28 @@ public struct LunaCPUDemoScene {
     }
 
     private func proofGalleryCacheMissReason(
-        framebufferSize: LunaSizeI
+        framebufferSize: LunaSizeI,
+        themeName: String
     ) -> LunaFrameCacheMissReason? {
         guard demoMode.usesProofGallerySurfaces else { return .notApplicable }
         guard !hasActiveTransientOverlay else { return .transientOverlayActive }
+        guard !textSelectionInteractionState.wantsContinuousUpdates else {
+            return .explicit("selectionAutoscroll")
+        }
         guard let cache = proofGalleryStaticFrameCache else { return .cacheAbsent }
-        guard cache.matches(
+        guard cache.matchesSize(
             width: framebufferSize.width,
             height: framebufferSize.height
         ) else {
             return .sizeMismatch
+        }
+        guard cache.matches(
+            width: framebufferSize.width,
+            height: framebufferSize.height,
+            mode: demoMode,
+            themeName: themeName
+        ) else {
+            return .explicit("cacheGenerationMismatch")
         }
         guard latestFrameInvalidations.reasons == Set([LunaInvalidationReason.animation]) else {
             return .nonAnimationInvalidation
@@ -835,23 +938,57 @@ public struct LunaCPUDemoScene {
         return nil
     }
 
-    private func canUseProofGalleryStaticFrameCache(framebufferSize: LunaSizeI) -> Bool {
-        proofGalleryCacheMissReason(framebufferSize: framebufferSize) == nil
+    private func proofGalleryAnimationDamageRegions(
+        previousMovingBlockBounds: LunaRectI?,
+        currentMovingBlockBounds: LunaRectI?,
+        hudBounds: LunaRectI
+    ) -> [LunaRectI] {
+        [previousMovingBlockBounds, currentMovingBlockBounds, hudBounds]
+            .compactMap { $0 }
+            .filter { !$0.isEmpty }
     }
 
-    private func restoreProofGalleryStaticFrame(into fb: inout LunaFramebuffer, framebufferSize: LunaSizeI) -> Bool {
+    private func restoreProofGalleryStaticFrame(
+        into fb: inout LunaFramebuffer,
+        framebufferSize: LunaSizeI,
+        themeName: String,
+        regions: [LunaRectI]
+    ) -> Int {
+        guard !regions.isEmpty else { return 0 }
         guard let cache = proofGalleryStaticFrameCache,
-              cache.matches(width: framebufferSize.width, height: framebufferSize.height) else {
-            return false
+              cache.matches(
+                width: framebufferSize.width,
+                height: framebufferSize.height,
+                mode: demoMode,
+                themeName: themeName
+              ) else {
+            return 0
         }
-        fb.copyPixels(from: cache.framebuffer)
-        return true
+        return cache.restore(into: &fb, regions: regions)
     }
 
-    private mutating func storeProofGalleryStaticFrame(from framebuffer: LunaFramebuffer) {
-        if proofGalleryStaticFrameCache?.matches(width: framebuffer.width, height: framebuffer.height) != true {
-            proofGalleryStaticFrameCache = LunaProofGalleryStaticFrameCache(width: framebuffer.width, height: framebuffer.height)
+    private mutating func storeProofGalleryStaticFrame(
+        from framebuffer: LunaFramebuffer,
+        layout: LunaCPUDemoSceneLayout,
+        mode: LunaDemoMode,
+        themeName: String
+    ) {
+        if proofGalleryStaticFrameCache?.matchesSize(
+            width: framebuffer.width,
+            height: framebuffer.height
+        ) != true {
+            proofGalleryStaticFrameCache = LunaProofGalleryStaticFrameCache(
+                width: framebuffer.width,
+                height: framebuffer.height,
+                layout: layout,
+                mode: mode,
+                themeName: themeName
+            )
         }
+
+        proofGalleryStaticFrameCache?.layout = layout
+        proofGalleryStaticFrameCache?.mode = mode
+        proofGalleryStaticFrameCache?.themeName = themeName
         proofGalleryStaticFrameCache?.framebuffer.copyPixels(from: framebuffer)
     }
 
@@ -3538,6 +3675,35 @@ private func drawPaneBoundTextViews(
 /// which made it cover the editor/status text. Keep the animation contained in
 /// the side proof panel so the demo can keep proving animation without trashing
 /// readability.
+private func movingBlockBounds(
+    timeSeconds t: Double,
+    bounds: LunaRectI
+) -> LunaRectI? {
+    guard !bounds.isEmpty else { return nil }
+
+    let inner = LunaRectI(
+        x: bounds.x + 18,
+        y: bounds.y + 126,
+        w: max(1, bounds.w - 36),
+        h: max(1, bounds.h - 154)
+    )
+    guard inner.w > 12, inner.h > 12 else { return nil }
+
+    let blockW = max(24, min(72, inner.w / 3))
+    let blockH = max(24, min(72, inner.h / 3))
+    let ampX = Double(max(1, inner.w - blockW))
+    let ampY = Double(max(1, inner.h - blockH))
+    let px = (sin(t * 1.2) * 0.5 + 0.5) * ampX
+    let py = (cos(t * 0.9) * 0.5 + 0.5) * ampY
+
+    return LunaRectI(
+        x: inner.x + Int(px.rounded(.toNearestOrAwayFromZero)),
+        y: inner.y + Int(py.rounded(.toNearestOrAwayFromZero)),
+        w: blockW,
+        h: blockH
+    )
+}
+
 private func drawMovingBlock(
     into fb: inout LunaFramebuffer,
     timeSeconds t: Double,
@@ -3553,19 +3719,14 @@ private func drawMovingBlock(
         h: max(1, bounds.h - 154)
     )
     guard inner.w > 12, inner.h > 12 else { return }
-
-    let blockW = max(24, min(72, inner.w / 3))
-    let blockH = max(24, min(72, inner.h / 3))
-    let ampX = Double(max(1, inner.w - blockW))
-    let ampY = Double(max(1, inner.h - blockH))
-    let px = (sin(t * 1.2) * 0.5 + 0.5) * ampX
-    let py = (cos(t * 0.9) * 0.5 + 0.5) * ampY
-    let x0 = inner.x + Int(px.rounded(.toNearestOrAwayFromZero))
-    let y0 = inner.y + Int(py.rounded(.toNearestOrAwayFromZero))
+    guard let block = movingBlockBounds(
+        timeSeconds: t,
+        bounds: bounds
+    ) else { return }
 
     strokeRectColor(into: &fb, x: inner.x, y: inner.y, w: inner.w, h: inner.h, thickness: 1, color: theme.ui.panelBorder)
-    fillRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, color: theme.ui.movingBlock)
-    strokeRectColor(into: &fb, x: x0, y: y0, w: blockW, h: blockH, thickness: 2, color: theme.ui.movingBlockBorder)
+    fillRectColor(into: &fb, x: block.x, y: block.y, w: block.w, h: block.h, color: theme.ui.movingBlock)
+    strokeRectColor(into: &fb, x: block.x, y: block.y, w: block.w, h: block.h, thickness: 2, color: theme.ui.movingBlockBorder)
 }
 
 
