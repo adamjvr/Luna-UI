@@ -1068,3 +1068,19 @@ Measure or count:
 The audit acceptance rule is architectural: normal frame work must scale primarily
 with visible rows plus bounded overscan. A frame must not shape every document line,
 and two panes must not independently rebuild identical revision/width geometry.
+
+## C2.5E runtime-fairness acceptance
+
+Run both modes:
+
+```bash
+swift run LunaUITestApp -- --kitchen-sink
+swift run LunaUITestApp -- --editor
+```
+
+Under held navigation, sustained text, scrolling, resize, menu commands, and
+window close, verify progressive presentation without bursty backlog behavior.
+Kitchen-sink animation must remain on the verified partial-damage path after its
+cold frame. Editor mode must remain event-driven. Record p50/p95/p99/max
+input-to-present and frame times for the accepted fixture matrix; raw result
+files are CI artifacts or ignored local output, not permanent documentation.

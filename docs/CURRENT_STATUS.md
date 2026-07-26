@@ -1,6 +1,6 @@
 # Current Luna UI Status
 
-This document is the working checkpoint after native C2.4 validation: ordinary Moth interaction scheduling is accepted, while Luna demo composition and large-document text layout have exposed release-blocking scalability defects that now enter the A1 paired audit.
+This document is the C2.5E acceptance checkpoint. C2.5A–D established revision-keyed presentation, reusable wrap/visual-row indexes, frame-path diagnostics, bounded framebuffer damage, and verified partial-damage rendering. C2.5E now bounds synchronous semantic dispatch so a ready input batch cannot starve presentation.
 
 ---
 
@@ -225,19 +225,22 @@ Unresolved and release-blocking:
 - `LunaStaticTextView` still derives complete-document visual segments before selecting visible rows, and soft-wrap layout may repeat that work after scrollbar-width resolution;
 - Moth currently rebuilds full Luna snapshots for multiple pane/minimap consumers instead of sharing one revision-keyed presentation snapshot.
 
-## Immediate Next Implementation Target
+## Current Acceptance Gate
 
 ```text
-A1.1 — measured large-document and demo-composition audit
+C2.5E — runtime fairness and scalability acceptance
 ```
 
-Do not begin M3A or implement a speculative C2.5 yet. First instrument and count
-snapshot construction, logical-line scanning, wrap planning, shaping requests,
-visible-row materialization, framebuffer copying, CPU drawing, and SDL presentation
-for 50, 500, 5,000, and 50,000 line fixtures. Compare one pane, two panes at equal
-and unequal widths, wrapping on/off, idle render, scroll, typing, caret movement,
-and resize. The audit must classify findings as Critical, High, Medium, Low, or
-Accepted Debt and reconvene before implementation. M3A remains blocked.
+C2.5E retains Luna's persistent semantic scheduler and inserts a bounded,
+ordered dispatch cursor between a ready scheduler batch and the synchronous
+application scene. The default slice is 32 semantic events or 2 ms, with
+guaranteed one-event progress. New native input may be acquired while a cursor
+is active, but remains behind it in the scheduler.
+
+Acceptance requires exact event order, no loss before an accepted termination,
+no idle/pacing sleep while deferred semantic work remains, partial-damage
+rendering after visible Moth slices, and native measurements at 50, 500, 5,000,
+and 50,000 logical lines. M3A remains blocked until this gate is accepted.
 
 ---
 

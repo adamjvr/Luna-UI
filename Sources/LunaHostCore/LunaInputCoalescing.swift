@@ -106,6 +106,13 @@ public struct LunaInputCoalescingStats: Hashable, Sendable {
     public var receivedTextInputUTF8ByteCount: Int
     public var emittedBarrierCount: Int
     public var acquisitionBatchCount: Int
+    public var dispatchSliceCount: Int
+    public var dispatchedSemanticEventCount: Int
+    public var deferredSemanticEventCount: Int
+    public var dispatchNanoseconds: UInt64
+    public var dispatchEventLimitCount: Int
+    public var dispatchTimeLimitCount: Int
+    public var dispatchStoppedEarlyCount: Int
     public var polling: LunaInputPollingStats
 
     public init(
@@ -118,6 +125,13 @@ public struct LunaInputCoalescingStats: Hashable, Sendable {
         receivedTextInputUTF8ByteCount: Int = 0,
         emittedBarrierCount: Int = 0,
         acquisitionBatchCount: Int = 0,
+        dispatchSliceCount: Int = 0,
+        dispatchedSemanticEventCount: Int = 0,
+        deferredSemanticEventCount: Int = 0,
+        dispatchNanoseconds: UInt64 = 0,
+        dispatchEventLimitCount: Int = 0,
+        dispatchTimeLimitCount: Int = 0,
+        dispatchStoppedEarlyCount: Int = 0,
         polling: LunaInputPollingStats = LunaInputPollingStats()
     ) {
         self.receivedEventCount = max(0, receivedEventCount)
@@ -129,6 +143,13 @@ public struct LunaInputCoalescingStats: Hashable, Sendable {
         self.receivedTextInputUTF8ByteCount = max(0, receivedTextInputUTF8ByteCount)
         self.emittedBarrierCount = max(0, emittedBarrierCount)
         self.acquisitionBatchCount = max(0, acquisitionBatchCount)
+        self.dispatchSliceCount = max(0, dispatchSliceCount)
+        self.dispatchedSemanticEventCount = max(0, dispatchedSemanticEventCount)
+        self.deferredSemanticEventCount = max(0, deferredSemanticEventCount)
+        self.dispatchNanoseconds = dispatchNanoseconds
+        self.dispatchEventLimitCount = max(0, dispatchEventLimitCount)
+        self.dispatchTimeLimitCount = max(0, dispatchTimeLimitCount)
+        self.dispatchStoppedEarlyCount = max(0, dispatchStoppedEarlyCount)
         self.polling = polling
     }
 
@@ -141,7 +162,7 @@ public struct LunaInputCoalescingStats: Hashable, Sendable {
     }
 
     public var statusText: String {
-        String(
+        let acquisition = String(
             format: "events %d/%d | barriers %d | text -%d | motion -%d | acquire %.2f ms/%d",
             emittedEventCount,
             receivedEventCount,
@@ -151,6 +172,36 @@ public struct LunaInputCoalescingStats: Hashable, Sendable {
             polling.pollingMilliseconds,
             acquisitionBatchCount
         )
+        guard dispatchSliceCount > 0 else { return acquisition }
+
+        let dispatchMilliseconds = Double(dispatchNanoseconds) / 1_000_000.0
+        let dispatch = String(
+            format: "dispatch %d/%d | slices %d | %.2f ms | deferred %d",
+            dispatchedSemanticEventCount,
+            emittedEventCount,
+            dispatchSliceCount,
+            dispatchMilliseconds,
+            deferredSemanticEventCount
+        )
+        return "\(acquisition) | \(dispatch)"
+    }
+
+    public mutating func recordDispatchSlice(
+        _ stats: LunaInputDispatchStats
+    ) {
+        dispatchSliceCount += 1
+        dispatchedSemanticEventCount += stats.processedEventCount
+        deferredSemanticEventCount = stats.remainingEventCount
+        dispatchNanoseconds &+= stats.dispatchNanoseconds
+        if stats.didReachEventLimit {
+            dispatchEventLimitCount += 1
+        }
+        if stats.didReachTimeLimit {
+            dispatchTimeLimitCount += 1
+        }
+        if stats.didStopEarly {
+            dispatchStoppedEarlyCount += 1
+        }
     }
 }
 

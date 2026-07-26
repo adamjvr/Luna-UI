@@ -69,3 +69,19 @@ composition, or presentation work.
 C2.4 therefore remains the input-scheduling baseline during A1. The audit must
 measure the render path separately and preserve the rule that raw acquisition
 limits never become frame boundaries.
+
+## C2.5E bounded semantic dispatch
+
+`LunaScheduledInputDispatchCursor` retains one ready semantic batch across
+presentation opportunities. It preserves exact scheduler order and applies at
+least one event per slice. `LunaInputDispatchBudget` defaults to 32 semantic
+events or 2 ms and is configurable through `LunaSDLApplicationConfiguration`.
+
+While a cursor is active, the SDL host may continue bounded native acquisition.
+Those events remain in `LunaInteractiveInputScheduler`; they cannot overtake the
+retained cursor. Deferred dispatch prevents idle and software-pacing sleeps.
+Input-to-present timing continues to use the oldest event in the retained batch.
+
+An accepted quit stops the current slice and terminates the host loop. No thread,
+actor, or widget ownership changes are introduced: Luna scenes remain
+synchronous and deterministic.

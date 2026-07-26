@@ -1573,3 +1573,21 @@ framebuffer drawing/copying, and SDL presentation across 50, 500, 5,000, and
 50,000 line fixtures. Publish Critical/High/Medium/Low/Accepted-Debt findings and
 reconvene. C2.5 virtualized text layout and demo composition is only a candidate
 until the audit confirms the design. M3A remains blocked.
+
+## Convergence C2.5E — Runtime Fairness and Scalability Acceptance
+
+**Status:** implementation ready for paired native acceptance.
+
+C2.5E completes the post-audit runtime gate:
+
+- retain C2.4 cross-pass semantic scheduling and ordering barriers;
+- dispatch ready semantic batches through an ordered continuation;
+- bound one synchronous application slice by event count and monotonic time;
+- guarantee at least one-event progress;
+- continue native acquisition without allowing new input to overtake deferred work;
+- present between visible slices and never sleep while a cursor remains;
+- expose dispatch-slice, deferred-event, and dispatch-time diagnostics;
+- validate exact order, quit handling, native interaction, and large-document scaling.
+
+M3A document sheets and real tabs remain blocked until the paired C2.5E native
+and measured acceptance matrix passes.

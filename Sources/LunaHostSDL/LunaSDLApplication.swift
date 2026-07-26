@@ -26,6 +26,7 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
     public var usesVSync: Bool
     public var inputPollingBudget: LunaInputPollingBudget
     public var inputPresentationPolicy: LunaInteractivePresentationPolicy
+    public var inputDispatchBudget: LunaInputDispatchBudget
 
     public init(
         title: String,
@@ -34,7 +35,8 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         targetFramesPerSecond: Double = 60,
         usesVSync: Bool = true,
         inputPollingBudget: LunaInputPollingBudget = .interactive,
-        inputPresentationPolicy: LunaInteractivePresentationPolicy = .interactive
+        inputPresentationPolicy: LunaInteractivePresentationPolicy = .interactive,
+        inputDispatchBudget: LunaInputDispatchBudget = .interactive
     ) {
         self.title = title
         self.initialWidth = max(1, initialWidth)
@@ -43,6 +45,7 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         self.usesVSync = usesVSync
         self.inputPollingBudget = inputPollingBudget
         self.inputPresentationPolicy = inputPresentationPolicy
+        self.inputDispatchBudget = inputDispatchBudget
     }
 }
 
@@ -189,6 +192,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
     let presenter = LunaSDLPresenter(window: window, useVSync: configuration.usesVSync)
     var inputTranslator = LunaSDLInputTranslator()
     var inputScheduler = LunaInteractiveInputScheduler()
+    var dispatchCursor: LunaScheduledInputDispatchCursor?
 
     var framePacer = LunaFramePacer(
         targetFramesPerSecond: configuration.targetFramesPerSecond,
@@ -202,59 +206,90 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
 
     while running {
         let inputStart = LunaMonotonicClock.nowNanoseconds()
-        var scheduledBatch: LunaScheduledInputBatch?
         var nativeSourceIsIdle = false
         var didAcquireRawEvent = false
 
-        // Raw acquisition may require several bounded passes. Those passes are
-        // safety boundaries only: they never force an intermediate presentation.
-        // The persistent semantic scheduler decides when an ordered interaction
-        // batch is ready, so a click or command cannot be stranded behind stale
-        // motion/text solely because a native polling limit was reached.
-        repeat {
+        if dispatchCursor == nil {
+            var scheduledBatch: LunaScheduledInputBatch?
+
+            // A ready semantic batch starts a retained dispatch cursor. Raw
+            // acquisition boundaries still do not create presentation boundaries.
+            repeat {
+                let acquisitionStartedAt = LunaMonotonicClock.nowNanoseconds()
+                let polledInput = inputTranslator.pollEvents(
+                    budget: configuration.inputPollingBudget
+                )
+                didAcquireRawEvent = didAcquireRawEvent
+                    || polledInput.stats.rawEventCount > 0
+                nativeSourceIsIdle = !polledInput.stats.mayHavePendingEvents
+                inputScheduler.ingest(
+                    polledInput.events,
+                    acquiredAtNanoseconds: acquisitionStartedAt,
+                    pollingStats: polledInput.stats
+                )
+                scheduledBatch = inputScheduler.nextDispatchBatch(
+                    nowNanoseconds: LunaMonotonicClock.nowNanoseconds(),
+                    sourceIsIdle: nativeSourceIsIdle,
+                    policy: configuration.inputPresentationPolicy
+                )
+            } while scheduledBatch == nil && !nativeSourceIsIdle
+
+            if let scheduledBatch {
+                dispatchCursor = LunaScheduledInputDispatchCursor(
+                    batch: scheduledBatch
+                )
+            }
+        } else {
+            // While older semantic work is being sliced, continue one bounded
+            // acquisition pass per loop. Newly acquired events stay in the
+            // scheduler and cannot overtake the retained cursor.
             let acquisitionStartedAt = LunaMonotonicClock.nowNanoseconds()
             let polledInput = inputTranslator.pollEvents(
                 budget: configuration.inputPollingBudget
             )
-            didAcquireRawEvent = didAcquireRawEvent || polledInput.stats.rawEventCount > 0
+            didAcquireRawEvent = polledInput.stats.rawEventCount > 0
             nativeSourceIsIdle = !polledInput.stats.mayHavePendingEvents
             inputScheduler.ingest(
                 polledInput.events,
                 acquiredAtNanoseconds: acquisitionStartedAt,
                 pollingStats: polledInput.stats
             )
-            scheduledBatch = inputScheduler.nextDispatchBatch(
-                nowNanoseconds: LunaMonotonicClock.nowNanoseconds(),
-                sourceIsIdle: nativeSourceIsIdle,
-                policy: configuration.inputPresentationPolicy
-            )
-        } while scheduledBatch == nil && !nativeSourceIsIdle
+        }
 
         var oldestDispatchedInputNanoseconds: UInt64?
         var didReceiveSemanticEvent = false
 
-        if let scheduledBatch {
-            latestInputStats = scheduledBatch.stats
-            oldestDispatchedInputNanoseconds = scheduledBatch.oldestEventNanoseconds
+        if var cursor = dispatchCursor {
+            oldestDispatchedInputNanoseconds = cursor.oldestEventNanoseconds
 
-            for event in scheduledBatch.events {
+            _ = cursor.dispatchNextSlice(
+                budget: configuration.inputDispatchBudget
+            ) { event in
                 didReceiveSemanticEvent = true
 
                 if case .quit = event {
                     if scene.shouldTerminate() {
                         running = false
-                    } else {
-                        pendingInvalidations.insert(.input)
+                        return LunaInputDispatchDecision.stopDispatch
                     }
-                    continue
+
+                    pendingInvalidations.insert(.input)
+                    return LunaInputDispatchDecision.continueDispatch
                 }
 
                 if case .windowResized(let size) = event,
-                   size.width != framebuffer.width || size.height != framebuffer.height {
-                    framebuffer = LunaFramebuffer(width: size.width, height: size.height)
+                   size.width != framebuffer.width
+                    || size.height != framebuffer.height {
+                    framebuffer = LunaFramebuffer(
+                        width: size.width,
+                        height: size.height
+                    )
                 }
 
-                let size = LunaSizeI(width: framebuffer.width, height: framebuffer.height)
+                let size = LunaSizeI(
+                    width: framebuffer.width,
+                    height: framebuffer.height
+                )
                 pendingInvalidations.formUnion(
                     scene.handleHostEvent(event, framebufferSize: size)
                 )
@@ -262,7 +297,11 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                     cursorIntent: scene.cursorIntent,
                     wantsPointerCapture: scene.wantsPointerCapture
                 )
+                return LunaInputDispatchDecision.continueDispatch
             }
+
+            latestInputStats = cursor.inputStats
+            dispatchCursor = running && cursor.hasPendingEvents ? cursor : nil
         }
 
         let inputEnd = LunaMonotonicClock.nowNanoseconds()
@@ -279,7 +318,9 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
             // Pending semantic state or a conservative native backlog is resumed
             // immediately. Sleep only when there is genuinely no input work,
             // invalidation, animation, or presentation deadline outstanding.
-            if inputScheduler.hasPendingInput || !nativeSourceIsIdle {
+            if dispatchCursor != nil
+                || inputScheduler.hasPendingInput
+                || !nativeSourceIsIdle {
                 continue
             }
             SDL_Delay(
@@ -341,7 +382,9 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         // VSync, apply the software pacer only after the scheduler has no pending
         // semantic work; never sleep while a click, command, or text deadline is
         // waiting to be serviced.
-        if !inputScheduler.hasPendingInput && nativeSourceIsIdle {
+        if dispatchCursor == nil
+            && !inputScheduler.hasPendingInput
+            && nativeSourceIsIdle {
             let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
             if sleepMilliseconds > 0 {
                 SDL_Delay(sleepMilliseconds)
