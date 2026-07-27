@@ -575,6 +575,11 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     /// insertion positions from `metrics.glyphMetrics.advance`.
     public var geometryProvider: (any LunaStaticTextGeometryProvider)?
 
+    /// Optional revision-stable viewport layout context. When supplied, layout,
+    /// scrolling, and caret visibility shape only visible rows plus bounded
+    /// overscan instead of traversing the complete document.
+    public var virtualizationContext: LunaStaticTextVirtualizationContext?
+
     public var isFocused: Bool
 
     /// Whether the backing text model currently accepts edits.
@@ -604,7 +609,8 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         isEditable: Bool = false,
         caret: LunaStaticTextCaret? = nil,
         selection: LunaStaticTextSelection? = nil,
-        highlights: [LunaStaticTextHighlight] = []
+        highlights: [LunaStaticTextHighlight] = [],
+        virtualizationContext: LunaStaticTextVirtualizationContext? = nil
     ) {
         self.id = id
         self.bounds = bounds
@@ -616,6 +622,7 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
         self.metrics = metrics
         self.wrapMode = wrapMode
         self.geometryProvider = geometryProvider
+        self.virtualizationContext = virtualizationContext
         self.isFocused = isFocused
         self.isEditable = isEditable
         self.caret = caret.map { LunaStaticTextCaret(location: document.clampedLocation($0.location)) }
@@ -648,6 +655,9 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     }
 
     public func layout() -> LunaStaticTextViewLayout {
+        if let virtualizationContext {
+            return virtualizedLayout(using: virtualizationContext)
+        }
         guard !bounds.isEmpty else {
             return LunaStaticTextViewLayout(
                 bounds: bounds,
@@ -1032,6 +1042,12 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     /// Return a copy of the view scrolled by visual rows when soft wrapping is
     /// enabled, or by logical lines for the original non-wrapped mode.
     public func scrolled(byLineDelta delta: Int) -> LunaStaticTextView {
+        if let virtualizationContext {
+            return virtualizedScrolled(
+                byVisualRowDelta: delta,
+                context: virtualizationContext
+            )
+        }
         let current = layout()
         var copy = self
         if wrapMode == .soft {
@@ -1054,6 +1070,12 @@ public struct LunaStaticTextView: LunaWidget, Sendable {
     /// Return a copy of the view with the supplied logical location visible.
     /// In soft-wrap mode this includes continuation rows within one long line.
     public func ensuringVisible(_ location: LunaTextLocation) -> LunaStaticTextView {
+        if let virtualizationContext {
+            return virtualizedEnsuringVisible(
+                location,
+                context: virtualizationContext
+            )
+        }
         let current = layout()
         let clampedLocation = document.clampedLocation(location)
         var copy = self

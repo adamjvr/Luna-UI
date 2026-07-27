@@ -1591,3 +1591,7 @@ C2.5E completes the post-audit runtime gate:
 
 M3A document sheets and real tabs remain blocked until the paired C2.5E native
 and measured acceptance matrix passes.
+
+### C2.5F — Virtualized document presentation
+
+**Implementation checkpoint.** `LunaStaticTextView` can consume `LunaStaticTextVirtualizationContext` to make viewport work independent of total document length after one revision snapshot is established. Native paired acceptance remains required before M3A.

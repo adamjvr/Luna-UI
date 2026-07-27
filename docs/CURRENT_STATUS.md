@@ -309,3 +309,7 @@ Delivered:
 - pinned-tab compact geometry, active-tab visibility, hidden-tab reporting, and overflow-button state;
 - regression tests proving Luna owns mechanics while applications own pane meaning;
 - an SDL scene termination veto so applications can cancel native window close for unsaved documents.
+
+## C2.5F virtualized document layout
+
+Luna now provides an opt-in revision-stable virtualization context for static text views. Soft-wrap geometry is built lazily for visible rows plus bounded overscan, global visual-row lookup uses an incrementally refined Fenwick index, and width/line/segment caches have explicit retention limits. Legacy callers remain on the original complete-document path until they supply a context.

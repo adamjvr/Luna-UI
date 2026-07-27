@@ -1084,3 +1084,7 @@ Kitchen-sink animation must remain on the verified partial-damage path after its
 cold frame. Editor mode must remain event-driven. Record p50/p95/p99/max
 input-to-present and frame times for the accepted fixture matrix; raw result
 files are CI artifacts or ignored local output, not permanent documentation.
+
+## C2.5F scalability acceptance
+
+Run the focused operation-count tests, then exercise 50, 500, 5,000, and 50,000-line documents through a product supplying the virtualization context. Typing, navigation, and scrolling must shape only visible rows plus bounded overscan. Resize churn must not grow width or geometry caches without bound.
