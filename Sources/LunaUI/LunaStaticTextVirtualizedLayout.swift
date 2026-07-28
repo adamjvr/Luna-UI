@@ -283,7 +283,7 @@ public final class LunaStaticTextVirtualizationContext: @unchecked Sendable {
     ) {
         self.presentation = presentation
         self.geometryGeneration = geometryGeneration
-        self.totalDocumentUTF8Length = presentation.document.text.utf8.count
+        self.totalDocumentUTF8Length = presentation.document.utf8Count
         self.maximumRetainedWidthCount = max(1, maximumRetainedWidthCount)
         self.maximumRetainedLineCount = max(1, maximumRetainedLineCount)
         self.maximumRetainedSegmentGeometryCount = max(1, maximumRetainedSegmentGeometryCount)

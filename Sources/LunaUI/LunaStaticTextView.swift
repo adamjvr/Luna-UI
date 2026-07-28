@@ -243,6 +243,22 @@ public struct LunaStaticTextLine: Hashable, Sendable {
     }
 }
 
+/// UTF-8 metadata for one logical line without materializing its `String`.
+///
+/// Large-document consumers such as minimaps, scrollbars, and offset mappers can
+/// use this shape without allocating text for every sampled line.
+public struct LunaStaticTextLineMetadata: Hashable, Sendable {
+    public let index: Int
+    public let utf8Offset: Int
+    public let utf8Length: Int
+
+    public init(index: Int, utf8Offset: Int, utf8Length: Int) {
+        self.index = max(0, index)
+        self.utf8Offset = max(0, utf8Offset)
+        self.utf8Length = max(0, utf8Length)
+    }
+}
+
 /// Immutable line snapshot consumed by Luna text views.
 ///
 /// Phase 3D adds `LunaEditableTextDocument` for mutation, but rendering, hit
@@ -250,54 +266,116 @@ public struct LunaStaticTextLine: Hashable, Sendable {
 /// line snapshot. Real editor storage, syntax scopes, folds, bidi, shaping, and
 /// soft wrap belong in later phases.
 public struct LunaStaticTextDocument: Hashable, Sendable {
-    public var text: String
-    public var lines: [LunaStaticTextLine]
+    private struct LineSlice: Hashable, Sendable {
+        let start: String.Index
+        let end: String.Index
+        let metadata: LunaStaticTextLineMetadata
+    }
+
+    public var text: String {
+        didSet {
+            let indexed = Self.makeLineSlices(from: text)
+            lineSlices = indexed.slices
+            indexedUTF8Count = indexed.utf8Count
+        }
+    }
+
+    private var lineSlices: [LineSlice]
+    private var indexedUTF8Count: Int
 
     public init(text: String) {
         self.text = text
-        self.lines = Self.makeLines(from: text)
+        let indexed = Self.makeLineSlices(from: text)
+        self.lineSlices = indexed.slices
+        self.indexedUTF8Count = indexed.utf8Count
     }
 
-    public var lineCount: Int { lines.count }
+    public static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.text == rhs.text
+    }
+
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(text)
+    }
+
+    /// Compatibility projection for callers that explicitly require every line.
+    /// Viewport-bounded paths should use `lineCount`, `lineMetadata(at:)`, and the
+    /// line subscript so only requested line strings are materialized.
+    public var lines: [LunaStaticTextLine] {
+        lineSlices.indices.compactMap { self[line: $0] }
+    }
+
+    public var lineCount: Int { lineSlices.count }
+    public var utf8Count: Int { indexedUTF8Count }
+
+    public func lineMetadata(at index: Int) -> LunaStaticTextLineMetadata? {
+        guard lineSlices.indices.contains(index) else { return nil }
+        return lineSlices[index].metadata
+    }
 
     public subscript(line index: Int) -> LunaStaticTextLine? {
-        guard lines.indices.contains(index) else { return nil }
-        return lines[index]
+        guard lineSlices.indices.contains(index) else { return nil }
+        let slice = lineSlices[index]
+        return LunaStaticTextLine(
+            index: slice.metadata.index,
+            text: String(text[slice.start..<slice.end]),
+            utf8Offset: slice.metadata.utf8Offset,
+            utf8Length: slice.metadata.utf8Length
+        )
     }
 
     /// Clamp an arbitrary editor coordinate to this document's valid line and
-    /// UTF-8 column range.
+    /// UTF-8 column range without materializing the line string.
     public func clampedLocation(_ location: LunaTextLocation) -> LunaTextLocation {
         let lineIndex = min(max(0, location.lineIndex), max(0, lineCount - 1))
-        let lineLength = self[line: lineIndex]?.utf8Length ?? 0
-        return LunaTextLocation(lineIndex: lineIndex, utf8Column: min(max(0, location.utf8Column), lineLength))
+        let lineLength = lineMetadata(at: lineIndex)?.utf8Length ?? 0
+        return LunaTextLocation(
+            lineIndex: lineIndex,
+            utf8Column: min(max(0, location.utf8Column), lineLength)
+        )
     }
 
-    /// Convert a line-relative text coordinate to an absolute UTF-8 byte offset.
+    /// Convert a line-relative coordinate to an absolute UTF-8 byte offset using
+    /// indexed metadata only.
     public func absoluteUTF8Offset(for location: LunaTextLocation) -> Int {
         let clamped = clampedLocation(location)
-        guard let line = self[line: clamped.lineIndex] else { return 0 }
+        guard let line = lineMetadata(at: clamped.lineIndex) else { return 0 }
         return line.utf8Offset + clamped.utf8Column
     }
 
     /// Convert an absolute UTF-8 byte offset into the closest line-relative text
-    /// coordinate. Newline bytes belong to the preceding line end.
+    /// coordinate with O(log line-count) metadata lookup. Newline bytes belong to
+    /// the preceding line end, preserving the original document semantics.
     public func location(forAbsoluteUTF8Offset offset: Int) -> LunaTextLocation {
-        let clampedOffset = min(max(0, offset), text.utf8.count)
+        let clampedOffset = min(max(0, offset), indexedUTF8Count)
+        guard !lineSlices.isEmpty else {
+            return LunaTextLocation(lineIndex: 0, utf8Column: 0)
+        }
 
-        for line in lines {
-            let lineStart = line.utf8Offset
-            let lineEnd = line.utf8Offset + line.utf8Length
-            if clampedOffset <= lineEnd {
-                return LunaTextLocation(lineIndex: line.index, utf8Column: max(0, clampedOffset - lineStart))
+        var lower = 0
+        var upper = lineSlices.count
+        while lower < upper {
+            let middle = lower + (upper - lower) / 2
+            let metadata = lineSlices[middle].metadata
+            let lineEnd = metadata.utf8Offset + metadata.utf8Length
+            if lineEnd < clampedOffset {
+                lower = middle + 1
+            } else {
+                upper = middle
             }
         }
 
-        let last = lines.last ?? LunaStaticTextLine(index: 0, text: "", utf8Offset: 0, utf8Length: 0)
-        return LunaTextLocation(lineIndex: last.index, utf8Column: last.utf8Length)
+        let index = min(lower, lineSlices.count - 1)
+        let metadata = lineSlices[index].metadata
+        return LunaTextLocation(
+            lineIndex: metadata.index,
+            utf8Column: min(
+                metadata.utf8Length,
+                max(0, clampedOffset - metadata.utf8Offset)
+            )
+        )
     }
 
-    /// Normalize and clamp a range against this document.
     public func clampedRange(_ range: LunaTextRange) -> LunaTextRange {
         let normalized = range.normalized
         let start = clampedLocation(normalized.anchor)
@@ -309,7 +387,10 @@ public struct LunaStaticTextDocument: Hashable, Sendable {
         let clamped = clampedRange(range)
         let start = absoluteUTF8Offset(for: clamped.anchor)
         let end = absoluteUTF8Offset(for: clamped.focus)
-        return LunaAccessibilityTextRange(utf8Offset: start, utf8Length: max(0, end - start))
+        return LunaAccessibilityTextRange(
+            utf8Offset: start,
+            utf8Length: max(0, end - start)
+        )
     }
 
     public func accessibilityCaretRange(for caret: LunaStaticTextCaret) -> LunaAccessibilityTextRange {
@@ -317,47 +398,67 @@ public struct LunaStaticTextDocument: Hashable, Sendable {
         return LunaAccessibilityTextRange(utf8Offset: offset, utf8Length: 0)
     }
 
-    private static func makeLines(from text: String) -> [LunaStaticTextLine] {
+    private static func makeLineSlices(
+        from text: String
+    ) -> (slices: [LineSlice], utf8Count: Int) {
         guard !text.isEmpty else {
-            return [LunaStaticTextLine(index: 0, text: "", utf8Offset: 0, utf8Length: 0)]
-        }
-
-        var result: [LunaStaticTextLine] = []
-        var start = text.startIndex
-        var utf8Offset = 0
-        var lineIndex = 0
-
-        func appendLine(_ lineText: String, offset: Int) {
-            result.append(
-                LunaStaticTextLine(
-                    index: lineIndex,
-                    text: lineText,
-                    utf8Offset: offset,
-                    utf8Length: lineText.utf8.count
+            let empty = LineSlice(
+                start: text.startIndex,
+                end: text.startIndex,
+                metadata: LunaStaticTextLineMetadata(
+                    index: 0,
+                    utf8Offset: 0,
+                    utf8Length: 0
                 )
             )
-            lineIndex += 1
+            return ([empty], 0)
         }
 
-        while start < text.endIndex {
-            if let newline = text[start...].firstIndex(of: "\n") {
-                let lineText = String(text[start..<newline])
-                appendLine(lineText, offset: utf8Offset)
-                utf8Offset += lineText.utf8.count + 1
-                start = text.index(after: newline)
-            } else {
-                let lineText = String(text[start..<text.endIndex])
-                appendLine(lineText, offset: utf8Offset)
-                utf8Offset += lineText.utf8.count
-                start = text.endIndex
+        let utf8 = text.utf8
+        var result: [LineSlice] = []
+        result.reserveCapacity(max(1, utf8.count / 40))
+        var lineStart = text.startIndex
+        var lineStartUTF8Offset = 0
+        var currentUTF8Offset = 0
+        var utf8Index = utf8.startIndex
+
+        while utf8Index < utf8.endIndex {
+            if utf8[utf8Index] == 0x0A,
+               let lineEnd = utf8Index.samePosition(in: text) {
+                result.append(
+                    LineSlice(
+                        start: lineStart,
+                        end: lineEnd,
+                        metadata: LunaStaticTextLineMetadata(
+                            index: result.count,
+                            utf8Offset: lineStartUTF8Offset,
+                            utf8Length: currentUTF8Offset - lineStartUTF8Offset
+                        )
+                    )
+                )
+                let nextUTF8Index = utf8.index(after: utf8Index)
+                lineStart = nextUTF8Index.samePosition(in: text) ?? text.endIndex
+                lineStartUTF8Offset = currentUTF8Offset + 1
             }
+            currentUTF8Offset += 1
+            utf8.formIndex(after: &utf8Index)
         }
 
-        if text.last == "\n" {
-            appendLine("", offset: text.utf8.count)
+        if lineStart < text.endIndex || text.last == "\n" {
+            result.append(
+                LineSlice(
+                    start: lineStart,
+                    end: text.endIndex,
+                    metadata: LunaStaticTextLineMetadata(
+                        index: result.count,
+                        utf8Offset: lineStartUTF8Offset,
+                        utf8Length: currentUTF8Offset - lineStartUTF8Offset
+                    )
+                )
+            )
         }
 
-        return result
+        return (result, currentUTF8Offset)
     }
 }
 
