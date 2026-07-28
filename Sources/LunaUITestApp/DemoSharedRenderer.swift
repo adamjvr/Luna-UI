@@ -257,6 +257,7 @@ public struct LunaCPUDemoScene {
     private var frameTimingStats = LunaFrameTimingStats()
     private var latestFrameInvalidations = LunaFrameInvalidationSet(.initial)
     private var latestInputCoalescingStats = LunaInputCoalescingStats()
+    private let staticTextPresentationStore = LunaDemoStaticTextPresentationStore()
 
     /// Render-stage report consumed by the host immediately after presentation
     /// construction. Keeping it one-shot prevents stale path data from being
@@ -435,10 +436,14 @@ public struct LunaCPUDemoScene {
             metrics: LunaPaneContentMetrics(headerHeight: 22)
         ) else { return nil }
         let isActive = paneID == paneWorkspaceState.activePaneID
-        return Self.staticTextView(
+        let presentation = staticTextPresentationStore.presentation(
+            revision: editableTextState.editRevision,
+            document: staticTextDocument
+        )
+        var view = Self.staticTextView(
             id: frame.nodeID,
             bounds: frame.contentBounds,
-            document: staticTextDocument,
+            document: presentation.presentation.document,
             scrollTopLine: scrollTopLine(for: paneID),
             scrollTopVisualRow: scrollTopVisualRow(for: paneID),
             caret: isActive ? staticTextCaret : nil,
@@ -447,6 +452,8 @@ public struct LunaCPUDemoScene {
             theme: theme,
             wrapMode: .soft
         )
+        view.virtualizationContext = presentation.virtualizationContext
+        return view
     }
 
     private func paneTextView(

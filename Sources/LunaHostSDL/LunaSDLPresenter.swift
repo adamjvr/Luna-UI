@@ -1,126 +1,107 @@
 // SPDX-License-Identifier: MPL-2.0
 // FramebufferPresenters.swift
-//
-// Linux:
-// - SDL2 presenter that uploads the CPU framebuffer into an SDL streaming texture.
-//
-// NOTE:
-// - We do NOT assume a particular LunaFramebuffer storage property name.
-// - We use `LunaFramebuffer.withUnsafePixelBytes` (reflection shim in LunaRender) to access bytes.
 #if os(Linux)
 
 import Foundation
-import LunaRender
 import LunaHostCore
-
+import LunaRender
 import SDL2
 
 public final class LunaSDLPresenter {
-
     private let window: OpaquePointer
     private let renderer: OpaquePointer
-    public let usesVSync: Bool
+    public let capabilities: LunaSDLRendererCapabilities
+    public var usesVSync: Bool { capabilities.hasPresentVSync }
     private var texture: OpaquePointer?
-
     private var texW: Int32 = 0
     private var texH: Int32 = 0
 
     public init(window: OpaquePointer, useVSync: Bool = true) {
         self.window = window
-        self.usesVSync = useVSync
-
-        var flags = UInt32(SDL_RENDERER_ACCELERATED.rawValue)
+        var requestedFlags = UInt32(SDL_RENDERER_ACCELERATED.rawValue)
         if useVSync {
-            flags |= UInt32(SDL_RENDERER_PRESENTVSYNC.rawValue)
+            requestedFlags |= UInt32(SDL_RENDERER_PRESENTVSYNC.rawValue)
         }
 
-        guard let r = SDL_CreateRenderer(
-            window,
-            -1,
-            flags
-        ) else {
+        guard let renderer = SDL_CreateRenderer(window, -1, requestedFlags) else {
             fatalError("SDL_CreateRenderer failed: \(String(cString: SDL_GetError()))")
         }
+        self.renderer = renderer
 
-        self.renderer = r
+        var info = SDL_RendererInfo()
+        let querySucceeded = SDL_GetRendererInfo(renderer, &info) == 0
+        let actualFlags = querySucceeded ? info.flags : 0
+        let softwareFlag = UInt32(SDL_RENDERER_SOFTWARE.rawValue)
+        let acceleratedFlag = UInt32(SDL_RENDERER_ACCELERATED.rawValue)
+        let targetTextureFlag = UInt32(SDL_RENDERER_TARGETTEXTURE.rawValue)
+        let presentVSyncFlag = UInt32(SDL_RENDERER_PRESENTVSYNC.rawValue)
+        let rendererName: String
+        if querySucceeded, let name = info.name {
+            rendererName = String(cString: name)
+        } else {
+            rendererName = "unknown"
+        }
+        self.capabilities = LunaSDLRendererCapabilities(
+            rendererName: rendererName,
+            querySucceeded: querySucceeded,
+            requestedFlags: requestedFlags,
+            actualFlags: actualFlags,
+            isSoftware: (actualFlags & softwareFlag) != 0,
+            isAccelerated: (actualFlags & acceleratedFlag) != 0,
+            supportsTargetTextures: (actualFlags & targetTextureFlag) != 0,
+            vsyncWasRequested: useVSync,
+            hasPresentVSync: (actualFlags & presentVSyncFlag) != 0,
+            maximumTextureWidth: Int(info.max_texture_width),
+            maximumTextureHeight: Int(info.max_texture_height)
+        )
     }
 
     deinit {
-        if let tex = texture {
-            SDL_DestroyTexture(tex)
-        }
+        if let texture { SDL_DestroyTexture(texture) }
         SDL_DestroyRenderer(renderer)
-        // Window is owned by the caller.
     }
 
     public func getOutputPixelSize(fallbackWidth: Int, fallbackHeight: Int) -> (Int, Int) {
-        var w: Int32 = 0
-        var h: Int32 = 0
-        SDL_GetRendererOutputSize(renderer, &w, &h)
-
-        if w <= 0 || h <= 0 {
+        var width: Int32 = 0
+        var height: Int32 = 0
+        SDL_GetRendererOutputSize(renderer, &width, &height)
+        guard width > 0, height > 0 else {
             return (fallbackWidth, fallbackHeight)
         }
-        return (Int(w), Int(h))
+        return (Int(width), Int(height))
     }
 
     public func ensureTexture(width: Int32, height: Int32) {
-        if texture != nil && width == texW && height == texH {
-            return
-        }
+        if texture != nil, width == texW, height == texH { return }
+        if let texture { SDL_DestroyTexture(texture) }
+        texture = nil
 
-        if let tex = texture {
-            SDL_DestroyTexture(tex)
-            texture = nil
-        }
-
-        // LunaFramebuffer stores bytes in explicit BGRA order:
-        //   byte 0 = blue, byte 1 = green, byte 2 = red, byte 3 = alpha.
-        //
-        // SDL's packed 8888 format names describe the 32-bit integer bit order,
-        // not the byte order you see in memory on little-endian CPUs. For the
-        // Luna byte stream [B, G, R, A], the matching SDL texture format is
-        // SDL_PIXELFORMAT_ARGB8888 because little-endian memory stores that
-        // packed integer as BGRA bytes.
-        //
-        // Using SDL_PIXELFORMAT_BGRA8888 here makes SDL read the final alpha
-        // byte as blue on little-endian Linux, which turns opaque near-black
-        // colors such as #070709FF into bright blue.
-        let fmt: UInt32 = UInt32(SDL_PIXELFORMAT_ARGB8888.rawValue)
-
-        guard let tex = SDL_CreateTexture(
+        let format = UInt32(SDL_PIXELFORMAT_ARGB8888.rawValue)
+        guard let texture = SDL_CreateTexture(
             renderer,
-            fmt,
+            format,
             Int32(SDL_TEXTUREACCESS_STREAMING.rawValue),
             width,
             height
         ) else {
             fatalError("SDL_CreateTexture failed: \(String(cString: SDL_GetError()))")
         }
-
-        texture = tex
+        self.texture = texture
         texW = width
         texH = height
     }
 
-    public func present(framebuffer fb: LunaFramebuffer) {
-
-        let w = Int32(fb.width)
-        let h = Int32(fb.height)
-
-        ensureTexture(width: w, height: h)
-
-        guard let tex = texture else { return }
-
-        let pitch = Int32(fb.bytesPerRow)
-
-        // Upload pixels using the stable helper (no dependency on fb.pixels name)
-        _ = fb.withUnsafePixelBytes { ptr, _ in
-            SDL_UpdateTexture(tex, nil, ptr, pitch)
+    public func present(framebuffer: LunaFramebuffer) {
+        let width = Int32(framebuffer.width)
+        let height = Int32(framebuffer.height)
+        ensureTexture(width: width, height: height)
+        guard let texture else { return }
+        let pitch = Int32(framebuffer.bytesPerRow)
+        _ = framebuffer.withUnsafePixelBytes { pointer, _ in
+            SDL_UpdateTexture(texture, nil, pointer, pitch)
         }
-
         SDL_RenderClear(renderer)
-        SDL_RenderCopy(renderer, tex, nil, nil)
+        SDL_RenderCopy(renderer, texture, nil, nil)
         SDL_RenderPresent(renderer)
     }
 }

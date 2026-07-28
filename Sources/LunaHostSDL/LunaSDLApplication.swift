@@ -190,6 +190,15 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         height: configuration.initialHeight
     )
     let presenter = LunaSDLPresenter(window: window, useVSync: configuration.usesVSync)
+    let runtimeAttribution = LunaRuntimeWorkAttributionRecorder()
+    runtimeAttribution.recordRendererCapabilities(presenter.capabilities)
+    defer {
+        do {
+            try runtimeAttribution.flushIfRequested()
+        } catch {
+            lunaSDLLogError("Failed to write Luna runtime trace: \(error)")
+        }
+    }
     var inputTranslator = LunaSDLInputTranslator()
     var inputScheduler = LunaInteractiveInputScheduler()
     var dispatchCursor: LunaScheduledInputDispatchCursor?
@@ -205,6 +214,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
     var running = true
 
     while running {
+        runtimeAttribution.recordHostLoopIteration()
         let inputStart = LunaMonotonicClock.nowNanoseconds()
         var nativeSourceIsIdle = false
         var didAcquireRawEvent = false
@@ -218,6 +228,11 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 let acquisitionStartedAt = LunaMonotonicClock.nowNanoseconds()
                 let polledInput = inputTranslator.pollEvents(
                     budget: configuration.inputPollingBudget
+                )
+                runtimeAttribution.recordPollingPass(
+                    rawEventCount: polledInput.stats.rawEventCount,
+                    translatedEventCount: polledInput.events.count,
+                    mayHavePendingEvents: polledInput.stats.mayHavePendingEvents
                 )
                 didAcquireRawEvent = didAcquireRawEvent
                     || polledInput.stats.rawEventCount > 0
@@ -247,6 +262,11 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
             let polledInput = inputTranslator.pollEvents(
                 budget: configuration.inputPollingBudget
             )
+            runtimeAttribution.recordPollingPass(
+                rawEventCount: polledInput.stats.rawEventCount,
+                translatedEventCount: polledInput.events.count,
+                mayHavePendingEvents: polledInput.stats.mayHavePendingEvents
+            )
             didAcquireRawEvent = polledInput.stats.rawEventCount > 0
             nativeSourceIsIdle = !polledInput.stats.mayHavePendingEvents
             inputScheduler.ingest(
@@ -262,7 +282,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         if var cursor = dispatchCursor {
             oldestDispatchedInputNanoseconds = cursor.oldestEventNanoseconds
 
-            _ = cursor.dispatchNextSlice(
+            let dispatchSlice = cursor.dispatchNextSlice(
                 budget: configuration.inputDispatchBudget
             ) { event in
                 didReceiveSemanticEvent = true
@@ -300,6 +320,7 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 return LunaInputDispatchDecision.continueDispatch
             }
 
+            runtimeAttribution.recordDispatchSlice(dispatchSlice.stats)
             latestInputStats = cursor.inputStats
             dispatchCursor = running && cursor.hasPendingEvents ? cursor : nil
         }
@@ -309,9 +330,14 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
 
         if !running { break }
 
+        let wantsContinuousFrames = scene.wantsContinuousRendering
         let frameRequest = LunaFrameRequest(
             invalidations: pendingInvalidations,
-            wantsContinuousFrames: scene.wantsContinuousRendering
+            wantsContinuousFrames: wantsContinuousFrames
+        )
+        runtimeAttribution.recordFrameRequest(
+            hasInvalidations: !pendingInvalidations.isEmpty,
+            wantsContinuousFrames: wantsContinuousFrames
         )
 
         guard frameRequest.shouldRender else {
@@ -323,11 +349,11 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
                 || !nativeSourceIsIdle {
                 continue
             }
-            SDL_Delay(
-                (didAcquireRawEvent || didReceiveSemanticEvent)
-                    ? 1
-                    : framePacer.sleepMillisecondsWhenIdle()
-            )
+            let idleSleep = (didAcquireRawEvent || didReceiveSemanticEvent)
+                ? UInt32(1)
+                : framePacer.sleepMillisecondsWhenIdle()
+            runtimeAttribution.recordIdleSleep(milliseconds: idleSleep)
+            SDL_Delay(idleSleep)
             continue
         }
 
@@ -353,6 +379,12 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
         let presentStart = LunaMonotonicClock.nowNanoseconds()
         presenter.present(framebuffer: framebuffer)
         let presentEnd = LunaMonotonicClock.nowNanoseconds()
+
+        runtimeAttribution.recordFrame(
+            renderNanoseconds: renderEnd >= renderStart ? renderEnd - renderStart : 0,
+            presentNanoseconds: presentEnd >= presentStart ? presentEnd - presentStart : 0,
+            renderReport: renderReport
+        )
 
         let inputToPresentNanoseconds: UInt64
         if let oldestDispatchedInputNanoseconds,
@@ -387,6 +419,9 @@ public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
             && nativeSourceIsIdle {
             let sleepMilliseconds = framePacer.sleepMillisecondsBeforeNextFrame()
             if sleepMilliseconds > 0 {
+                runtimeAttribution.recordSoftwarePacingSleep(
+                    milliseconds: sleepMilliseconds
+                )
                 SDL_Delay(sleepMilliseconds)
             }
         }
