@@ -607,3 +607,15 @@ LUNA_DEMO_DEBUG_COMMANDS=1 swift run LunaUITestApp
 used by `LunaUITestApp`. Downstream applications provide a platform-neutral
 `LunaSDLApplicationScene`; Luna owns SDL initialization, input normalization,
 framebuffer presentation, resizing, pacing, and shutdown.
+
+## Moth-first downstream execution at M3A {#MOTH_FIRST_M3A_DOWNSTREAM_POLICY}
+
+Moth Text is now the primary product driver. Luna's accepted workspace, tab,
+pane, command, text, and rendering mechanisms are consumed directly by Moth.
+Standalone Luna work is opened only when Moth demonstrates a product-neutral
+component gap, confirmed framework bug, platform-boundary issue, accessibility
+problem, or measured Luna-owned regression.
+
+M3A uses Luna's existing tab/sidebar layout, deterministic overflow, stable hit
+targets, close targeting, and accessibility projection. Moth continues to own documents,
+history, dirty prompts, canonical-file reuse, tab ordering policy, and sessions.

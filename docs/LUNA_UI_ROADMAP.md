@@ -1595,3 +1595,12 @@ and measured acceptance matrix passes.
 ### C2.5F — Virtualized document presentation
 
 **Implementation checkpoint.** `LunaStaticTextView` can consume `LunaStaticTextVirtualizationContext` to make viewport work independent of total document length after one revision snapshot is established. Native paired acceptance remains required before M3A.
+
+## Luna support posture during Moth M3A {#LUNA_M3A_SUPPORT_POSTURE}
+
+The C2.5J Moth baseline clears the large-document blocker. The immediate roadmap
+work is Moth M3A document sheets and real tabs. Luna is not starting a parallel
+feature campaign: the existing Phase 5F.1 tab/pane mechanics are the first choice.
+Luna changes occur only when M3A exposes a reusable API defect or missing generic
+capability, and any such change must preserve application ownership of document
+and workspace policy.

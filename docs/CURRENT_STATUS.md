@@ -313,3 +313,10 @@ Delivered:
 ## C2.5F virtualized document layout
 
 Luna now provides an opt-in revision-stable virtualization context for static text views. Soft-wrap geometry is built lazily for visible rows plus bounded overscan, global visual-row lookup uses an incrementally refined Fenwick index, and width/line/segment caches have explicit retention limits. Legacy callers remain on the original complete-document path until they supply a context.
+
+## Current downstream integration: Moth M3A {#CURRENT_MOTH_M3A_INTEGRATION}
+
+Luna's accepted C2.5H revision already contains the generic tab and pane mechanics
+required by Moth M3A. This paired iteration updates documentation and validates
+those APIs against Moth's real document-sheet product integration; no new Luna
+product policy is introduced.

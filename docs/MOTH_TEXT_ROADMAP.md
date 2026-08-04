@@ -489,3 +489,11 @@ reusable layout, presentation, or focus-management seams.
 ## Luna-UI Licensing Baseline
 
 As of Luna-UI Phase 5C.2.2, the reusable Luna-UI engine is licensed under `MPL-2.0`. As of Phase 5D, LunaUITestApp has a narrow local-file proof behind Luna workspace/document contracts. As of Phase 5D.1, the repo also includes a repeatable public-domain UTF-8 corpus for demoing and regression-testing file-backed editor behavior. As of Phase 5D.2, the Luna demo also proves new untitled buffers, safe empty local-file creation, and Save As routing. As of Phase 5D.3, Open…, Save As…, Save-on-untitled, and dirty-close Save / Don’t Save / Cancel flow through a host dialog boundary outside LunaUI, leaving room for Moth to provide true product-native dialog policy later. As of Phase 5D.3.1, proof-gallery animation uses host-owned logical animation timing with clamped deltas while the editor harness remains event-driven. As of Phase 5D.3.2, proof-gallery animation-only frames restore a cached static proof frame and redraw only dynamic proof surfaces. C2.3 later restores that cached kitchen-sink presentation as the default while keeping `--editor` as the Moth-like performance baseline. Moth Text remains the product/application layer built on top of Luna boundaries; product filesystem/project policy should stay outside Luna source files unless intentionally contributed to the reusable engine.
+
+## Current Moth product phase after C2.5J {#MOTH_M3A_CURRENT_AFTER_C25J}
+
+M3A document sheets and real tabs is now active. New File appends rather than
+replaces, Open reuses canonical files, tabs and Open Files rows target the same
+sheet collection, tab close targets one sheet, and every sheet retains independent
+document/history/view state. Visible Find/Replace
+remains the next M2.2B2 phase after stable active-sheet targeting exists.
