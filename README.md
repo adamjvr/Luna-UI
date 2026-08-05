@@ -619,3 +619,13 @@ problem, or measured Luna-owned regression.
 M3A uses Luna's existing tab/sidebar layout, deterministic overflow, stable hit
 targets, close targeting, and accessibility projection. Moth continues to own documents,
 history, dirty prompts, canonical-file reuse, tab ordering policy, and sessions.
+
+## M2.2B2 downstream support: clipboard and editable fields
+
+Moth Text M2.2B2 adds a product-neutral `LunaClipboardService`, an SDL Linux
+implementation, deterministic in-memory clipboard tests, reusable grapheme-safe
+single-line field state, visible invalid-regex panel status, and optional SDL
+application identity hints. Luna owns no Copy/Cut/Paste command policy and no Moth
+document mutation.
+
+See [`docs/M2.2B2_CLIPBOARD_AND_EDITABLE_FIELDS.md`](docs/M2.2B2_CLIPBOARD_AND_EDITABLE_FIELDS.md).

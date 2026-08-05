@@ -320,3 +320,10 @@ Luna's accepted C2.5H revision already contains the generic tab and pane mechani
 required by Moth M3A. This paired iteration updates documentation and validates
 those APIs against Moth's real document-sheet product integration; no new Luna
 product policy is introduced.
+
+## M2.2B2 clipboard and field support
+
+The current downstream Moth phase requires native plain-text clipboard access,
+focus-aware editable Find fields, invalid-regex feedback, and stable SDL
+application identity. Luna supplies those generic contracts and implementations;
+Moth retains command routing, document history, search policy, and sheet state.

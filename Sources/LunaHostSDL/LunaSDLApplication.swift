@@ -11,6 +11,7 @@
 #if os(Linux)
 
 import Foundation
+import Glibc
 import SDL2
 
 import LunaCore
@@ -27,6 +28,8 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
     public var inputPollingBudget: LunaInputPollingBudget
     public var inputPresentationPolicy: LunaInteractivePresentationPolicy
     public var inputDispatchBudget: LunaInputDispatchBudget
+    public var applicationID: String?
+    public var windowClass: String?
 
     public init(
         title: String,
@@ -36,7 +39,9 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         usesVSync: Bool = true,
         inputPollingBudget: LunaInputPollingBudget = .interactive,
         inputPresentationPolicy: LunaInteractivePresentationPolicy = .interactive,
-        inputDispatchBudget: LunaInputDispatchBudget = .interactive
+        inputDispatchBudget: LunaInputDispatchBudget = .interactive,
+        applicationID: String? = nil,
+        windowClass: String? = nil
     ) {
         self.title = title
         self.initialWidth = max(1, initialWidth)
@@ -46,6 +51,8 @@ public struct LunaSDLApplicationConfiguration: Hashable, Sendable {
         self.inputPollingBudget = inputPollingBudget
         self.inputPresentationPolicy = inputPresentationPolicy
         self.inputDispatchBudget = inputDispatchBudget
+        self.applicationID = applicationID
+        self.windowClass = windowClass
     }
 }
 
@@ -150,12 +157,33 @@ private final class LunaSDLCursorController {
     }
 }
 
+
+private func configureSDLApplicationIdentity(
+    _ configuration: LunaSDLApplicationConfiguration
+) {
+    configuration.title.withCString { value in
+        _ = setenv("SDL_APP_NAME", value, 1)
+    }
+    if let applicationID = configuration.applicationID, !applicationID.isEmpty {
+        applicationID.withCString { value in
+            _ = setenv("SDL_VIDEO_WAYLAND_WMCLASS", value, 1)
+        }
+    }
+    let windowClass = configuration.windowClass ?? configuration.applicationID
+    if let windowClass, !windowClass.isEmpty {
+        windowClass.withCString { value in
+            _ = setenv("SDL_VIDEO_X11_WMCLASS", value, 1)
+        }
+    }
+}
+
 /// Runs a complete Luna application using the Linux SDL host.
 @discardableResult
 public func runLunaSDLApplication<Scene: LunaSDLApplicationScene>(
     configuration: LunaSDLApplicationConfiguration,
     scene: inout Scene
 ) -> Int32 {
+    configureSDLApplicationIdentity(configuration)
     guard SDL_Init(UInt32(SDL_INIT_VIDEO)) == 0 else {
         lunaSDLLogError("SDL_Init failed: \(String(cString: SDL_GetError()))")
         return 1

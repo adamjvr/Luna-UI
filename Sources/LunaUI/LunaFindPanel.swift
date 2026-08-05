@@ -83,10 +83,17 @@ public struct LunaFindResultSet: Hashable, Sendable {
     public var query: LunaFindQuery
     public var matches: [LunaFindMatch]
     public var selectedMatchIndex: Int?
+    public var errorMessage: String?
 
-    public init(query: LunaFindQuery, matches: [LunaFindMatch], selectedMatchIndex: Int? = nil) {
+    public init(
+        query: LunaFindQuery,
+        matches: [LunaFindMatch],
+        selectedMatchIndex: Int? = nil,
+        errorMessage: String? = nil
+    ) {
         self.query = query
         self.matches = matches
+        self.errorMessage = errorMessage
         if let selectedMatchIndex, matches.indices.contains(selectedMatchIndex) {
             self.selectedMatchIndex = selectedMatchIndex
         } else {
@@ -103,35 +110,64 @@ public struct LunaFindResultSet: Hashable, Sendable {
     }
 
     public var statusText: String {
+        if let errorMessage { return errorMessage }
         guard !query.isEmpty else { return "No query" }
         guard let selectedMatchIndex else { return "No matches" }
         return "\(selectedMatchIndex + 1) of \(matches.count)"
     }
 
     public func selectingNext(wrapping: Bool = true) -> LunaFindResultSet {
-        guard !matches.isEmpty else { return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: nil) }
+        guard !matches.isEmpty else {
+            return LunaFindResultSet(
+                query: query,
+                matches: matches,
+                selectedMatchIndex: nil,
+                errorMessage: errorMessage
+            )
+        }
         let current = selectedMatchIndex ?? -1
         let next = current + 1
         let index = next < matches.count ? next : (wrapping ? 0 : matches.count - 1)
-        return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: index)
+        return LunaFindResultSet(
+            query: query,
+            matches: matches,
+            selectedMatchIndex: index,
+            errorMessage: errorMessage
+        )
     }
 
     public func selectingPrevious(wrapping: Bool = true) -> LunaFindResultSet {
-        guard !matches.isEmpty else { return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: nil) }
+        guard !matches.isEmpty else {
+            return LunaFindResultSet(
+                query: query,
+                matches: matches,
+                selectedMatchIndex: nil,
+                errorMessage: errorMessage
+            )
+        }
         let current = selectedMatchIndex ?? matches.count
         let previous = current - 1
         let index = previous >= 0 ? previous : (wrapping ? matches.count - 1 : 0)
-        return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: index)
+        return LunaFindResultSet(
+            query: query,
+            matches: matches,
+            selectedMatchIndex: index,
+            errorMessage: errorMessage
+        )
     }
 
     public func selectingMatch(containing location: LunaTextLocation) -> LunaFindResultSet {
         guard !matches.isEmpty else { return self }
-        let docLocation = location
         if let index = matches.firstIndex(where: { match in
             let range = match.range.normalized
-            return docLocation >= range.anchor && docLocation <= range.focus
+            return location >= range.anchor && location <= range.focus
         }) {
-            return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: index)
+            return LunaFindResultSet(
+                query: query,
+                matches: matches,
+                selectedMatchIndex: index,
+                errorMessage: errorMessage
+            )
         }
         return self
     }
@@ -139,58 +175,100 @@ public struct LunaFindResultSet: Hashable, Sendable {
 
 /// Deterministic literal/regex scanner for Luna text documents.
 public enum LunaFindScanner {
-    public static func results(in document: LunaStaticTextDocument, query: LunaFindQuery) -> LunaFindResultSet {
+    public static func results(
+        in document: LunaStaticTextDocument,
+        query: LunaFindQuery
+    ) -> LunaFindResultSet {
         guard !query.isEmpty else {
             return LunaFindResultSet(query: query, matches: [], selectedMatchIndex: nil)
         }
 
-        let matches: [LunaFindMatch]
-        if query.options.usesRegularExpression {
-            matches = regexMatches(in: document, query: query)
-        } else {
-            matches = literalMatches(in: document, query: query)
+        do {
+            let matches = query.options.usesRegularExpression
+                ? try regexMatches(in: document, query: query)
+                : literalMatches(in: document, query: query)
+            return LunaFindResultSet(
+                query: query,
+                matches: matches,
+                selectedMatchIndex: matches.isEmpty ? nil : 0
+            )
+        } catch {
+            return LunaFindResultSet(
+                query: query,
+                matches: [],
+                selectedMatchIndex: nil,
+                errorMessage: "Invalid regular expression: \(error.localizedDescription)"
+            )
         }
-        return LunaFindResultSet(query: query, matches: matches, selectedMatchIndex: matches.isEmpty ? nil : 0)
     }
 
-    private static func literalMatches(in document: LunaStaticTextDocument, query: LunaFindQuery) -> [LunaFindMatch] {
+    private static func literalMatches(
+        in document: LunaStaticTextDocument,
+        query: LunaFindQuery
+    ) -> [LunaFindMatch] {
         let needle = query.text
         guard !needle.isEmpty else { return [] }
 
         let haystack = document.text
-        let compareOptions: String.CompareOptions = query.options.isCaseSensitive ? [] : [.caseInsensitive]
+        let compareOptions: String.CompareOptions = query.options.isCaseSensitive
+            ? []
+            : [.caseInsensitive]
         var searchStart = haystack.startIndex
         var found: [LunaFindMatch] = []
 
         while searchStart <= haystack.endIndex,
-              let range = haystack.range(of: needle, options: compareOptions, range: searchStart..<haystack.endIndex) {
-            if !range.isEmpty, acceptsWordBoundary(in: haystack, range: range, options: query.options) {
-                found.append(makeMatch(document: document, textRange: range, matchedText: String(haystack[range]), index: found.count))
+              let range = haystack.range(
+                of: needle,
+                options: compareOptions,
+                range: searchStart..<haystack.endIndex
+              ) {
+            if !range.isEmpty,
+               acceptsWordBoundary(in: haystack, range: range, options: query.options) {
+                found.append(
+                    makeMatch(
+                        document: document,
+                        textRange: range,
+                        matchedText: String(haystack[range]),
+                        index: found.count
+                    )
+                )
             }
 
-            if range.isEmpty {
-                break
-            }
+            if range.isEmpty { break }
             searchStart = range.upperBound
         }
 
         return found
     }
 
-    private static func regexMatches(in document: LunaStaticTextDocument, query: LunaFindQuery) -> [LunaFindMatch] {
-        let pattern = query.text
-        guard !pattern.isEmpty else { return [] }
-
-        let options: NSRegularExpression.Options = query.options.isCaseSensitive ? [] : [.caseInsensitive]
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else { return [] }
+    private static func regexMatches(
+        in document: LunaStaticTextDocument,
+        query: LunaFindQuery
+    ) throws -> [LunaFindMatch] {
+        let options: NSRegularExpression.Options = query.options.isCaseSensitive
+            ? []
+            : [.caseInsensitive]
+        let regex = try NSRegularExpression(pattern: query.text, options: options)
 
         let text = document.text
         let fullRange = NSRange(text.startIndex..<text.endIndex, in: text)
         var result: [LunaFindMatch] = []
         regex.enumerateMatches(in: text, options: [], range: fullRange) { match, _, _ in
-            guard let match, match.range.length > 0, let range = Range(match.range, in: text) else { return }
-            guard acceptsWordBoundary(in: text, range: range, options: query.options) else { return }
-            result.append(makeMatch(document: document, textRange: range, matchedText: String(text[range]), index: result.count))
+            guard let match,
+                  match.range.length > 0,
+                  let range = Range(match.range, in: text)
+            else { return }
+            guard acceptsWordBoundary(in: text, range: range, options: query.options) else {
+                return
+            }
+            result.append(
+                makeMatch(
+                    document: document,
+                    textRange: range,
+                    matchedText: String(text[range]),
+                    index: result.count
+                )
+            )
         }
         return result
     }
@@ -226,8 +304,12 @@ public enum LunaFindScanner {
         options: LunaFindOptions
     ) -> Bool {
         guard options.matchesWholeWord else { return true }
-        let before: Character? = range.lowerBound > text.startIndex ? text[text.index(before: range.lowerBound)] : nil
-        let after: Character? = range.upperBound < text.endIndex ? text[range.upperBound] : nil
+        let before: Character? = range.lowerBound > text.startIndex
+            ? text[text.index(before: range.lowerBound)]
+            : nil
+        let after: Character? = range.upperBound < text.endIndex
+            ? text[range.upperBound]
+            : nil
         return !isWordCharacter(before) && !isWordCharacter(after)
     }
 
@@ -328,8 +410,8 @@ public struct LunaFindPanelInteractionResult: Hashable, Sendable {
 
 /// Mutable state for a find/replace panel.
 public struct LunaFindPanelState: Hashable, Sendable {
-    public var queryText: String
-    public var replaceText: String
+    public var queryFieldState: LunaEditableFieldState
+    public var replaceFieldState: LunaEditableFieldState
     public var options: LunaFindOptions
     public var results: LunaFindResultSet
     public var focusedField: LunaFindPanelField
@@ -343,15 +425,46 @@ public struct LunaFindPanelState: Hashable, Sendable {
         focusedField: LunaFindPanelField = .query,
         isReplaceVisible: Bool = true
     ) {
-        self.queryText = queryText
-        self.replaceText = replaceText
+        self.queryFieldState = LunaEditableFieldState(text: queryText)
+        self.replaceFieldState = LunaEditableFieldState(text: replaceText)
         self.options = options
         self.focusedField = focusedField
         self.isReplaceVisible = isReplaceVisible
-        self.results = results ?? LunaFindResultSet(query: LunaFindQuery(text: queryText, options: options), matches: [])
+        self.results = results ?? LunaFindResultSet(
+            query: LunaFindQuery(text: queryText, options: options),
+            matches: []
+        )
     }
 
-    public var query: LunaFindQuery { LunaFindQuery(text: queryText, options: options) }
+    public var queryText: String {
+        get { queryFieldState.text }
+        set { queryFieldState.setText(newValue) }
+    }
+
+    public var replaceText: String {
+        get { replaceFieldState.text }
+        set { replaceFieldState.setText(newValue) }
+    }
+
+    public var query: LunaFindQuery {
+        LunaFindQuery(text: queryText, options: options)
+    }
+
+    public func fieldState(for field: LunaFindPanelField) -> LunaEditableFieldState {
+        field == .query ? queryFieldState : replaceFieldState
+    }
+
+    public var selectedTextInFocusedField: String? {
+        fieldState(for: focusedField).selectedText
+    }
+
+    public var focusedFieldHasSelection: Bool {
+        fieldState(for: focusedField).hasSelection
+    }
+
+    public var focusedFieldIsEmpty: Bool {
+        fieldState(for: focusedField).text.isEmpty
+    }
 
     public mutating func refreshResults<P: LunaFindResultsProviding>(
         using provider: P,
@@ -361,11 +474,14 @@ public struct LunaFindPanelState: Hashable, Sendable {
         if let location {
             newResults = newResults.selectingMatch(containing: location)
         } else if let old = results.selectedMatch,
-                  let candidate = newResults.matches.firstIndex(where: { $0.utf8Offset >= old.utf8Offset }) {
+                  let candidate = newResults.matches.firstIndex(where: {
+                    $0.utf8Offset >= old.utf8Offset
+                  }) {
             newResults = LunaFindResultSet(
                 query: newResults.query,
                 matches: newResults.matches,
-                selectedMatchIndex: candidate
+                selectedMatchIndex: candidate,
+                errorMessage: newResults.errorMessage
             )
         }
         results = newResults
@@ -381,7 +497,6 @@ public struct LunaFindPanelState: Hashable, Sendable {
         )
     }
 
-    /// Forward a semantic panel action to a product-owned session.
     @discardableResult
     public mutating func perform<S: LunaFindPanelSession>(
         _ action: LunaFindPanelAction,
@@ -399,27 +514,104 @@ public struct LunaFindPanelState: Hashable, Sendable {
 
     public mutating func appendCommittedText(_ text: String) {
         guard !text.isEmpty else { return }
+        _ = replaceSelectionInFocusedField(with: text)
+    }
+
+    @discardableResult
+    public mutating func replaceSelectionInFocusedField(with text: String) -> Bool {
         switch focusedField {
         case .query:
-            queryText.append(text)
+            return queryFieldState.replaceSelection(with: text)
         case .replace:
-            replaceText.append(text)
+            return replaceFieldState.replaceSelection(with: text)
+        }
+    }
+
+    public mutating func selectAllInFocusedField() {
+        switch focusedField {
+        case .query: queryFieldState.selectAll()
+        case .replace: replaceFieldState.selectAll()
+        }
+    }
+
+    public mutating func setCaretInFocusedField(
+        utf8Offset: Int,
+        extendingSelection: Bool = false
+    ) {
+        switch focusedField {
+        case .query:
+            queryFieldState.setCaret(
+                utf8Offset: utf8Offset,
+                extendingSelection: extendingSelection
+            )
+        case .replace:
+            replaceFieldState.setCaret(
+                utf8Offset: utf8Offset,
+                extendingSelection: extendingSelection
+            )
         }
     }
 
     public mutating func deleteBackwardInFocusedField() {
         switch focusedField {
-        case .query:
-            guard !queryText.isEmpty else { return }
-            queryText.removeLast()
-        case .replace:
-            guard !replaceText.isEmpty else { return }
-            replaceText.removeLast()
+        case .query: _ = queryFieldState.deleteBackward()
+        case .replace: _ = replaceFieldState.deleteBackward()
         }
     }
 
-    public mutating func focusNextField() {
-        focusedField = focusedField == .query ? .replace : .query
+    public mutating func deleteForwardInFocusedField() {
+        switch focusedField {
+        case .query: _ = queryFieldState.deleteForward()
+        case .replace: _ = replaceFieldState.deleteForward()
+        }
+    }
+
+    public mutating func moveCaretBackwardInFocusedField(extendingSelection: Bool) {
+        switch focusedField {
+        case .query:
+            queryFieldState.moveBackward(extendingSelection: extendingSelection)
+        case .replace:
+            replaceFieldState.moveBackward(extendingSelection: extendingSelection)
+        }
+    }
+
+    public mutating func moveCaretForwardInFocusedField(extendingSelection: Bool) {
+        switch focusedField {
+        case .query:
+            queryFieldState.moveForward(extendingSelection: extendingSelection)
+        case .replace:
+            replaceFieldState.moveForward(extendingSelection: extendingSelection)
+        }
+    }
+
+    public mutating func moveCaretToStartInFocusedField(extendingSelection: Bool) {
+        switch focusedField {
+        case .query:
+            queryFieldState.moveToStart(extendingSelection: extendingSelection)
+        case .replace:
+            replaceFieldState.moveToStart(extendingSelection: extendingSelection)
+        }
+    }
+
+    public mutating func moveCaretToEndInFocusedField(extendingSelection: Bool) {
+        switch focusedField {
+        case .query:
+            queryFieldState.moveToEnd(extendingSelection: extendingSelection)
+        case .replace:
+            replaceFieldState.moveToEnd(extendingSelection: extendingSelection)
+        }
+    }
+
+    public mutating func focusNextField(reverse: Bool = false) {
+        guard isReplaceVisible else {
+            focusedField = .query
+            return
+        }
+        if reverse {
+            focusedField = focusedField == .query ? .replace : .query
+        } else {
+            focusedField = focusedField == .query ? .replace : .query
+        }
     }
 
     public mutating func toggleCaseSensitive() { options.isCaseSensitive.toggle() }
@@ -435,14 +627,20 @@ public extension LunaFindPanelState {
         guard !event.text.isEmpty else { return LunaFindPanelInteractionResult() }
         appendCommittedText(event.text)
         refreshResults(using: provider)
-        return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
+        return LunaFindPanelInteractionResult(
+            didConsumeEvent: true,
+            didChangeState: true
+        )
     }
 
     mutating func handleTextInput(
         _ event: LunaTextInputEvent,
         document: LunaStaticTextDocument
     ) -> LunaFindPanelInteractionResult {
-        handleTextInput(event, provider: LunaStaticTextFindResultsProvider(document: document))
+        handleTextInput(
+            event,
+            provider: LunaStaticTextFindResultsProvider(document: document)
+        )
     }
 
     mutating func handleKeyboardEvent<P: LunaFindResultsProviding>(
@@ -451,14 +649,62 @@ public extension LunaFindPanelState {
     ) -> LunaFindPanelInteractionResult {
         switch event.key {
         case .escape:
-            return LunaFindPanelInteractionResult(didConsumeEvent: true, didDismiss: true)
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didDismiss: true
+            )
         case .tab:
-            focusNextField()
-            return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
+            focusNextField(reverse: event.modifiers.shift)
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
         case .backspace:
             deleteBackwardInFocusedField()
             refreshResults(using: provider)
-            return LunaFindPanelInteractionResult(didConsumeEvent: true, didChangeState: true)
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
+        case .delete:
+            deleteForwardInFocusedField()
+            refreshResults(using: provider)
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
+        case .arrowLeft:
+            moveCaretBackwardInFocusedField(
+                extendingSelection: event.modifiers.shift
+            )
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
+        case .arrowRight:
+            moveCaretForwardInFocusedField(
+                extendingSelection: event.modifiers.shift
+            )
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
+        case .home:
+            moveCaretToStartInFocusedField(
+                extendingSelection: event.modifiers.shift
+            )
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
+        case .end:
+            moveCaretToEndInFocusedField(
+                extendingSelection: event.modifiers.shift
+            )
+            return LunaFindPanelInteractionResult(
+                didConsumeEvent: true,
+                didChangeState: true
+            )
         case .enter:
             return LunaFindPanelInteractionResult(
                 didConsumeEvent: true,
@@ -474,7 +720,10 @@ public extension LunaFindPanelState {
         _ event: LunaKeyboardEvent,
         document: LunaStaticTextDocument
     ) -> LunaFindPanelInteractionResult {
-        handleKeyboardEvent(event, provider: LunaStaticTextFindResultsProvider(document: document))
+        handleKeyboardEvent(
+            event,
+            provider: LunaStaticTextFindResultsProvider(document: document)
+        )
     }
 
     mutating func selectNext() {
@@ -649,6 +898,17 @@ public struct LunaFindPanelTextLayout: Hashable, Sendable {
     }
 }
 
+
+public struct LunaFindPanelFieldHit: Hashable, Sendable {
+    public var field: LunaFindPanelField
+    public var utf8Offset: Int
+
+    public init(field: LunaFindPanelField, utf8Offset: Int) {
+        self.field = field
+        self.utf8Offset = max(0, utf8Offset)
+    }
+}
+
 public struct LunaFindPanel: Hashable, Sendable {
     public var id: LunaNodeID
     public var bounds: LunaRectI
@@ -689,6 +949,41 @@ public struct LunaFindPanel: Hashable, Sendable {
     public var replaceButtonNodeID: LunaNodeID { id.child("action.replace") }
     public var replaceAllButtonNodeID: LunaNodeID { id.child("action.replace-all") }
     public var statusNodeID: LunaNodeID { id.child("status") }
+
+
+    public func utf8Offset(in field: LunaFindPanelField, atX x: Int) -> Int {
+        let layout = layout()
+        let bounds = field == .query
+            ? layout.queryFieldBounds
+            : layout.replaceFieldBounds
+        let contentX = bounds.x + 8
+        let relative = max(0, x - contentX)
+        let advance = max(1, metrics.glyphMetrics.advance)
+        let characterIndex = Int(
+            (Double(relative) / Double(advance)).rounded(.toNearestOrAwayFromZero)
+        )
+        return state.fieldState(for: field).utf8Offset(
+            forCharacterIndex: characterIndex
+        )
+    }
+
+    public func fieldHit(at point: LunaPointI) -> LunaFindPanelFieldHit? {
+        let layout = layout()
+        if layout.queryFieldBounds.contains(x: point.x, y: point.y) {
+            return LunaFindPanelFieldHit(
+                field: .query,
+                utf8Offset: utf8Offset(in: .query, atX: point.x)
+            )
+        }
+        if state.isReplaceVisible,
+           layout.replaceFieldBounds.contains(x: point.x, y: point.y) {
+            return LunaFindPanelFieldHit(
+                field: .replace,
+                utf8Offset: utf8Offset(in: .replace, atX: point.x)
+            )
+        }
+        return nil
+    }
 
     public func layout() -> LunaFindPanelLayout {
         guard !bounds.isEmpty else {
@@ -785,9 +1080,21 @@ public struct LunaFindPanel: Hashable, Sendable {
         displayList.append(.rect(layout.panelBounds.insetForFind(by: 1), panel.background))
         displayList.append(.rect(LunaRectI(x: layout.panelBounds.x, y: layout.panelBounds.y, w: layout.panelBounds.w, h: 1), field.focusedBorder))
 
-        appendField(layout.queryFieldBounds, focused: state.focusedField == .query, displayList: &displayList, field: field)
+        appendField(
+            layout.queryFieldBounds,
+            state: state.queryFieldState,
+            focused: state.focusedField == .query,
+            displayList: &displayList,
+            field: field
+        )
         if state.isReplaceVisible {
-            appendField(layout.replaceFieldBounds, focused: state.focusedField == .replace, displayList: &displayList, field: field)
+            appendField(
+                layout.replaceFieldBounds,
+                state: state.replaceFieldState,
+                focused: state.focusedField == .replace,
+                displayList: &displayList,
+                field: field
+            )
         }
 
         for button in textLayout().buttons where !button.bounds.isEmpty {
@@ -799,6 +1106,7 @@ public struct LunaFindPanel: Hashable, Sendable {
 
     private func appendField(
         _ bounds: LunaRectI,
+        state: LunaEditableFieldState,
         focused: Bool,
         displayList: inout LunaDisplayList,
         field: LunaTextFieldVisualStyle
@@ -806,6 +1114,44 @@ public struct LunaFindPanel: Hashable, Sendable {
         guard !bounds.isEmpty else { return }
         displayList.append(.rect(bounds, focused ? field.focusedBorder : field.border))
         displayList.append(.rect(bounds.insetForFind(by: 1), field.background))
+
+        let textBounds = bounds.insetForFindText(x: 8, y: 4)
+        let advance = max(1, metrics.glyphMetrics.advance)
+        if let range = state.selectionUTF8Range {
+            let start = state.characterIndex(forUTF8Offset: range.lowerBound)
+            let end = state.characterIndex(forUTF8Offset: range.upperBound)
+            let x0 = min(textBounds.x + textBounds.w, textBounds.x + start * advance)
+            let x1 = min(textBounds.x + textBounds.w, textBounds.x + end * advance)
+            if x1 > x0 {
+                displayList.append(
+                    .rect(
+                        LunaRectI(
+                            x: x0,
+                            y: textBounds.y,
+                            w: x1 - x0,
+                            h: textBounds.h
+                        ),
+                        theme.ui.editor.selectionBackground.asRenderColor
+                    )
+                )
+            }
+        }
+
+        if focused {
+            let index = state.characterIndex(
+                forUTF8Offset: state.caretUTF8Offset
+            )
+            let x = min(
+                textBounds.x + max(0, textBounds.w - 1),
+                textBounds.x + index * advance
+            )
+            displayList.append(
+                .rect(
+                    LunaRectI(x: x, y: textBounds.y, w: 1, h: textBounds.h),
+                    theme.ui.editor.caret.asRenderColor
+                )
+            )
+        }
     }
 
     public func buildAccessibilityNode() -> LunaAccessibilityNode {
